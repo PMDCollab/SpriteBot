@@ -674,6 +674,8 @@ def createShinyIdx(full_idx, shiny):
     return new_idx
 
 def getNodeFromIdx(tracker_dict, full_idx, depth):
+    if len(full_idx) == 0:
+        return None
     if full_idx[depth] not in tracker_dict:
         return None
 

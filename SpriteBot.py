@@ -602,6 +602,9 @@ class SpriteBot:
 
     async def queryStatus(self, msg, name_args, asset_type, recolor):
         # compute answer from current status
+        if len(name_args) == 0:
+            await msg.channel.send(msg.author.mention + " Specify a Pokemon.")
+            return
         name_seq = [SpriteUtils.sanitizeName(i) for i in name_args]
         full_idx = SpriteUtils.findFullTrackerIdx(self.tracker, name_seq, 0)
         if full_idx is None:
