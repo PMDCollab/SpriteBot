@@ -136,13 +136,15 @@ class SpriteBot:
             json.dump(new_tracker, txt, indent=2)
 
     def gitCommit(self, msg):
-        self.repo.git.add(".")
-        self.repo.git.commit(m=msg)
-        self.commits += 1
+        if self.config.push:
+            self.repo.git.add(".")
+            self.repo.git.commit(m=msg)
+            self.commits += 1
 
     def gitPush(self):
-        origin = self.repo.remotes.origin
-        origin.push()
+        if self.config.push:
+            origin = self.repo.remotes.origin
+            origin.push()
 
     async def updateBot(self, msg):
         resp_ch = self.getChatChannel(msg.guild.id)
@@ -175,8 +177,10 @@ class SpriteBot:
         added = chosen_node.__dict__[asset_type + "_credit"] != ""
         complete = chosen_node.__dict__[asset_type+"_complete"]
         required = chosen_node.__dict__[asset_type+"_required"]
-        if len(pending) > 0:
-            if complete:  # interrobang
+        if complete > 1: # star
+            return "\u2B50"
+        elif len(pending) > 0:
+            if complete > 0:  # interrobang
                 return "\u2049"
             else:  # question
                 return "\u2754"
@@ -184,7 +188,7 @@ class SpriteBot:
             if len(pending) > 0:  # interrobang
                 return "\u2049"
             else:
-                if complete:  # checkmark
+                if complete > 0:  # checkmark
                     return "\u2705"
                 else:  # white circle
                     return "\u26AA"
@@ -346,7 +350,7 @@ class SpriteBot:
             shiny_idx = SpriteUtils.createShinyIdx(full_idx, True)
             shiny_node = SpriteUtils.getNodeFromIdx(self.tracker, shiny_idx, 0)
             if shiny_node.__dict__[asset_type+"_credit"] != "":
-                shiny_node.__dict__[asset_type+"_complete"] = False
+                shiny_node.__dict__[asset_type+"_complete"] = 0
                 approve_msg += "\nNote: Shiny form now marked as incomplete due to this change."
 
         # save the tracker
@@ -605,7 +609,7 @@ class SpriteBot:
         self.saveTracker()
         return new_link
 
-    async def completeSlot(self, msg, name_args, asset_type):
+    async def completeSlot(self, msg, name_args, asset_type, phase):
         name_seq = [SpriteUtils.sanitizeName(i) for i in name_args]
         full_idx = SpriteUtils.findFullTrackerIdx(self.tracker, name_seq, 0)
         if full_idx is None:
@@ -613,17 +617,24 @@ class SpriteBot:
             return
         chosen_node = SpriteUtils.getNodeFromIdx(self.tracker, full_idx, 0)
 
+        phase_str = "incomplete"
+        if phase == 1:
+            phase_str = "complete"
+        elif phase == 2:
+            phase_str = "filled"
+
         # if the node has no credit, fail
-        if chosen_node.__dict__[asset_type + "_credit"] == "":
+        if chosen_node.__dict__[asset_type + "_credit"] == "" and phase > 0:
             status = self.getStatusEmoji(chosen_node, asset_type)
-            await msg.channel.send(msg.author.mention + " {0} #{1:03d}: {2} has no data and cannot be marked complete.".format(status, int(full_idx[0]), " ".join(name_seq)))
+            await msg.channel.send(msg.author.mention +
+                                   " {0} #{1:03d}: {2} has no data and cannot be marked {3}.".format(status, int(full_idx[0]), " ".join(name_seq), phase_str))
             return
 
         # set to complete
-        chosen_node.__dict__[asset_type + "_complete"] = True
+        chosen_node.__dict__[asset_type + "_complete"] = phase
 
         status = self.getStatusEmoji(chosen_node, asset_type)
-        await msg.channel.send(msg.author.mention + " {0} #{1:03d}: {2} marked as complete.".format(status, int(full_idx[0]), " ".join(name_seq)))
+        await msg.channel.send(msg.author.mention + " {0} #{1:03d}: {2} marked as {3}.".format(status, int(full_idx[0]), " ".join(name_seq), phase_str))
 
         self.saveTracker()
         self.changed = True
@@ -1094,10 +1105,18 @@ async def on_message(msg: discord.Message):
                 await sprite_bot.getProfile(msg)
             elif args[0] == "register":
                 await sprite_bot.setProfile(msg, args[1:])
+            elif args[0] == "spritewip":
+                await sprite_bot.completeSlot(msg, args[1:], "sprite", 0)
+            elif args[0] == "portraitwip":
+                await sprite_bot.completeSlot(msg, args[1:], "portrait", 0)
             elif args[0] == "spritedone":
-                await sprite_bot.completeSlot(msg, args[1:], "sprite")
+                await sprite_bot.completeSlot(msg, args[1:], "sprite", 1)
             elif args[0] == "portraitdone":
-                await sprite_bot.completeSlot(msg, args[1:], "portrait")
+                await sprite_bot.completeSlot(msg, args[1:], "portrait", 1)
+            elif args[0] == "spritefilled":
+                await sprite_bot.completeSlot(msg, args[1:], "sprite", 2)
+            elif args[0] == "portraitfilled":
+                await sprite_bot.completeSlot(msg, args[1:], "portrait", 2)
             elif args[0] == "clearcache" and msg.author.id == sprite_bot.config.root:
                 await sprite_bot.clearCache(msg, args[1:])
             elif args[0] == "update" and msg.author.id == sprite_bot.config.root:
@@ -1147,7 +1166,7 @@ async def periodic_update_status():
 
             # check for push
             cur_date = datetime.datetime.today().strftime('%Y-%m-%d')
-            if sprite_bot.config.push and last_date != cur_date:
+            if last_date != cur_date:
                 last_date = cur_date
                 # update push
                 if sprite_bot.commits > 0:

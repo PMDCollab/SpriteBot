@@ -493,9 +493,19 @@ class TrackerNode:
     def __init__(self, node_dict):
         temp_list = [i for i in node_dict]
         temp_list = sorted(temp_list)
+
         main_dict = { }
         for key in temp_list:
             main_dict[key] = node_dict[key]
+
+        if main_dict["portrait_complete"]:
+            main_dict["portrait_complete"] = 1
+        else:
+            main_dict["portrait_complete"] = 0
+        if main_dict["sprite_complete"]:
+            main_dict["sprite_complete"] = 1
+        else:
+            main_dict["sprite_complete"] = 0
 
         self.__dict__ = main_dict
 
@@ -528,14 +538,14 @@ def loadNameFile(name_path):
 
 def initSubNode(name):
     sub_dict = { "name" : name }
-    sub_dict["portrait_complete"] = False
+    sub_dict["portrait_complete"] = 0
     sub_dict["portrait_credit"] = ""
     sub_dict["portrait_link"] = ""
     sub_dict["portrait_modified"] = ""
     sub_dict["portrait_pending"] = {}
     sub_dict["portrait_recolor_link"] = ""
     sub_dict["portrait_required"] = False
-    sub_dict["sprite_complete"] = False
+    sub_dict["sprite_complete"] = 0
     sub_dict["sprite_credit"] = ""
     sub_dict["sprite_link"] = ""
     sub_dict["sprite_modified"] = ""
