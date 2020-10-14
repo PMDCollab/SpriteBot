@@ -986,93 +986,6 @@ class SpriteBot:
         self.saveTracker()
         self.changed = True
 
-    async def claim(self, msg, name, portrait):
-        if name.lower() not in self.names:
-            await msg.channel.send(msg.author.mention + " No such Pokemon.")
-            return
-
-        total = 0
-        for status in self.tracker:
-            if status.sprite_pending != "" and status.sprite_pending[:status.sprite_pending.find('#')] == msg.author.id:
-                total += 1
-            if status.portrait_pending != "" and status.portrait_pending[:status.portrait_pending.find('#')] == msg.author.id:
-                total += 1
-
-        if total >= 40:
-            await msg.channel.send(msg.author.mention + " Claim limit reached.")
-            return
-
-        # change the status of the sprite
-        status = self.tracker[self.names[name.lower()]]
-
-        if not portrait:
-            if status.sprite_pending != "":
-                await msg.channel.send(msg.author.mention + " Sprite already claimed by "+status.sprite_pending.split('#')[1])
-                return
-            status.sprite_pending = self.getAuthorCol(msg.author)
-            await msg.channel.send(msg.author.mention + " Sprite claimed!")
-        else:
-            if status.portrait_pending != "":
-                await msg.channel.send(msg.author.mention + " Portrait already claimed by " + status.portrait_pending.split('#')[1])
-                return
-            status.portrait_pending = self.getAuthorCol(msg.author)
-            await msg.channel.send(msg.author.mention + " Portrait claimed!")
-
-        self.saveTracker()
-
-        self.changed = True
-
-    async def unclaim(self, msg, name, portrait):
-        if name.lower() not in self.names:
-            await msg.channel.send(msg.author.mention + " No such Pokemon.")
-            return
-
-        status = self.tracker[self.names[name.lower()]]
-
-        if not portrait:
-            if status.sprite_pending == "":
-                await msg.channel.send(msg.author.mention + " Sprite already unclaimed!")
-                return
-            if status.sprite_pending[:status.sprite_pending.find('#')] != str(msg.author.id):
-                await msg.channel.send(msg.author.mention + " The sprite is claimed by "+status.sprite_pending.split('#')[1]+"!")
-                return
-            status.sprite_pending = ""
-            await msg.channel.send(msg.author.mention + " Sprite unclaimed!")
-        else:
-            if status.portrait_pending == "":
-                await msg.channel.send(msg.author.mention + " Portrait already unclaimed!")
-                return
-            if status.portrait_pending[:status.portrait_pending.find('#')] != str(msg.author.id):
-                await msg.channel.send(msg.author.mention + " The portrait is claimed by "+status.portrait_pending.split('#')[1]+"!")
-                return
-            status.portrait_pending = ""
-            await msg.channel.send(msg.author.mention + " Portrait unclaimed!")
-
-        self.saveTracker()
-
-        self.changed = True
-
-    async def getclaims(self, msg, target):
-        user_id = str(msg.author.id)
-        arg = target.strip()
-        if arg != "":
-            try:
-                user_id = str(int(arg))
-            except:
-                await msg.channel.send(msg.author.mention + " Can't find that user!")
-                return
-        result_sprites = msg.author.mention + "\nClaimed sprites:"
-        result_portraits = "\n\nClaimed portraits:"
-        for status in self.tracker:
-            if status.sprite_pending != "" and status.sprite_pending[:status.sprite_pending.find('#')] == user_id:
-                result_sprites += "\n" + status.name
-            if status.portrait_pending != "" and status.portrait_pending[:status.portrait_pending.find('#')] == user_id:
-                result_portraits += "\n" + status.name
-            if len(result_sprites) + len(result_portraits) > 1900:
-                result_portraits += "\n..."
-        await msg.channel.send(result_sprites+result_portraits)
-
-
 
 @client.event
 async def on_ready():
@@ -1142,23 +1055,6 @@ async def on_message(msg: discord.Message):
                 await sprite_bot.updateBot(msg)
             else:
                 await msg.channel.send(msg.author.mention + " Unknown Command.")
-
-            #if args[0] == "status" and msg.author.id == sprite_bot.owner_id:
-            #    await sprite_bot.printStatus(msg)
-            #elif args[0] == "getclaims":
-            #    await sprite_bot.getclaims(msg, " ".join(args[1:]))
-            #elif args[0] == "claimsprite":
-            #    await sprite_bot.claim(msg, " ".join(args[1:]), False)
-            #elif args[0] == "claimportrait":
-            #    await sprite_bot.claim(msg, " ".join(args[1:]), True)
-            #elif args[0] == "unclaimsprite":
-            #    await sprite_bot.unclaim(msg, " ".join(args[1:]), False)
-            #elif args[0] == "unclaimportrait":
-            #    await sprite_bot.unclaim(msg, " ".join(args[1:]), True)
-            #elif args[0] == "revokesprite" and msg.author.id == sprite_bot.owner_id:
-            #    await sprite_bot.revoke(msg, " ".join(args[1:]), False)
-            #elif args[0] == "revokeportrait" and msg.author.id == sprite_bot.owner_id:
-            #    await sprite_bot.revoke(msg, " ".join(args[1:]), True)
 
         elif msg.channel.id == sprite_bot.servers[guild_id_str]["submit"]:
             changed_tracker = await sprite_bot.pollSubmission(msg)
