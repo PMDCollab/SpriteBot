@@ -69,6 +69,7 @@ class SpriteBot:
         with open(os.path.join(self.path, CONFIG_FILE_PATH)) as f:
             config = json.load(f)
             self.can_push = config["push"]
+            self.update_ch = config["update_ch"]
             self.update_msg = config["update_msg"]
             self.content_path = config["path"]
             self.owner_id = config["root"]
@@ -117,6 +118,7 @@ class SpriteBot:
         with open(os.path.join(self.path, CONFIG_FILE_PATH), 'w', encoding='utf-8') as txt:
             config = { }
             config["push"] = self.can_push
+            config["update_ch"] = self.update_ch
             config["update_msg"] = self.update_msg
             config["path"] = self.content_path
             config["root"] = self.owner_id
@@ -148,6 +150,7 @@ class SpriteBot:
         origin.pull()
         await resp.edit(content="Update complete! Bot will restart.")
         self.need_restart = True
+        self.update_ch = resp_ch.id
         self.update_msg = resp.id
         self.saveConfig()
         await self.client.logout()
@@ -1028,8 +1031,10 @@ async def on_ready():
     print(client.user.id)
     global sprite_bot
     await sprite_bot.checkAllSubmissions()
-    if sprite_bot.update_msg != 0:
-        await sprite_bot.client.user.fetch_message(sprite_bot.update_msg)
+    if sprite_bot.update_ch != 0 and sprite_bot.update_msg != 0:
+        msg = await sprite_bot.client.get_channel(sprite_bot.update_ch).fetch_message(sprite_bot.update_msg)
+        await msg.edit(content="Bot updated and restarted.")
+        sprite_bot.update_ch = 0
         sprite_bot.update_msg = 0
         sprite_bot.saveConfig()
     print('------')
