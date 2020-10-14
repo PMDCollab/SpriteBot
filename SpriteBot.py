@@ -25,7 +25,7 @@ COMMAND_PREFIX = '!'
 
 scdir = os.path.dirname(os.path.abspath(__file__))
 
-print("Hello World!")
+print("Hello again World!")
 
 # wait for user input
 input("Input anything")
