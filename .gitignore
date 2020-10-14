@@ -1,6 +1,7 @@
 .idea/
 __pycache__/
 venv/
+.venv/
 config.json
 credit_names.txt
 info.txt
