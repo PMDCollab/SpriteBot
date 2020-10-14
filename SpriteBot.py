@@ -5,7 +5,7 @@ import urllib
 import traceback
 import asyncio
 import json
-import RecolorTool
+import SpriteUtils
 import datetime
 import git
 import sys
