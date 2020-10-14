@@ -498,15 +498,6 @@ class TrackerNode:
         for key in temp_list:
             main_dict[key] = node_dict[key]
 
-        if main_dict["portrait_complete"]:
-            main_dict["portrait_complete"] = 1
-        else:
-            main_dict["portrait_complete"] = 0
-        if main_dict["sprite_complete"]:
-            main_dict["sprite_complete"] = 1
-        else:
-            main_dict["sprite_complete"] = 0
-
         self.__dict__ = main_dict
 
         sub_dict = { }
