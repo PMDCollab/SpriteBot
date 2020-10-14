@@ -117,7 +117,7 @@ class SpriteBot:
         bot_repo = git.Repo(scdir)
         origin = bot_repo.remotes.origin
         origin.pull()
-        await resp.edit("Update complete! Bot will restart.")
+        await resp.edit(content="Update complete! Bot will restart.")
         self.need_restart = True
         await self.client.logout()
 
