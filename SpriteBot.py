@@ -29,7 +29,14 @@ client = discord.Client()
 
 class BotServer:
 
-    def __init__(self, main_dict):
+    def __init__(self, main_dict=None):
+        if main_dict is None:
+            self.info = 0
+            self.chat = 0
+            self.submit = 0
+            self.approval = 0
+            self.info_posts = []
+            return
         self.__dict__ = main_dict
 
     def getDict(self):
@@ -37,7 +44,16 @@ class BotServer:
 
 class BotConfig:
 
-    def __init__(self, main_dict):
+    def __init__(self, main_dict=None):
+        if main_dict is None:
+            self.path = ""
+            self.root = 0
+            self.push = False
+            self.update_ch = 0
+            self.update_msg = 0
+            self.servers = {}
+            return
+
         self.__dict__ = main_dict
 
         sub_dict = {}
@@ -55,7 +71,6 @@ class BotConfig:
         node_dict["servers"] = sub_dict
         return node_dict
 
-
 class SpriteBot:
     """
     A class for handling recolors
@@ -67,33 +82,27 @@ class SpriteBot:
         with open(os.path.join(self.path, INFO_FILE_PATH)) as f:
             self.info_post = f.read().split("\n\n\n")
         with open(os.path.join(self.path, CONFIG_FILE_PATH)) as f:
-            config = json.load(f)
-            self.can_push = config["push"]
-            self.update_ch = config["update_ch"]
-            self.update_msg = config["update_msg"]
-            self.content_path = config["path"]
-            self.owner_id = config["root"]
-            self.servers = config["servers"]
+            self.config = BotConfig(json.load(f))
 
         # init repo
-        self.repo = git.Repo(self.content_path)
+        self.repo = git.Repo(self.config.path)
         self.commits = 0
         # tracking data from the content folder
-        with open(os.path.join(self.content_path, TRACKER_FILE_PATH)) as f:
+        with open(os.path.join(self.config.path, TRACKER_FILE_PATH)) as f:
             new_tracker = json.load(f)
             self.tracker = { }
             for species_idx in new_tracker:
                 self.tracker[species_idx] = SpriteUtils.TrackerNode(new_tracker[species_idx])
         self.names = SpriteUtils.loadNameFile(os.path.join(self.path, NAME_FILE_PATH))
-        confirmed_names = SpriteUtils.loadNameFile(os.path.join(self.content_path, NAME_FILE_PATH))
+        confirmed_names = SpriteUtils.loadNameFile(os.path.join(self.config.path, NAME_FILE_PATH))
         self.client = client
         self.changed = False
 
         # update tracker based on last-modify
         over_dict = SpriteUtils.initSubNode("")
         over_dict.subgroups = self.tracker
-        SpriteUtils.fileSystemToJson(over_dict, os.path.join(self.content_path, "sprite"), "sprite", 0)
-        SpriteUtils.fileSystemToJson(over_dict, os.path.join(self.content_path, "portrait"), "portrait", 0)
+        SpriteUtils.fileSystemToJson(over_dict, os.path.join(self.config.path, "sprite"), "sprite", 0)
+        SpriteUtils.fileSystemToJson(over_dict, os.path.join(self.config.path, "portrait"), "portrait", 0)
 
         # update credits
         for name in confirmed_names:
@@ -112,24 +121,18 @@ class SpriteBot:
 
     def saveNames(self):
         SpriteUtils.updateNameFile(os.path.join(self.path, NAME_FILE_PATH), self.names, True)
-        SpriteUtils.updateNameFile(os.path.join(self.content_path, NAME_FILE_PATH), self.names, False)
+        SpriteUtils.updateNameFile(os.path.join(self.config.path, NAME_FILE_PATH), self.names, False)
 
     def saveConfig(self):
         with open(os.path.join(self.path, CONFIG_FILE_PATH), 'w', encoding='utf-8') as txt:
-            config = { }
-            config["push"] = self.can_push
-            config["update_ch"] = self.update_ch
-            config["update_msg"] = self.update_msg
-            config["path"] = self.content_path
-            config["root"] = self.owner_id
-            config["servers"] = self.servers
+            config = self.config.getDict()
             json.dump(config, txt, indent=2)
 
     def saveTracker(self):
         new_tracker = { }
         for species_idx in self.tracker:
             new_tracker[species_idx] = self.tracker[species_idx].getDict()
-        with open(os.path.join(self.content_path, TRACKER_FILE_PATH), 'w', encoding='utf-8') as txt:
+        with open(os.path.join(self.config.path, TRACKER_FILE_PATH), 'w', encoding='utf-8') as txt:
             json.dump(new_tracker, txt, indent=2)
 
     def gitCommit(self, msg):
@@ -150,13 +153,21 @@ class SpriteBot:
         origin.pull()
         await resp.edit(content="Update complete! Bot will restart.")
         self.need_restart = True
-        self.update_ch = resp_ch.id
-        self.update_msg = resp.id
+        self.config.update_ch = resp_ch.id
+        self.config.update_msg = resp.id
         self.saveConfig()
         await self.client.logout()
 
+    async def checkRestarted(self):
+        if self.config.update_ch != 0 and self.config.update_msg != 0:
+            msg = await self.client.get_channel(self.config.update_ch).fetch_message(self.config.update_msg)
+            await msg.edit(content="Bot updated and restarted.")
+            self.config.update_ch = 0
+            self.config.update_msg = 0
+            self.saveConfig()
+
     def getChatChannel(self, guild_id):
-        chat_id = self.servers[str(guild_id)]["chat"]
+        chat_id = self.config.servers[str(guild_id)].chat
         return self.client.get_channel(chat_id)
 
     def getStatusEmoji(self, chosen_node, asset_type):
@@ -165,22 +176,22 @@ class SpriteBot:
         complete = chosen_node.__dict__[asset_type+"_complete"]
         required = chosen_node.__dict__[asset_type+"_required"]
         if len(pending) > 0:
-            if complete:# interrobang
+            if complete:  # interrobang
                 return "\u2049"
-            else:# question
+            else:  # question
                 return "\u2754"
         elif added:
-            if len(pending) > 0:# interrobang
+            if len(pending) > 0:  # interrobang
                 return "\u2049"
             else:
-                if complete:# checkmark
+                if complete:  # checkmark
                     return "\u2705"
-                else:# white circle
+                else:  # white circle
                     return "\u26AA"
         else:
-            if required:# X mark
+            if required:  # X mark
                 return "\u274C"
-            else:# black circle
+            else:  # black circle
                 return "\u26AB"
 
     def getAuthorCol(self, author):
@@ -195,8 +206,8 @@ class SpriteBot:
             return mention
 
         try:
-            id = int(mention[2:-1])
-            user = self.client.get_user(id)
+            user_id = int(mention[2:-1])
+            user = self.client.get_user(user_id)
         except Exception as e:
             user = None
 
@@ -240,10 +251,10 @@ class SpriteBot:
     async def isAuthorized(self, user, guild):
         if user.id == self.client.user.id:
             return False
-        if user.id == self.owner_id:
+        if user.id == self.config.root:
             return True
         guild_id_str = str(guild.id)
-        approve_role = guild.get_role(self.servers[guild_id_str]["approval"])
+        approve_role = guild.get_role(self.config.servers[guild_id_str].approval)
 
         user_member = await guild.fetch_member(user.id)
         if user_member is None:
@@ -255,7 +266,7 @@ class SpriteBot:
     async def generateLink(self, file_data, filename):
         # file_data is a file-like object to post with
         # post the file to the admin under a specific filename
-        user = await client.fetch_user(self.owner_id)
+        user = await client.fetch_user(self.config.root)
         resp = await user.send("", file=discord.File(file_data, filename))
         result_url = resp.attachments[0].url
         return result_url
@@ -290,7 +301,7 @@ class SpriteBot:
             new_revise = "Revised"
 
         # save and set the new sprite or portrait
-        full_arr = [self.content_path, asset_type] + full_idx
+        full_arr = [self.config.path, asset_type] + full_idx
         gen_path = os.path.join(*full_arr)
         if asset_type == "sprite":
             pass
@@ -378,8 +389,8 @@ class SpriteBot:
             SpriteUtils.clearSubmissions(self.tracker[node_idx])
 
         # make sure they are re-added
-        for server in self.servers:
-            ch_id = self.servers[server]["submit"]
+        for server in self.config.servers:
+            ch_id = self.config.servers[server].submit
             msgs = []
             channel = self.client.get_channel(ch_id)
             async for message in channel.history(limit=None):
@@ -412,7 +423,7 @@ class SpriteBot:
 
             if ss:
                 async for user in ss.users():
-                    if user.id == self.owner_id:
+                    if user.id == self.config.root:
                         auto = True
                         approve.append(user.id)
 
@@ -539,10 +550,10 @@ class SpriteBot:
 
     async def updatePost(self, server):
         # update status in #info
-        msg_ids = server["info_posts"]
+        msg_ids = server.info_posts
         changed_list = False
 
-        channel = self.client.get_channel(int(server["info"]))
+        channel = self.client.get_channel(int(server.info))
 
         posts = []
         over_dict = SpriteUtils.initSubNode("")
@@ -578,10 +589,10 @@ class SpriteBot:
         # otherwise, generate that link
         # if there is no data in the folder (aka no credit)
         # create a dummy template using missingno
-        gen_path = os.path.join(self.content_path, asset_type, "0000")
+        gen_path = os.path.join(self.config.path, asset_type, "0000")
         # otherwise, use the provided path
         if chosen_node.__dict__[asset_type + "_credit"] != "":
-            full_arr = [self.content_path, asset_type] + full_idx
+            full_arr = [self.config.path, asset_type] + full_idx
             gen_path = os.path.join(*full_arr)
 
         target_idx = SpriteUtils.createShinyIdx(full_idx, recolor)
@@ -724,7 +735,7 @@ class SpriteBot:
                                              str(portraits)+"/"+str(total_portraits) + " Portraits.")
 
 
-        user = await client.fetch_user(self.owner_id)
+        user = await client.fetch_user(self.config.root)
         if msg.author == user:
             with open(TRACKER_FILE_PATH, 'rb') as file_data:
                 await user.send(file=discord.File(file_data, TRACKER_FILE_PATH))
@@ -773,12 +784,12 @@ class SpriteBot:
             await msg.channel.send(msg.author.mention + " Bad channel perms for submit!")
             return
 
-        self.servers[str(init_guild.id)] = { "info" : info_ch.id,
-                                            "chat": bot_ch.id,
-                                            "submit": submit_ch.id,
-                                            "approval": reviewer_role.id,
-                                            "info_posts": [ ]
-                                            }
+        new_server = BotServer()
+        new_server.info = info_ch.id
+        new_server.chat = bot_ch.id
+        new_server.submit = submit_ch.id
+        new_server.approval = reviewer_role.id
+        self.config.servers[str(init_guild.id)] = new_server
 
         self.saveConfig()
         await msg.channel.send(msg.author.mention + " Initialized bot to this server!")
@@ -1031,12 +1042,7 @@ async def on_ready():
     print(client.user.id)
     global sprite_bot
     await sprite_bot.checkAllSubmissions()
-    if sprite_bot.update_ch != 0 and sprite_bot.update_msg != 0:
-        msg = await sprite_bot.client.get_channel(sprite_bot.update_ch).fetch_message(sprite_bot.update_msg)
-        await msg.edit(content="Bot updated and restarted.")
-        sprite_bot.update_ch = 0
-        sprite_bot.update_msg = 0
-        sprite_bot.saveConfig()
+    await sprite_bot.checkRestarted()
     print('------')
 
 
@@ -1050,17 +1056,17 @@ async def on_message(msg: discord.Message):
 
         content = msg.content
         # only respond to the proper author
-        if msg.author.id == sprite_bot.owner_id and content.startswith("!init"):
+        if msg.author.id == sprite_bot.config.root and content.startswith("!init"):
             args = content[len(COMMAND_PREFIX):].split(' ')
             await sprite_bot.initServer(msg, args[1:])
             return
 
         # only respond to the proper guilds
         guild_id_str = str(msg.guild.id)
-        if guild_id_str not in sprite_bot.servers:
+        if guild_id_str not in sprite_bot.config.servers:
             return
 
-        if msg.channel.id == sprite_bot.servers[guild_id_str]["chat"]:
+        if msg.channel.id == sprite_bot.config.servers[guild_id_str].chat:
             if not content.startswith(COMMAND_PREFIX):
                 return
             args = content[len(COMMAND_PREFIX):].split(' ')
@@ -1092,21 +1098,21 @@ async def on_message(msg: discord.Message):
                 await sprite_bot.completeSlot(msg, args[1:], "sprite")
             elif args[0] == "portraitdone":
                 await sprite_bot.completeSlot(msg, args[1:], "portrait")
-            elif args[0] == "clearcache" and msg.author.id == sprite_bot.owner_id:
+            elif args[0] == "clearcache" and msg.author.id == sprite_bot.config.root:
                 await sprite_bot.clearCache(msg, args[1:])
-            elif args[0] == "update" and msg.author.id == sprite_bot.owner_id:
+            elif args[0] == "update" and msg.author.id == sprite_bot.config.root:
                 await sprite_bot.updateBot(msg)
             else:
                 await msg.channel.send(msg.author.mention + " Unknown Command.")
 
-        elif msg.channel.id == sprite_bot.servers[guild_id_str]["submit"]:
+        elif msg.channel.id == sprite_bot.config.servers[guild_id_str].submit:
             changed_tracker = await sprite_bot.pollSubmission(msg)
             if changed_tracker:
                 sprite_bot.saveTracker()
 
     except Exception as e:
         trace = traceback.format_exc()
-        user = await client.fetch_user(sprite_bot.owner_id)
+        user = await client.fetch_user(sprite_bot.config.root)
         await user.send("```"+trace+"```")
 
 @client.event
@@ -1116,7 +1122,7 @@ async def on_raw_reaction_add(payload):
         if payload.user_id == client.user.id:
             return
         guild_id_str = str(payload.guild_id)
-        if payload.channel_id == sprite_bot.servers[guild_id_str]["submit"]:
+        if payload.channel_id == sprite_bot.config.servers[guild_id_str].submit:
             msg = await client.get_channel(payload.channel_id).fetch_message(payload.message_id)
             changed_tracker = await sprite_bot.pollSubmission(msg)
             if changed_tracker:
@@ -1124,7 +1130,7 @@ async def on_raw_reaction_add(payload):
 
     except Exception as e:
         trace = traceback.format_exc()
-        user = await client.fetch_user(sprite_bot.owner_id)
+        user = await client.fetch_user(sprite_bot.config.root)
         await user.send("```"+trace+"```")
 
 
@@ -1136,19 +1142,19 @@ async def periodic_update_status():
         try:
             if sprite_bot.changed:
                 sprite_bot.changed = False
-                for server_id in sprite_bot.servers:
-                    await sprite_bot.updatePost(sprite_bot.servers[server_id])
+                for server_id in sprite_bot.config.servers:
+                    await sprite_bot.updatePost(sprite_bot.config.servers[server_id])
 
             # check for push
             cur_date = datetime.datetime.today().strftime('%Y-%m-%d')
-            if sprite_bot.can_push and last_date != cur_date:
+            if sprite_bot.config.push and last_date != cur_date:
                 last_date = cur_date
                 # update push
                 if sprite_bot.commits > 0:
                     sprite_bot.gitPush()
         except Exception as e:
             trace = traceback.format_exc()
-            user = await client.fetch_user(sprite_bot.owner_id)
+            user = await client.fetch_user(sprite_bot.config.root)
             print(trace)
             await user.send("```"+trace+"```")
         await asyncio.sleep(10)
