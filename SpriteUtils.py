@@ -498,13 +498,11 @@ class TrackerNode:
             main_dict[key] = node_dict[key]
 
         self.__dict__ = main_dict
-        temp_list = [i for i in self.subgroups]
-        temp_list = sorted(temp_list)
+
         sub_dict = { }
         for key in self.subgroups:
             sub_dict[key] = TrackerNode(self.subgroups[key])
         self.subgroups = sub_dict
-
 
     def getDict(self):
         node_dict = { }
@@ -515,7 +513,6 @@ class TrackerNode:
             sub_dict[sub_idx] = self.subgroups[sub_idx].getDict()
         node_dict["subgroups"] = sub_dict
         return node_dict
-
 
 def loadNameFile(name_path):
     name_dict = { }

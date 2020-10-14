@@ -27,7 +27,33 @@ scdir = os.path.dirname(os.path.abspath(__file__))
 # The Discord client.
 client = discord.Client()
 
+class BotServer:
 
+    def __init__(self, main_dict):
+        self.__dict__ = main_dict
+
+    def getDict(self):
+        return self.__dict__
+
+class BotConfig:
+
+    def __init__(self, main_dict):
+        self.__dict__ = main_dict
+
+        sub_dict = {}
+        for key in self.servers:
+            sub_dict[key] = BotServer(self.servers[key])
+        self.servers = sub_dict
+
+    def getDict(self):
+        node_dict = { }
+        for k in self.__dict__:
+            node_dict[k] = self.__dict__[k]
+        sub_dict = { }
+        for sub_idx in self.servers:
+            sub_dict[sub_idx] = self.servers[sub_idx].getDict()
+        node_dict["servers"] = sub_dict
+        return node_dict
 
 
 class SpriteBot:
@@ -43,6 +69,7 @@ class SpriteBot:
         with open(os.path.join(self.path, CONFIG_FILE_PATH)) as f:
             config = json.load(f)
             self.can_push = config["push"]
+            self.update_msg = config["update_msg"]
             self.content_path = config["path"]
             self.owner_id = config["root"]
             self.servers = config["servers"]
@@ -89,6 +116,8 @@ class SpriteBot:
     def saveConfig(self):
         with open(os.path.join(self.path, CONFIG_FILE_PATH), 'w', encoding='utf-8') as txt:
             config = { }
+            config["push"] = self.can_push
+            config["update_msg"] = self.update_msg
             config["path"] = self.content_path
             config["root"] = self.owner_id
             config["servers"] = self.servers
@@ -119,6 +148,8 @@ class SpriteBot:
         origin.pull()
         await resp.edit(content="Update complete! Bot will restart.")
         self.need_restart = True
+        self.update_msg = resp.id
+        self.saveConfig()
         await self.client.logout()
 
     def getChatChannel(self, guild_id):
@@ -483,7 +514,7 @@ class SpriteBot:
             post = "\n".join(post_range)
             if msg_idx < len(msg_ids):
                 try:
-                    msg = await channel.fetch_message(int(msg_ids[msg_idx]))
+                    msg = await channel.fetch_message(msg_ids[msg_idx])
                 except Exception as e:
                     msg = None
 
@@ -496,7 +527,7 @@ class SpriteBot:
                     await msg.edit(content=post)
             else:
                 msg = await channel.send(content=post)
-                msg_ids.append(str(msg.id))
+                msg_ids.append(msg.id)
                 changed = True
             line_idx += line_len
             msg_idx += 1
@@ -522,7 +553,7 @@ class SpriteBot:
         changed_list |= changed
 
         while msgs_used < len(msg_ids):
-            msg = await channel.fetch_message(int(msg_ids[-1]))
+            msg = await channel.fetch_message(msg_ids[-1])
             await msg.delete()
             msg_ids.pop()
             changed_list = True
@@ -997,6 +1028,10 @@ async def on_ready():
     print(client.user.id)
     global sprite_bot
     await sprite_bot.checkAllSubmissions()
+    if sprite_bot.update_msg != 0:
+        await sprite_bot.client.user.fetch_message(sprite_bot.update_msg)
+        sprite_bot.update_msg = 0
+        sprite_bot.saveConfig()
     print('------')
 
 
