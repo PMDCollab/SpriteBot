@@ -348,7 +348,7 @@ def verifyPortrait(msg_content, img):
                     has_missing_original = True
 
     if has_one_flip and len(flipped_tiles) > 0:
-        escape_clause = len(msg_content) == 0 or not msg_content.split()[0] == "noflip"
+        escape_clause = len(msg_content) > 0 and msg_content.split()[0] == "noflip"
         if has_missing_original:
             return "File has a flipped emotion when the original is missing."
         if not escape_clause:
