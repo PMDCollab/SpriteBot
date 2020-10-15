@@ -771,7 +771,7 @@ def createColorGenderDiff(color_dict, asset_type):
         color_dict["0002"] = female_dict
     else:
         female_dict = color_dict[female_idx]
-    female_dict.__init__[asset_type + "_required"] = True
+    female_dict.__dict__[asset_type + "_required"] = True
 
 
 def removeGenderDiff(form_dict, asset_type):
