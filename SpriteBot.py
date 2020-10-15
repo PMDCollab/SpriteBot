@@ -805,16 +805,10 @@ class SpriteBot:
         self.saveConfig()
         await msg.channel.send(msg.author.mention + " Initialized bot to this server!")
 
-    def markPortraitFull(self, full_idx):
-        full_path = os.path.join(self.config.path, "portrait", *full_idx)
-        node = SpriteUtils.getNodeFromIdx(self.tracker, full_idx, 0)
-        if SpriteUtils.verifyPortraitFilled(full_path):
-            node.portrait_complete = 2
-
     async def rescan(self, msg):
-        SpriteUtils.iterateTracker(self.tracker, self.markPortraitFull, [])
-        self.changed = True
-        self.saveTracker()
+        #SpriteUtils.iterateTracker(self.tracker, self.markPortraitFull, [])
+        #self.changed = True
+        #self.saveTracker()
         await msg.channel.send(msg.author.mention + " Rescan complete.")
 
     async def addSpeciesForm(self, msg, args):
@@ -1181,10 +1175,10 @@ async def periodic_update_status():
             # check for push
             cur_date = datetime.datetime.today().strftime('%Y-%m-%d')
             if last_date != cur_date:
-                last_date = cur_date
                 # update push
-                if sprite_bot.commits > 0:
+                if sprite_bot.commits > 0 or last_date == "":
                     sprite_bot.gitPush()
+                last_date = cur_date
         except Exception as e:
             trace = traceback.format_exc()
             user = await client.fetch_user(sprite_bot.config.root)
