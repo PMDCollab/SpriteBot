@@ -805,6 +805,18 @@ class SpriteBot:
         self.saveConfig()
         await msg.channel.send(msg.author.mention + " Initialized bot to this server!")
 
+    def markPortraitFull(self, full_idx):
+        full_path = os.path.join(self.config.path, "portrait", *full_idx)
+        node = SpriteUtils.getNodeFromIdx(self.tracker, full_idx, 0)
+        if SpriteUtils.verifyPortraitFilled(full_path):
+            node.portrait_complete = 2
+
+    async def rescan(self, msg):
+        SpriteUtils.iterateTracker(self.tracker, self.markPortraitFull, [])
+        self.changed = True
+        self.saveTracker()
+        await msg.channel.send(msg.author.mention + " Rescan complete.")
+
     async def addSpeciesForm(self, msg, args):
         if len(args) < 1 or len(args) > 2:
             await msg.channel.send(msg.author.mention + " Invalid number of args!")
@@ -1119,6 +1131,8 @@ async def on_message(msg: discord.Message):
                 await sprite_bot.completeSlot(msg, args[1:], "portrait", 2)
             elif args[0] == "clearcache" and msg.author.id == sprite_bot.config.root:
                 await sprite_bot.clearCache(msg, args[1:])
+            elif args[0] == "rescan" and msg.author.id == sprite_bot.config.root:
+                await sprite_bot.rescan(msg)
             elif args[0] == "update" and msg.author.id == sprite_bot.config.root:
                 await sprite_bot.updateBot(msg)
             else:

@@ -260,7 +260,7 @@ def verifyRecolor(msg_content, orig_img, img, recolor):
                 else:
                     diff_str = str(paletteDiff)
                 if len(msg_content) == 0 or not msg_content.split()[0] == diff_str:
-                    base_str = "Recolor has `{0}` colors compared to the original.\nIf this was intended, resubmit and specify {0} in the message."
+                    base_str = "Recolor has `{0}` colors compared to the original.\nIf this was intended, resubmit and specify `{0}` in the message."
                     return base_str.format(diff_str)
     return None
 
@@ -336,6 +336,7 @@ def verifyPortrait(msg_content, img):
     halfway = PORTRAIT_TILE_Y // 2
     flipped_tiles = []
     has_one_flip = False
+    has_missing_original = False
     for xx in range(PORTRAIT_TILE_X):
         for yy in range(halfway, PORTRAIT_TILE_Y):
             if occupied[xx][yy]:
@@ -343,12 +344,28 @@ def verifyPortrait(msg_content, img):
             if occupied[xx][yy] != occupied[xx][yy-halfway]:
                 rogue_str = getEmotionFromTilePos((xx, yy))
                 flipped_tiles.append(rogue_str)
+                if not occupied[xx][yy-halfway]:
+                    has_missing_original = True
 
     if has_one_flip and len(flipped_tiles) > 0:
-        return "File should have original and flipped versions of emotions: {0}".format(str(flipped_tiles))
+        escape_clause = len(msg_content) == 0 or not msg_content.split()[0] == "noflip"
+        if has_missing_original:
+            return "File has a flipped emotion when the original is missing."
+        if not escape_clause:
+            return "File is missing some flipped emotions. If you want to submit incomplete, include `noflip` in the message."
 
     return None
 
+
+def verifyPortraitFilled(species_path):
+    for name in EMOTIONS:
+        if name.startswith("Special"):
+            continue
+        full_path = os.path.join(species_path, name + ".png")
+        if not os.path.exists(full_path):
+            return False
+
+    return True
 
 """
 File data writeback
@@ -616,11 +633,22 @@ def getIdxName(tracker_dict, full_idx):
     else:
         return [node.name] + getIdxName(node.subgroups, full_idx[1:])
 
+
 def findSlotIdx(sub_dict, name):
     for idx in sub_dict:
         if sub_dict[idx].name.lower() == name.lower():
             return idx
     return None
+
+def iterateTracker(tracker_dict, func, full_idx):
+    for idx in tracker_dict:
+        node = tracker_dict[idx]
+
+        full_idx.append(idx)
+        func(full_idx)
+        sub_dict = node.subgroups
+        iterateTracker(sub_dict, func, full_idx)
+        full_idx.pop()
 
 def findFullTrackerIdx(tracker_dict, name_args, depth):
     # base case
