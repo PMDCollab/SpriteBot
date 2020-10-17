@@ -316,17 +316,18 @@ class SpriteBot:
             SpriteUtils.placePortraitToPath(portrait_img, gen_path)
 
         # update the credits in that path
-        SpriteUtils.appendCredits(gen_path, msg.author.mention)
+        credit_mention = "<@{0}>".format(msg.author.id)
+        SpriteUtils.appendCredits(gen_path, credit_mention)
         # add to universal names list and save if changed
-        if msg.author.mention not in self.names:
-            self.names[msg.author.mention] = SpriteUtils.CreditEntry("", "")
-        self.names[msg.author.mention].sprites = True
-        self.names[msg.author.mention].portraits = True
+        if credit_mention not in self.names:
+            self.names[credit_mention] = SpriteUtils.CreditEntry("", "")
+        self.names[credit_mention].sprites = True
+        self.names[credit_mention].portraits = True
         self.saveNames()
 
         # update the credits and timestamp in the chosen node
         chosen_node.__dict__[asset_type + "_modified"] = str(datetime.datetime.utcnow())
-        chosen_node.__dict__[asset_type + "_credit"] = msg.author.mention
+        chosen_node.__dict__[asset_type + "_credit"] = credit_mention
 
         # remove from pending list
         pending_dict = chosen_node.__dict__[asset_type + "_pending"]
@@ -355,12 +356,18 @@ class SpriteBot:
 
         # save the tracker
         self.saveTracker()
+
+        update_msg = "{0} {1} #{2:03d}: {3}".format(new_revise, asset_type, int(full_idx[0]), new_name_str)
         # commit the changes
-        self.gitCommit("{0} {1} #{2:03d}: {3} by {4} {5}".format(new_revise, asset_type, int(full_idx[0]), new_name_str,
-                                                      msg.author.mention, self.names[msg.author.mention].name))
+        self.gitCommit("{0} by {1} {2}".format(update_msg, credit_mention, self.names[credit_mention].name))
 
         # post about it
-        await self.getChatChannel(msg.guild.id).send(msg.author.mention + " " + approve_msg + "\n" + new_link)
+        for server_id in self.config.servers:
+            if server_id == str(msg.guild.id):
+                await self.getChatChannel(msg.guild.id).send(msg.author.mention + " " + approve_msg + "\n" + new_link)
+            else:
+                await self.getChatChannel(int(server_id)).send("{1}: {0}".format(approve_msg, msg.guild.name))
+
         # delete post
         await msg.delete()
         self.changed = True
@@ -695,14 +702,14 @@ class SpriteBot:
         await msg.channel.send(response)
 
     async def getProfile(self, msg):
-        msg_mention = msg.author.mention
+        msg_mention = "<@{0}>".format(msg.author.id)
         if msg_mention in self.names:
             await msg.channel.send(msg_mention + "\nName: \"{0}\"    Contact: \"{1}\"".format(self.names[msg_mention].name, self.names[msg_mention].contact))
             return
         await msg.channel.send(msg_mention + " No profile. Set it with `!register <Name> <Contact>`!")
 
     async def setProfile(self, msg, args):
-        msg_mention = msg.author.mention
+        msg_mention = "<@{0}>".format(msg.author.id)
         if msg_mention in self.names:
             new_credit = self.names[msg_mention]
         else:
