@@ -236,7 +236,7 @@ def downloadFromUrl(path, sprite_link):
 File verification
 """
 
-def verifyRecolor(msg_content, orig_img, img, recolor):
+def verifyRecolor(msg_args, orig_img, img, recolor):
     if orig_img.size != img.size:
         return "Recolor has dimensions {0} instead of {1}.".format(str(img.size), str(orig_img.size))
     else:
@@ -259,9 +259,11 @@ def verifyRecolor(msg_content, orig_img, img, recolor):
                     diff_str = "+" + str(paletteDiff)
                 else:
                     diff_str = str(paletteDiff)
-                if len(msg_content) == 0 or not msg_content.split()[0] == diff_str:
+                if len(msg_args) == 0 or not msg_args[0] == diff_str:
                     base_str = "Recolor has `{0}` colors compared to the original.\nIf this was intended, resubmit and specify `{0}` in the message."
                     return base_str.format(diff_str)
+                else:
+                    msg_args.pop(0)
     return None
 
 def getEmotionFromTilePos(tile_pos):
@@ -271,7 +273,7 @@ def getEmotionFromTilePos(tile_pos):
         rogue_str += " Flipped"
     return rogue_str
 
-def verifyPortrait(msg_content, img):
+def verifyPortrait(msg_args, img):
     # make sure the dimensions are sound
     if img.size[0] % PORTRAIT_SIZE != 0 or img.size[1] % PORTRAIT_SIZE != 0:
         return "Portrait has an invalid size of {0}, Not divisble by {1}x{1}".format(str(img.size), PORTRAIT_SIZE)
@@ -348,7 +350,10 @@ def verifyPortrait(msg_content, img):
                     has_missing_original = True
 
     if has_one_flip and len(flipped_tiles) > 0:
-        escape_clause = len(msg_content) > 0 and msg_content.split()[0] == "noflip"
+        escape_clause = len(msg_args) > 0 and msg_args[0] == "noflip"
+        if escape_clause:
+            msg_args.pop(0)
+
         if has_missing_original:
             return "File has a flipped emotion when the original is missing."
         if not escape_clause:
