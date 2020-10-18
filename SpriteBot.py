@@ -352,7 +352,7 @@ class SpriteBot:
             if not self.isAuthorized(msg.author, msg.guild):
                 decline_msg = "User is not authorized to submit in someone else's name."
             if msg_args[0] not in self.names:
-                decline_msg = "{0} does not have a profile. Create one with !registerabsent."
+                decline_msg = "{0} does not have a profile.".format(msg_args[0])
 
             if decline_msg is not None:
                 return_file = SpriteUtils.getLinkFile(msg.attachments[0].url)
@@ -561,7 +561,7 @@ class SpriteBot:
                 if not self.isAuthorized(msg.author, msg.guild):
                     decline_msg = "User is not authorized to submit in someone else's name."
                 if msg_args[0] not in self.names:
-                    decline_msg = "{0} does not have a profile. Create one with !registerabsent."
+                    decline_msg = "{0} does not have a profile.".format(msg_args[0])
 
                 if decline_msg is not None:
                     return_file = SpriteUtils.getLinkFile(msg.attachments[0].url)
@@ -1236,8 +1236,10 @@ async def periodic_update_status():
             # check for push
             cur_date = datetime.datetime.today().strftime('%Y-%m-%d')
             if last_date != cur_date:
+                if last_date == "":
+                    sprite_bot.gitCommit("Tracker update from restart.")
                 # update push
-                if sprite_bot.commits > 0 or last_date == "":
+                if sprite_bot.commits > 0:
                     sprite_bot.gitPush()
                 last_date = cur_date
         except Exception as e:
