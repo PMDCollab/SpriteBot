@@ -137,8 +137,11 @@ class SpriteBot:
 
     def gitCommit(self, msg):
         if self.config.push:
-            self.repo.git.add(".")
-            self.repo.git.commit(m=msg)
+            index = self.repo.index
+            diff = index.diff('HEAD')
+            if len(diff) > 0:
+                self.repo.git.add(".")
+                self.repo.git.commit(m=msg)
             self.commits += 1
 
     def gitPush(self):
