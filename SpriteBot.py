@@ -366,7 +366,7 @@ class SpriteBot:
             if server_id == str(msg.guild.id):
                 await self.getChatChannel(msg.guild.id).send(msg.author.mention + " " + approve_msg + "\n" + new_link)
             else:
-                await self.getChatChannel(int(server_id)).send("{1}: {0}".format(approve_msg, msg.guild.name))
+                await self.getChatChannel(int(server_id)).send("{1}: {0}".format(update_msg, msg.guild.name))
 
         # delete post
         await msg.delete()
@@ -449,7 +449,7 @@ class SpriteBot:
             if decline > 0:
                 await self.submissionDeclined(msg)
                 return True
-            elif auto or len(approve) >= 3:
+            elif auto or len(approve) >= 2:
                 await self.submissionApproved(msg, approve)
                 return False
             else:
