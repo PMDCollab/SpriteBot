@@ -1129,6 +1129,8 @@ async def on_ready():
 async def on_message(msg: discord.Message):
     await client.wait_until_ready()
     try:
+        if msg.guild is None:
+            return
         # exclude self posts
         if msg.author.id == sprite_bot.client.user.id:
             return
