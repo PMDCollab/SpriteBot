@@ -669,7 +669,10 @@ class SpriteBot:
             full_arr = [self.config.path, asset_type] + full_idx
             gen_path = os.path.join(*full_arr)
 
-        target_idx = SpriteUtils.createShinyIdx(full_idx, recolor)
+        if recolor:
+            target_idx = SpriteUtils.createShinyIdx(full_idx, True)
+        else:
+            target_idx = full_idx
         file_data, ext = SpriteUtils.generateFileData(gen_path, asset_type, recolor)
         file_data.seek(0)
         file_name = "{0}-{1}{2}".format(req_base, "-".join(target_idx), ext)
