@@ -330,10 +330,10 @@ class SpriteBot:
 
     async def stageSubmission(self, msg, full_idx, chosen_node, asset_type, author):
 
-        title = SpriteUtils.getIdxName(self.tracker, " ".join(full_idx))
+        title = SpriteUtils.getIdxName(self.tracker, full_idx)
         return_file = SpriteUtils.getLinkFile(msg.attachments[0].url)
         file_name = msg.attachments[0].filename
-        new_msg = await msg.channel.send("{0} {1}\n{2}".format(author, title, msg.content),
+        new_msg = await msg.channel.send("{0} {1}\n{2}".format(author, " ".join(title), msg.content),
                                                      file=discord.File(return_file, file_name))
         await msg.delete()
 
