@@ -330,7 +330,7 @@ class SpriteBot:
 
     async def stageSubmission(self, msg, full_idx, chosen_node, asset_type, author):
 
-        title = SpriteUtils.getIdxName(self.tracker, full_idx)
+        title = SpriteUtils.getIdxName(self.tracker, " ".join(full_idx))
         return_file = SpriteUtils.getLinkFile(msg.attachments[0].url)
         file_name = msg.attachments[0].filename
         new_msg = await msg.channel.send("{0} {1}\n{2}".format(author, title, msg.content),
@@ -545,7 +545,7 @@ class SpriteBot:
 
             if not name_valid:
                 await msg.delete()
-                await self.getChatChannel(msg.guild.id).send(msg.author.mention + " Invalid filename. Do not change the filename from the original.")
+                await self.getChatChannel(msg.guild.id).send(msg.author.mention + " Invalid filename {0}. Do not change the filename from the original.".format(file_name))
                 return False
 
             msg_args = msg.content.split()
