@@ -347,15 +347,15 @@ class SpriteBot:
 
         self.changed |= change_status
 
-    async def submissionApproved(self, msg, approvals):
-        msg_lines = msg.content.split()
-        orig_author = msg_lines[0].split()[0]
-        orig_content = msg_lines[1]
+    async def submissionApproved(self, msg, orig_sender, orig_author, approvals):
+        sender_info = orig_sender
+        if orig_author != orig_sender:
+            sender_info = "{0}/{1}".format(orig_sender, orig_author)
 
         file_name = msg.attachments[0].filename
         file_valid, full_idx, asset_type, recolor = SpriteUtils.getStatsFromFilename(file_name)
         if not file_valid:
-            await self.getChatChannel(msg.guild.id).send(orig_author + " " + "Removed unknown file: {0}".format(file_name))
+            await self.getChatChannel(msg.guild.id).send(orig_sender + " " + "Removed unknown file: {0}".format(file_name))
             await msg.delete()
             return
 
@@ -427,7 +427,7 @@ class SpriteBot:
         # post about it
         for server_id in self.config.servers:
             if server_id == str(msg.guild.id):
-                await self.getChatChannel(msg.guild.id).send(orig_author + " " + approve_msg + "\n" + new_link)
+                await self.getChatChannel(msg.guild.id).send(sender_info + " " + approve_msg + "\n" + new_link)
             else:
                 await self.getChatChannel(int(server_id)).send("{1}: {0}".format(update_msg, msg.guild.name))
 
@@ -435,14 +435,12 @@ class SpriteBot:
         await msg.delete()
         self.changed = True
 
-    async def submissionDeclined(self, msg):
-        msg_lines = msg.content.split('\n')
-        orig_author = msg_lines[0].split()[0]
+    async def submissionDeclined(self, msg, orig_sender):
 
         file_name = msg.attachments[0].filename
         file_valid, full_idx, asset_type, recolor = SpriteUtils.getStatsFromFilename(file_name)
         if not file_valid:
-            await self.getChatChannel(msg.guild.id).send(orig_author + " " + "Removed unknown file: {0}".format(file_name))
+            await self.getChatChannel(msg.guild.id).send(orig_sender + " " + "Removed unknown file: {0}".format(file_name))
             await msg.delete()
             return
 
@@ -454,7 +452,7 @@ class SpriteBot:
             del pending_dict[str(msg.id)]
 
         return_file = SpriteUtils.getLinkFile(msg.attachments[0].url)
-        await self.getChatChannel(msg.guild.id).send(orig_author + " " + "Declined {0}:".format(asset_type),
+        await self.getChatChannel(msg.guild.id).send(orig_sender + " " + "Declined {0}:".format(asset_type),
                                                      file=discord.File(return_file, msg.attachments[0].filename))
         # delete post
         await msg.delete()
@@ -495,6 +493,13 @@ class SpriteBot:
                 if reaction.emoji == '\u2B50':
                     ss = reaction
 
+            msg_lines = msg.content.split()
+            main_data = msg_lines[0].split()
+            sender_data = main_data[0].split("/")
+            orig_sender = sender_data[0]
+            orig_author = sender_data[-1]
+            orig_sender_id = int(orig_sender[2:-1])
+
             auto = False
             approve = []
             decline = 0
@@ -510,14 +515,14 @@ class SpriteBot:
                     approve.append(user.id)
 
             async for user in xs.users():
-                if await self.isAuthorized(user, msg.guild):
+                if await self.isAuthorized(user, msg.guild) or user.id == orig_sender_id:
                     decline += 1
 
             if decline > 0:
-                await self.submissionDeclined(msg)
+                await self.submissionDeclined(msg, orig_sender)
                 return True
             elif auto or len(approve) >= 2:
-                await self.submissionApproved(msg, approve)
+                await self.submissionApproved(msg, orig_sender, orig_author, approve)
                 return False
             else:
                 file_name = msg.attachments[0].filename
@@ -568,7 +573,7 @@ class SpriteBot:
                     await msg.delete()
                     return False
 
-                author = msg_args[0]
+                author = "{0}/{1}".format(author, msg_args[0])
 
             await self.stageSubmission(msg, full_idx, chosen_node, asset_type, author)
             return True
