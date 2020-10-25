@@ -135,16 +135,22 @@ class SpriteBot:
         with open(os.path.join(self.config.path, TRACKER_FILE_PATH), 'w', encoding='utf-8') as txt:
             json.dump(new_tracker, txt, indent=2)
 
-    def gitCommit(self, msg):
+    async def gitCommit(self, msg):
         if self.config.push:
             index = self.repo.index
             diff = index.diff('HEAD')
-            if len(diff) > 0:
+            user = await client.fetch_user(sprite_bot.config.root)
+            await user.send("Diff: " + str(diff))
+            try:
                 self.repo.git.add(".")
                 self.repo.git.commit(m=msg)
+            except Exception as e:
+                trace = traceback.format_exc()
+                print(trace)
+                await user.send("```" + trace + "```")
             self.commits += 1
 
-    def gitPush(self):
+    async def gitPush(self):
         if self.config.push:
             origin = self.repo.remotes.origin
             origin.push()
@@ -429,7 +435,7 @@ class SpriteBot:
 
         update_msg = "{0} {1} #{2:03d}: {3}".format(new_revise, asset_type, int(full_idx[0]), new_name_str)
         # commit the changes
-        self.gitCommit("{0} by {1} {2}".format(update_msg, credit_mention, self.names[credit_mention].name))
+        await self.gitCommit("{0} by {1} {2}".format(update_msg, credit_mention, self.names[credit_mention].name))
 
         # post about it
         for server_id in self.config.servers:
@@ -1242,10 +1248,10 @@ async def periodic_update_status():
             cur_date = datetime.datetime.today().strftime('%Y-%m-%d')
             if last_date != cur_date:
                 if last_date == "":
-                    sprite_bot.gitCommit("Tracker update from restart.")
+                    await sprite_bot.gitCommit("Tracker update from restart.")
                 # update push
                 if sprite_bot.commits > 0:
-                    sprite_bot.gitPush()
+                    await sprite_bot.gitPush()
                 last_date = cur_date
         except Exception as e:
             trace = traceback.format_exc()
