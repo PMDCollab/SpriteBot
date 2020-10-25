@@ -328,50 +328,36 @@ class SpriteBot:
 
         return True
 
-    async def stageSubmission(self, msg, chosen_node, asset_type):
+    async def stageSubmission(self, msg, full_idx, chosen_node, asset_type, author):
+
+        title = SpriteUtils.getIdxName(self.tracker, full_idx)
+        return_file = SpriteUtils.getLinkFile(msg.attachments[0].url)
+        file_name = msg.attachments[0].filename
+        new_msg = await msg.channel.send("{0} {1}\n{2}".format(author, title, msg.content),
+                                                     file=discord.File(return_file, file_name))
+        await msg.delete()
+
         pending_dict = chosen_node.__dict__[asset_type+"_pending"]
         change_status = len(pending_dict) == 0
-        pending_dict[str(msg.id)] = True
+        pending_dict[str(new_msg.id)] = True
 
         # react to the message
-        await msg.add_reaction('\U00002705')
-        await msg.add_reaction('\U0000274C')
+        await new_msg.add_reaction('\U00002705')
+        await new_msg.add_reaction('\U0000274C')
 
         self.changed |= change_status
 
     async def submissionApproved(self, msg, approvals):
+        msg_lines = msg.content.split()
+        orig_author = msg_lines[0].split()[0]
+        orig_content = msg_lines[1]
+
         file_name = msg.attachments[0].filename
         file_valid, full_idx, asset_type, recolor = SpriteUtils.getStatsFromFilename(file_name)
         if not file_valid:
-            await self.getChatChannel(msg.guild.id).send(msg.author.mention + " " + "Removed unknown file: {0}".format(file_name))
+            await self.getChatChannel(msg.guild.id).send(orig_author + " " + "Removed unknown file: {0}".format(file_name))
             await msg.delete()
             return
-
-        # update the credits in that path
-        credit_mention = "<@{0}>".format(msg.author.id)
-
-        msg_args = msg.content.split()
-        # at this point, we confirm the file name is valid, now check the contents
-        verified = await self.verifySubmission(msg, full_idx, asset_type, recolor, msg_args)
-        if not verified:
-            return
-
-        # after other args have been consumed, check for one more arg: if the submission was made in someone else's stead
-        if len(msg_args) > 0:
-            decline_msg = None
-            if not self.isAuthorized(msg.author, msg.guild):
-                decline_msg = "User is not authorized to submit in someone else's name."
-            if msg_args[0] not in self.names:
-                decline_msg = "{0} does not have a profile.".format(msg_args[0])
-
-            if decline_msg is not None:
-                return_file = SpriteUtils.getLinkFile(msg.attachments[0].url)
-                await self.getChatChannel(msg.guild.id).send(msg.author.mention + " " + decline_msg,
-                                                             file=discord.File(return_file, file_name))
-                await msg.delete()
-                return
-            credit_mention = msg_args[0]
-
 
         chosen_node = SpriteUtils.getNodeFromIdx(self.tracker, full_idx, 0)
         # get the name of the slot that it was written to
@@ -394,17 +380,17 @@ class SpriteBot:
                 portrait_img = SpriteUtils.removePalette(portrait_img)
             SpriteUtils.placePortraitToPath(portrait_img, gen_path)
 
-        SpriteUtils.appendCredits(gen_path, credit_mention)
+        SpriteUtils.appendCredits(gen_path, orig_author)
         # add to universal names list and save if changed
-        if credit_mention not in self.names:
-            self.names[credit_mention] = SpriteUtils.CreditEntry("", "")
-        self.names[credit_mention].sprites = True
-        self.names[credit_mention].portraits = True
+        if orig_author not in self.names:
+            self.names[orig_author] = SpriteUtils.CreditEntry("", "")
+        self.names[orig_author].sprites = True
+        self.names[orig_author].portraits = True
         self.saveNames()
 
         # update the credits and timestamp in the chosen node
         chosen_node.__dict__[asset_type + "_modified"] = str(datetime.datetime.utcnow())
-        chosen_node.__dict__[asset_type + "_credit"] = credit_mention
+        chosen_node.__dict__[asset_type + "_credit"] = orig_author
 
         # remove from pending list
         pending_dict = chosen_node.__dict__[asset_type + "_pending"]
@@ -436,12 +422,12 @@ class SpriteBot:
 
         update_msg = "{0} {1} #{2:03d}: {3}".format(new_revise, asset_type, int(full_idx[0]), new_name_str)
         # commit the changes
-        await self.gitCommit("{0} by {1} {2}".format(update_msg, credit_mention, self.names[credit_mention].name))
+        await self.gitCommit("{0} by {1} {2}".format(update_msg, orig_author, self.names[orig_author].name))
 
         # post about it
         for server_id in self.config.servers:
             if server_id == str(msg.guild.id):
-                await self.getChatChannel(msg.guild.id).send(msg.author.mention + " " + approve_msg + "\n" + new_link)
+                await self.getChatChannel(msg.guild.id).send(orig_author + " " + approve_msg + "\n" + new_link)
             else:
                 await self.getChatChannel(int(server_id)).send("{1}: {0}".format(update_msg, msg.guild.name))
 
@@ -450,10 +436,13 @@ class SpriteBot:
         self.changed = True
 
     async def submissionDeclined(self, msg):
+        msg_lines = msg.content.split('\n')
+        orig_author = msg_lines[0].split()[0]
+
         file_name = msg.attachments[0].filename
         file_valid, full_idx, asset_type, recolor = SpriteUtils.getStatsFromFilename(file_name)
         if not file_valid:
-            await self.getChatChannel(msg.guild.id).send(msg.author.mention + " " + "Removed unknown file: {0}".format(file_name))
+            await self.getChatChannel(msg.guild.id).send(orig_author + " " + "Removed unknown file: {0}".format(file_name))
             await msg.delete()
             return
 
@@ -465,7 +454,7 @@ class SpriteBot:
             del pending_dict[str(msg.id)]
 
         return_file = SpriteUtils.getLinkFile(msg.attachments[0].url)
-        await self.getChatChannel(msg.guild.id).send(msg.author.mention + " " + "Declined {0}:".format(asset_type),
+        await self.getChatChannel(msg.guild.id).send(orig_author + " " + "Declined {0}:".format(asset_type),
                                                      file=discord.File(return_file, msg.attachments[0].filename))
         # delete post
         await msg.delete()
@@ -493,18 +482,19 @@ class SpriteBot:
     """
     async def pollSubmission(self, msg):
         # check for messages in #submissions
-        cks = None
-        xs = None
-        ss = None
-        for reaction in msg.reactions:
-            if reaction.emoji == '\u2705':
-                cks = reaction
-            if reaction.emoji == '\u274C':
-                xs = reaction
-            if reaction.emoji == '\u2B50':
-                ss = reaction
 
-        if cks and xs and cks.me and xs.me:
+        if msg.author.id == self.client.user.id:
+            cks = None
+            xs = None
+            ss = None
+            for reaction in msg.reactions:
+                if reaction.emoji == '\u2705':
+                    cks = reaction
+                if reaction.emoji == '\u274C':
+                    xs = reaction
+                if reaction.emoji == '\u2B50':
+                    ss = reaction
+
             auto = False
             approve = []
             decline = 0
@@ -549,9 +539,8 @@ class SpriteBot:
             # if the node cant be found, the filepath is invalid
             if chosen_node is None:
                 name_valid = False
-
-            # if the node can be found, but it's not required, it's also invalid
-            if not chosen_node.__dict__[asset_type + "_required"]:
+            elif not chosen_node.__dict__[asset_type + "_required"]:
+                # if the node can be found, but it's not required, it's also invalid
                 name_valid = False
 
             if not name_valid:
@@ -566,10 +555,9 @@ class SpriteBot:
                 return False
 
             # after other args have been consumed, check for one more arg: if the submission was made in someone else's stead
+            author = "<@{0}>".format(msg.author.id)
             if len(msg_args) > 0:
                 decline_msg = None
-                if not self.isAuthorized(msg.author, msg.guild):
-                    decline_msg = "User is not authorized to submit in someone else's name."
                 if msg_args[0] not in self.names:
                     decline_msg = "{0} does not have a profile.".format(msg_args[0])
 
@@ -580,7 +568,9 @@ class SpriteBot:
                     await msg.delete()
                     return False
 
-            await self.stageSubmission(msg, chosen_node, asset_type)
+                author = msg_args[0]
+
+            await self.stageSubmission(msg, full_idx, chosen_node, asset_type, author)
             return True
 
 
@@ -774,21 +764,35 @@ class SpriteBot:
             return
         await msg.channel.send(msg_mention + " No profile. Set it with `!register <Name> <Contact>`!")
 
-    async def setProfile(self, msg, msg_mention, args):
-        if msg_mention in self.names:
-            new_credit = self.names[msg_mention]
-        else:
+    async def getAbsentProfiles(self, msg):
+        total_names = ["Absentee profiles:"]
+        msg_ids = []
+        for name in self.names:
+            if not name.startswith("<@"):
+                total_names.append(name + "\nName: \"{0}\"    Contact: \"{1}\"".format(self.names[name].name, self.names[name].contact))
+        await self.sendInfoPosts(msg.channel, total_names, msg_ids, 0)
+
+    async def setProfile(self, msg, args):
+        msg_mention = "<@{0}>".format(msg.author.id)
+
+        if len(args) == 0:
             new_credit = SpriteUtils.CreditEntry("", "")
+        elif len(args) == 2:
+            new_credit = SpriteUtils.CreditEntry(args[0], args[1])
+        elif len(args) == 3:
+            if not await self.isAuthorized(msg.author, msg.guild):
+                await msg.channel.send(msg.author.mention + " Not authorized to create absent registration.")
+                return
+            msg_mention = args[0].upper()
+            new_credit = SpriteUtils.CreditEntry(args[1], args[2])
+        else:
+            await msg.channel.send(msg.author.mention + " Invalid args")
+            return
 
-        if len(args) > 0:
-            new_credit.name = args[0]
-        if len(args) > 1:
-            new_credit.contact = args[1]
         self.names[msg_mention] = new_credit
-
         self.saveNames()
 
-        await msg.channel.send(msg.author.mention + " Registered profile.\nName: \"{0}\"    Contact: \"{1}\"".format(self.names[msg_mention].name, self.names[msg_mention].contact))
+        await msg.channel.send(msg_mention + " registered profile:\nName: \"{0}\"    Contact: \"{1}\"".format(self.names[msg_mention].name, self.names[msg_mention].contact))
 
     async def printStatus(self, msg):
         sprites = 0
@@ -1184,9 +1188,9 @@ async def on_message(msg: discord.Message):
             elif args[0] == "profile":
                 await sprite_bot.getProfile(msg)
             elif args[0] == "register":
-                await sprite_bot.setProfile(msg, "<@{0}>".format(msg.author.id), args[1:])
-            elif args[0] == "registerabsent":
-                await sprite_bot.setProfile(msg, args[1].upper(), args[2:])
+                await sprite_bot.setProfile(msg, args[1:])
+            elif args[0] == "absentprofiles":
+                await sprite_bot.getAbsentProfiles(msg)
             elif args[0] == "spritewip":
                 await sprite_bot.completeSlot(msg, args[1:], "sprite", 0)
             elif args[0] == "portraitwip":
