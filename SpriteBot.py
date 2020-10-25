@@ -138,7 +138,7 @@ class SpriteBot:
     async def gitCommit(self, msg):
         if self.config.push:
             index = self.repo.index
-            diff = index.diff('HEAD')
+            diff = index.diff(None)
             user = await client.fetch_user(sprite_bot.config.root)
             await user.send("Diff: " + str(diff))
             try:
