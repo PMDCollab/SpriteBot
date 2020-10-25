@@ -139,19 +139,20 @@ class SpriteBot:
         if self.config.push:
             index = self.repo.index
             diff = index.diff(None)
-            user = await client.fetch_user(sprite_bot.config.root)
-            await user.send("Diff: " + str(diff))
-            try:
-                self.repo.git.add(".")
-                self.repo.git.commit(m=msg)
-            except Exception as e:
-                trace = traceback.format_exc()
-                print(trace)
-                await user.send("```" + trace + "```")
+            if len(diff) > 0:
+                try:
+                    self.repo.git.add(".")
+                    self.repo.git.commit(m=msg)
+                except Exception as e:
+                    user = await client.fetch_user(self.config.root)
+                    trace = traceback.format_exc()
+                    print(trace)
+                    await user.send("```" + trace + "```")
             self.commits += 1
 
+
     async def gitPush(self):
-        if self.config.push:
+        if self.config.push and self.commits > 0:
             origin = self.repo.remotes.origin
             origin.push()
 
@@ -1250,8 +1251,7 @@ async def periodic_update_status():
                 if last_date == "":
                     await sprite_bot.gitCommit("Tracker update from restart.")
                 # update push
-                if sprite_bot.commits > 0:
-                    await sprite_bot.gitPush()
+                await sprite_bot.gitPush()
                 last_date = cur_date
         except Exception as e:
             trace = traceback.format_exc()
