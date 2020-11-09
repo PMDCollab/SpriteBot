@@ -753,6 +753,12 @@ class SpriteBot:
             else:
                 if not file_exists:
                     response += "\n [This {0} is missing. If you want to submit, use this file as a template!]".format(asset_type)
+                elif not recolor:
+                    mention = chosen_node.__dict__[asset_type + "_credit"]
+                    if mention in self.names:
+                        response += "\nLatest Author: {0} `{1}` `{2}`".format(self.names[mention].name, mention, self.names[mention].contact)
+                    else:
+                        response += "\nLatest Author: `{0}`".format(mention)
                 if recolor:
                     response += "\n [Recolor this {0} to its shiny palette and submit it.]".format(asset_type)
                 chosen_link = await self.retrieveLinkMsg(full_idx, chosen_node, asset_type, recolor)
