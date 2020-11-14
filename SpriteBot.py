@@ -216,7 +216,7 @@ class SpriteBot:
             return "-"
         if len(mention) < 4:
             return mention
-        if mention[:2] != "<@" or mention[-1] != ">":
+        if mention[:3] != "<@!" or mention[-1] != ">":
             return mention
 
         try:
@@ -406,7 +406,7 @@ class SpriteBot:
         chosen_node.__dict__[asset_type+"_link"] = new_link
         chosen_node.__dict__[asset_type+"_recolor_link"] = ""
 
-        mentions = ["<@"+str(ii)+">" for ii in approvals]
+        mentions = ["<@!"+str(ii)+">" for ii in approvals]
         approve_msg = "{0} {1} approved by {2}: #{3:03d}: {4}".format(new_revise, asset_type, str(mentions), int(full_idx[0]), new_name_str)
 
         # if this was non-shiny, set the complete flag to false for the shiny
@@ -560,7 +560,7 @@ class SpriteBot:
                 return False
 
             # after other args have been consumed, check for one more arg: if the submission was made in someone else's stead
-            author = "<@{0}>".format(msg.author.id)
+            author = "<@!{0}>".format(msg.author.id)
             if len(msg_args) > 0:
                 decline_msg = None
                 if msg_args[0] not in self.names:
@@ -769,7 +769,7 @@ class SpriteBot:
         await msg.channel.send(response)
 
     async def getProfile(self, msg):
-        msg_mention = "<@{0}>".format(msg.author.id)
+        msg_mention = "<@!{0}>".format(msg.author.id)
         if msg_mention in self.names:
             await msg.channel.send(msg_mention + "\nName: \"{0}\"    Contact: \"{1}\"".format(self.names[msg_mention].name, self.names[msg_mention].contact))
             return
@@ -779,15 +779,17 @@ class SpriteBot:
         total_names = ["Absentee profiles:"]
         msg_ids = []
         for name in self.names:
-            if not name.startswith("<@"):
+            if not name.startswith("<@!"):
                 total_names.append(name + "\nName: \"{0}\"    Contact: \"{1}\"".format(self.names[name].name, self.names[name].contact))
         await self.sendInfoPosts(msg.channel, total_names, msg_ids, 0)
 
     async def setProfile(self, msg, args):
-        msg_mention = "<@{0}>".format(msg.author.id)
+        msg_mention = "<@!{0}>".format(msg.author.id)
 
         if len(args) == 0:
             new_credit = SpriteUtils.CreditEntry("", "")
+        if len(args) == 1:
+            new_credit = SpriteUtils.CreditEntry(args[0], "")
         elif len(args) == 2:
             new_credit = SpriteUtils.CreditEntry(args[0], args[1])
         elif len(args) == 3:
@@ -841,7 +843,7 @@ class SpriteBot:
         credits = "Credit:"
         for sender in users:
             if sender != "":
-                credits += "\n<@" + sender + "> : " + str(users[sender])
+                credits += "\n<@!" + sender + "> : " + str(users[sender])
         await user.send(credits)
 
 
