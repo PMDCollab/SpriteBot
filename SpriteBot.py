@@ -498,7 +498,7 @@ class SpriteBot:
             sender_data = main_data[0].split("/")
             orig_sender = sender_data[0]
             orig_author = sender_data[-1]
-            orig_sender_id = int(orig_sender[2:-1])
+            orig_sender_id = int(orig_sender[3:-1])
 
             auto = False
             approve = []
