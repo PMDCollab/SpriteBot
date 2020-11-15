@@ -331,7 +331,11 @@ def verifyPortrait(msg_args, img):
         if palette_counts[emote_str] > 15:
             overpalette[emote_str] = palette_counts[emote_str]
     if len(overpalette) > 0:
-        return "The following emotions have over 15 colors: {0}".format(str(overpalette)[:1900])
+        escape_clause = len(msg_args) > 0 and msg_args[0] == "overcolor"
+        if escape_clause:
+            msg_args.pop(0)
+        else:
+            return "Some emotions have over 15 colors. If this is intentional, include `overcolor` in the message.\nEmotes: {0}".format(str(overpalette)[:1900])
 
     # make sure all mirrored emotions have their original emotions
     # make sure if there is one mirrored emotion, there is all mirrored emotions
