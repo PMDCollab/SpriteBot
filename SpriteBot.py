@@ -1204,17 +1204,17 @@ async def on_message(msg: discord.Message):
                 await sprite_bot.setProfile(msg, args[1:])
             elif args[0] == "absentprofiles":
                 await sprite_bot.getAbsentProfiles(msg)
-            elif args[0] == "spritewip":
+            elif args[0] == "spritewip" and authorized:
                 await sprite_bot.completeSlot(msg, args[1:], "sprite", 0)
-            elif args[0] == "portraitwip":
+            elif args[0] == "portraitwip" and authorized:
                 await sprite_bot.completeSlot(msg, args[1:], "portrait", 0)
-            elif args[0] == "spritedone":
+            elif args[0] == "spritedone" and authorized:
                 await sprite_bot.completeSlot(msg, args[1:], "sprite", 1)
-            elif args[0] == "portraitdone":
+            elif args[0] == "portraitdone" and authorized:
                 await sprite_bot.completeSlot(msg, args[1:], "portrait", 1)
-            elif args[0] == "spritefilled":
+            elif args[0] == "spritefilled" and authorized:
                 await sprite_bot.completeSlot(msg, args[1:], "sprite", 2)
-            elif args[0] == "portraitfilled":
+            elif args[0] == "portraitfilled" and authorized:
                 await sprite_bot.completeSlot(msg, args[1:], "portrait", 2)
             elif args[0] == "clearcache" and msg.author.id == sprite_bot.config.root:
                 await sprite_bot.clearCache(msg, args[1:])
