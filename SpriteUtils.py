@@ -590,6 +590,7 @@ def getFiles(path):
 def fileSystemToJson(dict, species_path, prefix, tier):
     # get last modify date of everything that isn't credits.txt or dirs
     last_modify = ""
+    dict.__dict__[prefix + "_files"] = []
     for inFile in os.listdir(species_path):
         fullPath = os.path.join(species_path, inFile)
         if os.path.isdir(fullPath):
