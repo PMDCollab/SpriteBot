@@ -526,9 +526,6 @@ class TrackerNode:
 
         self.__dict__ = main_dict
 
-        self.sprite_files = []
-        self.portrait_files = []
-
         sub_dict = { }
         for key in self.subgroups:
             sub_dict[key] = TrackerNode(self.subgroups[key])
