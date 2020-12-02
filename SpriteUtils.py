@@ -526,6 +526,9 @@ class TrackerNode:
 
         self.__dict__ = main_dict
 
+        self.sprite_files = []
+        self.portrait_files = []
+
         sub_dict = { }
         for key in self.subgroups:
             sub_dict[key] = TrackerNode(self.subgroups[key])
@@ -558,12 +561,14 @@ def initSubNode(name):
     sub_dict["portrait_complete"] = 0
     sub_dict["portrait_credit"] = ""
     sub_dict["portrait_link"] = ""
+    sub_dict["portrait_files"] = []
     sub_dict["portrait_modified"] = ""
     sub_dict["portrait_pending"] = {}
     sub_dict["portrait_recolor_link"] = ""
     sub_dict["portrait_required"] = False
     sub_dict["sprite_complete"] = 0
     sub_dict["sprite_credit"] = ""
+    sub_dict["sprite_files"] = []
     sub_dict["sprite_link"] = ""
     sub_dict["sprite_modified"] = ""
     sub_dict["sprite_pending"] = {}
@@ -571,6 +576,19 @@ def initSubNode(name):
     sub_dict["sprite_required"] = False
     sub_dict["subgroups"] = {}
     return TrackerNode(sub_dict)
+
+
+def getFiles(path):
+    full_list = []
+    for inFile in os.listdir(path):
+        fullPath = os.path.join(path, inFile)
+        if os.path.isdir(fullPath):
+            pass
+        elif inFile == "credits.txt":
+            pass
+        else:
+            full_list.append(inFile)
+    return full_list
 
 def fileSystemToJson(dict, species_path, prefix, tier):
     # get last modify date of everything that isn't credits.txt or dirs
@@ -610,6 +628,7 @@ def fileSystemToJson(dict, species_path, prefix, tier):
             modify_datetime = datetime.datetime.utcfromtimestamp(os.path.getmtime(fullPath))
             if str(modify_datetime) > last_modify:
                 last_modify = str(modify_datetime)
+            dict.__dict__[prefix + "_files"].append(inFile)
 
     updated = False
     if dict.__dict__[prefix + "_modified"] < last_modify:

@@ -391,6 +391,8 @@ class SpriteBot:
         # update the credits and timestamp in the chosen node
         chosen_node.__dict__[asset_type + "_modified"] = str(datetime.datetime.utcnow())
         chosen_node.__dict__[asset_type + "_credit"] = orig_author
+        # update the file cache
+        chosen_node.__dict__[asset_type + "_files"] = SpriteUtils.getFiles(gen_path)
 
         # remove from pending list
         pending_dict = chosen_node.__dict__[asset_type + "_pending"]
