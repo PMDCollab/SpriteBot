@@ -788,8 +788,6 @@ class SpriteBot:
     async def setProfile(self, msg, args):
         msg_mention = "<@!{0}>".format(msg.author.id)
 
-        if len(args) == 0:
-            new_credit = SpriteUtils.CreditEntry("", "")
         if len(args) == 1:
             new_credit = SpriteUtils.CreditEntry(args[0], "")
         elif len(args) == 2:
@@ -804,10 +802,45 @@ class SpriteBot:
             await msg.channel.send(msg.author.mention + " Invalid args")
             return
 
+        if msg_mention in self.names:
+            new_credit.sprites = self.names[msg_mention].sprites
+            new_credit.portraits = self.names[msg_mention].portraits
         self.names[msg_mention] = new_credit
         self.saveNames()
 
         await msg.channel.send(msg_mention + " registered profile:\nName: \"{0}\"    Contact: \"{1}\"".format(self.names[msg_mention].name, self.names[msg_mention].contact))
+
+    async def deleteProfile(self, msg, args):
+        msg_mention = "<@!{0}>".format(msg.author.id)
+
+        if len(args) == 0:
+            pass
+        elif len(args) == 1:
+            if not await self.isAuthorized(msg.author, msg.guild):
+                await msg.channel.send(msg.author.mention + " Not authorized to delete absent registration.")
+                return
+            msg_mention = args[0].upper()
+        else:
+            await msg.channel.send(msg.author.mention + " Invalid args")
+            return
+
+        if msg_mention not in self.names:
+            await msg.channel.send(msg.author.mention + " Entry {0} doesn't exist!".format(msg_mention))
+            return
+
+
+
+        if self.names[msg_mention].sprites or self.names[msg_mention].portraits:
+            await msg.channel.send(msg.author.mention + " {0} was not deleted because it was credited. Details have been wiped instead.".format(msg_mention))
+            new_credit = SpriteUtils.CreditEntry("", "")
+            new_credit.sprites = self.names[msg_mention].sprites
+            new_credit.portraits = self.names[msg_mention].portraits
+            self.names[msg_mention] = new_credit
+        else:
+            del self.names[msg_mention]
+            await msg.channel.send(msg.author.mention + " {0} was deleted.".format(msg_mention))
+        self.saveNames()
+
 
     async def printStatus(self, msg):
         sprites = 0
@@ -1206,6 +1239,8 @@ async def on_message(msg: discord.Message):
                 await sprite_bot.setProfile(msg, args[1:])
             elif args[0] == "absentprofiles":
                 await sprite_bot.getAbsentProfiles(msg)
+            elif args[0] == "unregister":
+                await sprite_bot.deleteProfile(msg, args[1:])
             elif args[0] == "spritewip" and authorized:
                 await sprite_bot.completeSlot(msg, args[1:], "sprite", 0)
             elif args[0] == "portraitwip" and authorized:
