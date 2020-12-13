@@ -689,9 +689,9 @@ class SpriteBot:
 
         phase_str = "incomplete"
         if phase == 1:
-            phase_str = "complete"
+            phase_str = "exists"
         elif phase == 2:
-            phase_str = "filled"
+            phase_str = "fully featured"
 
         # if the node has no credit, fail
         if chosen_node.__dict__[asset_type + "_credit"] == "" and phase > 0:
@@ -1245,9 +1245,9 @@ async def on_message(msg: discord.Message):
                 await sprite_bot.completeSlot(msg, args[1:], "sprite", 0)
             elif args[0] == "portraitwip" and authorized:
                 await sprite_bot.completeSlot(msg, args[1:], "portrait", 0)
-            elif args[0] == "spritedone" and authorized:
+            elif args[0] == "spriteexists" and authorized:
                 await sprite_bot.completeSlot(msg, args[1:], "sprite", 1)
-            elif args[0] == "portraitdone" and authorized:
+            elif args[0] == "portraitexists" and authorized:
                 await sprite_bot.completeSlot(msg, args[1:], "portrait", 1)
             elif args[0] == "spritefilled" and authorized:
                 await sprite_bot.completeSlot(msg, args[1:], "sprite", 2)
