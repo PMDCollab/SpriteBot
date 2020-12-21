@@ -1262,6 +1262,7 @@ async def on_message(msg: discord.Message):
             elif args[0] == "push" and msg.author.id == sprite_bot.config.root:
                 await sprite_bot.gitCommit("Tracker update from forced push.")
                 await sprite_bot.gitPush()
+                msg.channel.send(msg.author.mention + " Changes pushed.")
             else:
                 await msg.channel.send(msg.author.mention + " Unknown Command.")
 
