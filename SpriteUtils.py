@@ -181,18 +181,52 @@ def removePalette(inImg):
     return imgCrop.convert("RGBA")
 
 def getLinkImg(url):
-    req = urllib.request.Request(url, None, RETRIEVE_HEADERS)
-    with urllib.request.urlopen(req) as response:
-        img = Image.open(response).convert("RGBA")
-    return img
+    try:
+        full_path, ext = os.path.splitext(url)
+        unzip = ext == ".zip"
+        _, file = os.path.split(full_path)
+        req = urllib.request.Request(url, None, RETRIEVE_HEADERS)
+        with urllib.request.urlopen(req) as response:
+            if unzip:
+                zip_data = BytesIO()
+                zip_data.write(response.read())
+                zip_data.seek(0)
+                with zipfile.ZipFile(zip_data, 'r') as zip:
+                    file_data = BytesIO()
+                    file_data.write(zip.read(file + ".png"))
+                    file_data.seek(0)
+                    img = Image.open(file_data).convert("RGBA")
+            else:
+                img = Image.open(response).convert("RGBA")
 
-def getLinkFile(url):
-    req = urllib.request.Request(url, None, RETRIEVE_HEADERS)
-    file_data = BytesIO()
-    with urllib.request.urlopen(req) as response:
-        file_data.write(response.read())
-    file_data.seek(0)
-    return file_data
+        return img
+    except Exception as e:
+        return None
+
+def getLinkFile(url, asset_type):
+    try:
+        full_path, ext = os.path.splitext(url)
+        unzip = ext == ".zip" and asset_type == "portrait"
+        _, file = os.path.split(full_path)
+        output_file = file + ext
+
+        req = urllib.request.Request(url, None, RETRIEVE_HEADERS)
+        file_data = BytesIO()
+        with urllib.request.urlopen(req) as response:
+            if unzip:
+                zip_data = BytesIO()
+                zip_data.write(response.read())
+                zip_data.seek(0)
+                with zipfile.ZipFile(zip_data, 'r') as zip:
+                    file_data.write(zip.read(file + ".png"))
+                    output_file = file + ".png"
+            else:
+                file_data.write(response.read())
+
+        file_data.seek(0)
+        return file_data, output_file
+    except Exception as e:
+        return None, None
 
 def placeSpriteRecolors(path, outPath, shiny):
     #print(path + " -> " + outPath)

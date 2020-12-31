@@ -293,6 +293,10 @@ class SpriteBot:
         elif asset_type == "portrait":
             # get the portrait image and verify its contents
             img = SpriteUtils.getLinkImg(msg.attachments[0].url)
+            if img is None:
+                await self.returnMsgFile(msg, msg.author.mention + " Submission was in the wrong format.", asset_type)
+                return False
+
             orig_img = None
             # if it's a shiny, get the original image
             if SpriteUtils.isShinyIdx(full_idx):
@@ -301,12 +305,7 @@ class SpriteBot:
 
                 if orig_node.__dict__[asset_type + "_credit"] == "":
                     # this means there's no original portrait to base the recolor off of
-                    return_file = SpriteUtils.getLinkFile(msg.attachments[0].url)
-                    file_name = msg.attachments[0].filename
-                    await self.getChatChannel(msg.guild.id).send(
-                        msg.author.mention + " Cannot submit a shiny when the original isn't finished.",
-                                                         file=discord.File(return_file, file_name))
-                    await msg.delete()
+                    await self.returnMsgFile(msg, msg.author.mention + " Cannot submit a shiny when the original isn't finished.", asset_type)
                     return False
 
                 orig_link = await self.retrieveLinkMsg(orig_idx, orig_node, asset_type, recolor)
@@ -319,23 +318,31 @@ class SpriteBot:
                 decline_msg = SpriteUtils.verifyRecolor(msg_args, orig_img, img, recolor)
 
         if decline_msg is not None:
-            return_file = SpriteUtils.getLinkFile(msg.attachments[0].url)
-            file_name = msg.attachments[0].filename
-            await self.getChatChannel(msg.guild.id).send(msg.author.mention + " " + decline_msg,
-                                                         file=discord.File(return_file, file_name))
+            await self.returnMsgFile(msg, msg.author.mention + " " + decline_msg, asset_type)
             await msg.delete()
             return False
 
         return True
 
+    async def returnMsgFile(self, msg, msg_body, asset_type):
+        return_file, return_name = SpriteUtils.getLinkFile(msg.attachments[0].url, asset_type)
+        if return_file is None:
+            await self.getChatChannel(msg.guild.id).send(msg_body + "\n(An error occurred with the file)")
+        else:
+            await self.getChatChannel(msg.guild.id).send(msg_body, file=discord.File(return_file, return_name))
+        await msg.delete()
+
     async def stageSubmission(self, msg, full_idx, chosen_node, asset_type, author):
 
         title = SpriteUtils.getIdxName(self.tracker, full_idx)
-        return_file = SpriteUtils.getLinkFile(msg.attachments[0].url)
-        file_name = msg.attachments[0].filename
-        new_msg = await msg.channel.send("{0} {1}\n{2}".format(author, " ".join(title), msg.content),
-                                                     file=discord.File(return_file, file_name))
-        await msg.delete()
+        return_file, return_name = SpriteUtils.getLinkFile(msg.attachments[0].url, asset_type)
+        if return_file is None:
+            await self.getChatChannel(msg.guild.id).send("An error occurred with the file {0}.".format(msg.attachments[0].filename))
+            await msg.delete()
+        else:
+            new_msg = await msg.channel.send("{0} {1}\n{2}".format(author, " ".join(title), msg.content),
+                                                     file=discord.File(return_file, return_name))
+            await msg.delete()
 
         pending_dict = chosen_node.__dict__[asset_type+"_pending"]
         change_status = len(pending_dict) == 0
@@ -376,6 +383,10 @@ class SpriteBot:
             pass
         elif asset_type == "portrait":
             portrait_img = SpriteUtils.getLinkImg(msg.attachments[0].url)
+            if portrait_img is None:
+                await self.getChatChannel(msg.guild.id).send(orig_sender + " " + "Removed unknown file: {0}".format(file_name))
+                await msg.delete()
+                return
             if recolor:
                 portrait_img = SpriteUtils.removePalette(portrait_img)
             SpriteUtils.placePortraitToPath(portrait_img, gen_path)
@@ -453,11 +464,7 @@ class SpriteBot:
         if str(msg.id) in pending_dict:
             del pending_dict[str(msg.id)]
 
-        return_file = SpriteUtils.getLinkFile(msg.attachments[0].url)
-        await self.getChatChannel(msg.guild.id).send(orig_sender + " " + "Declined {0}:".format(asset_type),
-                                                     file=discord.File(return_file, msg.attachments[0].filename))
-        # delete post
-        await msg.delete()
+        await self.returnMsgFile(msg, orig_sender + " " + "Declined {0}:".format(asset_type), asset_type)
         self.changed |= change_status
 
     async def checkAllSubmissions(self):
@@ -473,9 +480,14 @@ class SpriteBot:
             async for message in channel.history(limit=None):
                 msgs.append(message)
             for msg in msgs:
-                await self.pollSubmission(msg)
-            sprite_bot.saveTracker()
-            sprite_bot.changed = True
+                try:
+                    await self.pollSubmission(msg)
+                except Exception as e:
+                    trace = traceback.format_exc()
+                    user = await self.client.fetch_user(self.config.root)
+                    await user.send("```" + trace + "```")
+            self.saveTracker()
+            self.changed = True
 
     """
     Returns true if anything changed that would require a tracker save
@@ -569,10 +581,7 @@ class SpriteBot:
                     decline_msg = "{0} does not have a profile.".format(msg_args[0])
 
                 if decline_msg is not None:
-                    return_file = SpriteUtils.getLinkFile(msg.attachments[0].url)
-                    await self.getChatChannel(msg.guild.id).send(msg.author.mention + " " + decline_msg,
-                                                                 file=discord.File(return_file, file_name))
-                    await msg.delete()
+                    await self.returnMsgFile(msg, msg.author.mention + " " + decline_msg, asset_type)
                     return False
 
                 author = "{0}/{1}".format(author, msg_args[0])
