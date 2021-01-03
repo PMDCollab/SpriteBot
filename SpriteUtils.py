@@ -13,6 +13,8 @@ import datetime
 import json
 from io import BytesIO
 import zipfile
+import xml.etree.ElementTree as ET
+import xml.dom.minidom as minidom
 
 RETRIEVE_HEADERS = { 'User-Agent': 'Mozilla/5.0 (Windows; U; Windows NT 5.1; en-US; rv:1.9.0.7) Gecko/2009021910 Firefox/3.0.7'}
 PORTRAIT_SIZE = 40
@@ -414,6 +416,50 @@ def verifyPortraitFilled(species_path):
 File data writeback
 """
 
+def placeSpriteZipToPath(outZip, dest_path):
+    if not os.path.exists(dest_path):
+        os.makedirs(dest_path, exist_ok=True)
+    else:
+        # delete existing files
+        existing_files = os.listdir(dest_path)
+        for file in existing_files:
+            if file.endswith(".png") or file.endswith(".xml"):
+                os.remove(os.path.join(dest_path, file))
+
+    # extract all
+
+def placeSpriteRecolorToPath(outImg, dest_path):
+    # remove palette bar of both images
+    outImg = outImg.crop((0, 1, outImg.size[0], outImg.size[1]))
+    # obtain a mapping from the color image of the shiny path
+    shiny_frames = []
+    total_tile_width = 8
+    max_size = outImg.size[0] // total_tile_width
+    for yy in range(0, outImg.size[1], max_size):
+        for xx in range(0, outImg.size[0], max_size):
+            tile_bounds = (xx, yy, xx + max_size, yy + max_size)
+            bounds = getCoveredBounds(outImg, tile_bounds)
+            if bounds[0] >= bounds[2]:
+                continue
+            abs_bounds = addToBounds(bounds, (xx, yy))
+            frame_tex = outImg.crop(abs_bounds)
+            shiny_frames.append(frame_tex)
+
+    frames, frame_mapping = getFramesAndMappings(dest_path)
+
+    for anim_name in frame_mapping:
+        img_path = os.path.join(dest_path, anim_name + '-Anim.png')
+        prev_img = Image.open(img_path).convert("RGBA")
+        img = Image.new('RGBA', prev_img.size, (0, 0, 0, 0))
+        for abs_bounds in frame_mapping[anim_name]:
+            frame_idx, flip = frame_mapping[anim_name][abs_bounds]
+            imgPiece = shiny_frames[frame_idx]
+            if flip:
+                imgPiece = imgPiece.transpose(Image.FLIP_LEFT_RIGHT)
+            img.paste(imgPiece, (abs_bounds[0], abs_bounds[1]), imgPiece)
+        img.save(img_path)
+
+
 def placePortraitToPath(outImg, dest_path):
     if not os.path.exists(dest_path):
         os.makedirs(dest_path, exist_ok=True)
@@ -464,15 +510,75 @@ def prepareSpriteZip(path):
             zip.write(full_file, arcname=file)
     return fileData
 
+def getFramesAndMappings(path):
+    anim_dims = {}
+    tree = ET.parse(os.path.join(path, 'AnimData.xml'))
+    root = tree.getroot()
+    anims_node = root.find('Anims')
+    for anim_node in anims_node.iter('Anim'):
+        name = anim_node.find('Name').text
+        backref_node = anim_node.find('CopyOf')
+        if backref_node is None:
+            frame_width = anim_node.find('FrameWidth')
+            frame_height = anim_node.find('FrameHeight')
+            anim_dims[name] = (int(frame_width.text), int(frame_height.text))
 
-def prepareSpriteImage(path):
-    for file in os.listdir(path):
-        filename, ext = os.path.splitext(file)
-        full_file = os.path.join(path, file)
-        if os.path.isdir(full_file):
-            continue
-        elif ext == '.png':
-            return Image.open(full_file).convert("RGBA")
+    frames = []
+    frame_mapping = {}
+    for anim_name in anim_dims:
+        anim_map = {}
+        frame_size = anim_dims[anim_name]
+        img = Image.open(os.path.join(path, anim_name + '-Anim.png')).convert("RGBA")
+
+        for yy in range(0, img.size[1], frame_size[1]):
+            for xx in range(0, img.size[0], frame_size[0]):
+                tile_bounds = (xx, yy, xx + frame_size[0], yy + frame_size[1])
+                bounds = getCoveredBounds(img, tile_bounds)
+                if bounds[0] >= bounds[2]:
+                    continue
+                abs_bounds = addToBounds(bounds, (xx, yy))
+                frame_tex = img.crop(abs_bounds)
+                isDupe = False
+                for idx, frame in enumerate(frames):
+                    if ImgsEqual(frame, frame_tex):
+                        anim_map[abs_bounds] = (idx, False)
+                        isDupe = True
+                        break
+                    if ImgsEqual(frame, frame_tex, True):
+                        anim_map[abs_bounds] = (idx, True)
+                        isDupe = True
+                        break
+                if not isDupe:
+                    anim_map[abs_bounds] = (len(frames), False)
+                    frames.append(frame_tex)
+
+        frame_mapping[anim_name] = anim_map
+    return frames, frame_mapping
+
+def prepareSpriteRecolor(path):
+
+    max_size = 0
+    frames, frame_mapping = getFramesAndMappings(path)
+    for frame_tex in frames:
+        max_size = max(max_size, frame_tex.size[0])
+        max_size = max(max_size, frame_tex.size[1])
+
+    max_size = RoundUpToMult(max_size, 2)
+
+    total_tile_width = 8
+    total_tile_height = (len(frames) - 1) // 8 + 1
+
+    combinedImg = Image.new('RGBA', (max_size * total_tile_width, max_size * total_tile_height), (0, 0, 0, 0))
+
+    for idx, frame in enumerate(frames):
+        xx = idx % total_tile_width
+        yy = idx // total_tile_width
+        tilePos = (xx * max_size, yy * max_size)
+        centerPos = ((max_size - frame.size[0]) // 2, (max_size - frame.size[1]) // 2)
+        combinedImg.paste(frame, (tilePos[0] + centerPos[0], tilePos[1] + centerPos[1]), frame)
+
+    combinedImg = insertPalette(combinedImg)
+    return combinedImg
 
 """
 Returns Image
@@ -510,6 +616,10 @@ def preparePortraitImage(path):
         return outImg
     return None
 
+def preparePortraitRecolor(path):
+    portraitImg = preparePortraitImage(path)
+    portraitImg = insertPalette(portraitImg)
+    return portraitImg
 
 """
 Assumes that the data path is always valid.
@@ -518,15 +628,16 @@ Returns file handle and an extension for the file format
 def generateFileData(path, asset_type, recolor):
 
     if asset_type == "portrait":
-        portraitImg = preparePortraitImage(path)
         if recolor:
-            portraitImg = insertPalette(portraitImg)
+            portraitImg = preparePortraitRecolor(path)
+        else:
+            portraitImg = preparePortraitImage(path)
         fileData = BytesIO()
         portraitImg.save(fileData, format='PNG')
         return fileData, ".png"
     elif asset_type == "sprite":
         if recolor:
-            spriteImg = prepareSpriteImage(path)
+            spriteImg = prepareSpriteRecolor(path)
             fileData = BytesIO()
             spriteImg.save(fileData, format='PNG')
             return fileData, ".png"
@@ -917,3 +1028,59 @@ def sanitizeName(str):
 
 def sanitizeCredit(str):
     return re.sub("\t\n", "", str)
+
+
+
+
+def getCoveredBounds(inImg, max_box=None):
+    if max_box is None:
+        max_box = (0, 0, inImg.size[0], inImg.size[1])
+    minX, minY = inImg.size
+    maxX = -1
+    maxY = -1
+    datas = inImg.getdata()
+    for i in range(max_box[0], max_box[2]):
+        for j in range(max_box[1], max_box[3]):
+            if datas[i + j * inImg.size[0]][3] != 0:
+                if i < minX:
+                    minX = i
+                if i > maxX:
+                    maxX = i
+                if j < minY:
+                    minY = j
+                if j > maxY:
+                    maxY = j
+    abs_bounds = (minX, minY, maxX + 1, maxY + 1)
+    return addToBounds(abs_bounds, (max_box[0], max_box[1]), True)
+
+
+def RoundUpToMult(inInt, inMult):
+    subInt = inInt - 1
+    div = subInt // inMult
+    return (div + 1) * inMult
+
+
+def ImgsEqual(img1, img2, flip=False):
+    if img1.size[0] != img2.size[0] or img1.size[1] != img2.size[1]:
+        return False
+    data_1 = img1.getdata()
+    data_2 = img2.getdata()
+    for xx in range(img1.size[0]):
+        for yy in range(img1.size[1]):
+            idx1 = xx + yy * img1.size[0]
+            x2 = xx
+            if flip:
+                x2 = img1.size[0] - 1 - xx
+            idx2 = x2 + yy * img1.size[0]
+            if data_1[idx1] != data_2[idx2]:
+                return False
+
+    return True
+
+
+def addToBounds(bounds, add, sub=False):
+    mult = 1
+    if sub:
+        mult = -1
+    return (bounds[0] + add[0] * mult, bounds[1] + add[1] * mult, bounds[2] + add[0] * mult, bounds[3] + add[1] * mult)
+
