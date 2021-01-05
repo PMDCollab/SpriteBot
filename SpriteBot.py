@@ -1343,7 +1343,11 @@ client.loop.create_task(periodic_update_status())
 with open(os.path.join(scdir, TOKEN_FILE_PATH)) as token_file:
     token = token_file.read()
 
-client.run(token)
+try:
+    client.run(token)
+except Exception as e:
+    trace = traceback.format_exc()
+    print(trace)
 
 
 if sprite_bot.need_restart:
