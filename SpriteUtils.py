@@ -15,6 +15,7 @@ from io import BytesIO
 import zipfile
 import xml.etree.ElementTree as ET
 import xml.dom.minidom as minidom
+from skytemple_tilequant.aikku.image_converter import AikkuImageConverter as QuantConverter, DitheringMode
 
 RETRIEVE_HEADERS = { 'User-Agent': 'Mozilla/5.0 (Windows; U; Windows NT 5.1; en-US; rv:1.9.0.7) Gecko/2009021910 Firefox/3.0.7'}
 PORTRAIT_SIZE = 40
@@ -312,12 +313,12 @@ def getEmotionFromTilePos(tile_pos):
 def verifyPortrait(msg_args, img):
     # make sure the dimensions are sound
     if img.size[0] % PORTRAIT_SIZE != 0 or img.size[1] % PORTRAIT_SIZE != 0:
-        return "Portrait has an invalid size of {0}, Not divisble by {1}x{1}".format(str(img.size), PORTRAIT_SIZE)
+        return "Portrait has an invalid size of {0}, Not divisble by {1}x{1}".format(str(img.size), PORTRAIT_SIZE), None
 
     img_tile_size = (img.size[0] // PORTRAIT_SIZE, img.size[1] // PORTRAIT_SIZE)
     max_size = (PORTRAIT_TILE_X * PORTRAIT_SIZE, PORTRAIT_TILE_Y * PORTRAIT_SIZE)
     if img.size[0] > max_size[0] or img.size[1] > max_size[1]:
-        return "Portrait has an invalid size of {0}, exceeding max of {1}".format(str(img.size), str(max_size))
+        return "Portrait has an invalid size of {0}, exceeding max of {1}".format(str(img.size), str(max_size)), None
 
     in_data = img.getdata()
     occupied = [[]] * PORTRAIT_TILE_X
@@ -351,27 +352,41 @@ def verifyPortrait(msg_args, img):
                         break
                 if is_rogue:
                     break
-            emote_str = getEmotionFromTilePos((xx, yy))
             if is_rogue:
-                rogue_tiles.append(emote_str)
-            palette_counts[emote_str] = len(palette)
+                rogue_tiles.append((xx, yy))
+            palette_counts[(xx, yy)] = len(palette)
 
 
     if len(rogue_pixels) > 0:
-        return "Semi-transparent pixels found at: {0}".format(str(rogue_pixels)[:1900])
+        return "Semi-transparent pixels found at: {0}".format(str(rogue_pixels)[:1900]), None
     if len(rogue_tiles) > 0:
-        return "The following emotions have transparent pixels: {0}".format(str(rogue_tiles)[:1900])
+        rogue_emotes = [getEmotionFromTilePos(a) for a in rogue_tiles]
+        return "The following emotions have transparent pixels: {0}".format(str(rogue_emotes)[:1900]), None
 
     overpalette = { }
-    for emote_str in palette_counts:
-        if palette_counts[emote_str] > 15:
-            overpalette[emote_str] = palette_counts[emote_str]
+    for emote_loc in palette_counts:
+        if palette_counts[emote_loc] > 15:
+            overpalette[emote_loc] = palette_counts[emote_loc]
+
     if len(overpalette) > 0:
         escape_clause = len(msg_args) > 0 and msg_args[0] == "overcolor"
         if escape_clause:
             msg_args.pop(0)
         else:
-            return "Some emotions have over 15 colors. If this is intentional, include `overcolor` in the message.\nEmotes: {0}".format(str(overpalette)[:1900])
+            reduced_img = img.copy()
+            for emote_loc in overpalette:
+                crop_pos = (emote_loc[0] * PORTRAIT_SIZE, emote_loc[1] * PORTRAIT_SIZE,
+                            (emote_loc[0] + 1) * PORTRAIT_SIZE, (emote_loc[1] + 1) * PORTRAIT_SIZE)
+                portrait_img = reduced_img.crop(crop_pos)
+
+                converter = QuantConverter(portrait_img, None, PORTRAIT_SIZE, PORTRAIT_SIZE)
+                reduced_portrait = converter.convert(num_palettes=1, colors_per_palette=16, dithering_mode=DitheringMode.NONE)
+                reduced_img.paste(reduced_portrait, crop_pos)
+
+            rogue_emotes = [getEmotionFromTilePos(a) for a in overpalette]
+            return "Some emotions have over 15 colors.\n" \
+                   "If this is acceptable, include `overcolor` in the message.  Otherwise reduce colors for emotes:\n" \
+                   "{0}".format(str(rogue_emotes)[:1900]), reduced_img
 
     # make sure all mirrored emotions have their original emotions
     # make sure if there is one mirrored emotion, there is all mirrored emotions
@@ -395,11 +410,12 @@ def verifyPortrait(msg_args, img):
             msg_args.pop(0)
 
         if has_missing_original:
-            return "File has a flipped emotion when the original is missing."
+            return "File has a flipped emotion when the original is missing.", None
         if not escape_clause:
-            return "File is missing some flipped emotions. If you want to submit incomplete, include `noflip` in the message."
+            return "File is missing some flipped emotions." \
+                   "If you want to submit incomplete, include `noflip` in the message.", None
 
-    return None
+    return None, None
 
 
 def verifyPortraitFilled(species_path):

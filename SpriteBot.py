@@ -288,6 +288,7 @@ class SpriteBot:
     async def verifySubmission(self, msg, full_idx, asset_type, recolor, msg_args):
 
         decline_msg = None
+        quant_img = None
         if asset_type == "sprite":
             decline_msg = "Sprites currently not accepted."
         elif asset_type == "portrait":
@@ -313,23 +314,28 @@ class SpriteBot:
 
             # if the file needs to be compared to an original, verify it as a recolor. Otherwise, by itself.
             if orig_img is None:
-                decline_msg = SpriteUtils.verifyPortrait(msg_args, img)
+                decline_msg, quant_img = SpriteUtils.verifyPortrait(msg_args, img)
             else:
                 decline_msg = SpriteUtils.verifyRecolor(msg_args, orig_img, img, recolor)
 
         if decline_msg is not None:
-            await self.returnMsgFile(msg, msg.author.mention + " " + decline_msg, asset_type)
-            await msg.delete()
+            await self.returnMsgFile(msg, msg.author.mention + " " + decline_msg, asset_type, quant_img)
             return False
 
         return True
 
-    async def returnMsgFile(self, msg, msg_body, asset_type):
+    async def returnMsgFile(self, msg, msg_body, asset_type, quant_img):
         return_file, return_name = SpriteUtils.getLinkFile(msg.attachments[0].url, asset_type)
         if return_file is None:
             await self.getChatChannel(msg.guild.id).send(msg_body + "\n(An error occurred with the file)")
         else:
             await self.getChatChannel(msg.guild.id).send(msg_body, file=discord.File(return_file, return_name))
+        if quant_img is not None:
+            fileData = io.BytesIO()
+            quant_img.save(fileData, format='PNG')
+            fileData.seek(0)
+            await self.getChatChannel(msg.guild.id).send("Color-reduced preview:",
+                file = discord.File(fileData, return_name))
         await msg.delete()
 
     async def stageSubmission(self, msg, full_idx, chosen_node, asset_type, author):
