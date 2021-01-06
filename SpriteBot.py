@@ -293,10 +293,11 @@ class SpriteBot:
             decline_msg = "Sprites currently not accepted."
         elif asset_type == "portrait":
             # get the portrait image and verify its contents
-            img = SpriteUtils.getLinkImg(msg.attachments[0].url)
-            if img is None:
+            try:
+                img = SpriteUtils.getLinkImg(msg.attachments[0].url)
+            except Exception as e:
                 await self.returnMsgFile(msg, msg.author.mention + " Submission was in the wrong format.", asset_type)
-                return False
+                raise e
 
             orig_img = None
             # if it's a shiny, get the original image
@@ -310,7 +311,11 @@ class SpriteBot:
                     return False
 
                 orig_link = await self.retrieveLinkMsg(orig_idx, orig_node, asset_type, recolor)
-                orig_img = SpriteUtils.getLinkImg(orig_link)
+                try:
+                    orig_img = SpriteUtils.getLinkImg(orig_link)
+                except Exception as e:
+                    await self.returnMsgFile(msg, msg.author.mention + " A problem occurred reading original image.", asset_type)
+                    raise e
 
             # if the file needs to be compared to an original, verify it as a recolor. Otherwise, by itself.
             if orig_img is None:
@@ -325,30 +330,37 @@ class SpriteBot:
         return True
 
     async def returnMsgFile(self, msg, msg_body, asset_type, quant_img=None):
-        return_file, return_name = SpriteUtils.getLinkFile(msg.attachments[0].url, asset_type)
-        if return_file is None:
-            await self.getChatChannel(msg.guild.id).send(msg_body + "\n(An error occurred with the file)")
-        else:
+
+        try:
+            return_file, return_name = SpriteUtils.getLinkFile(msg.attachments[0].url, asset_type)
             await self.getChatChannel(msg.guild.id).send(msg_body, file=discord.File(return_file, return_name))
-        if quant_img is not None:
-            fileData = io.BytesIO()
-            quant_img.save(fileData, format='PNG')
-            fileData.seek(0)
-            await self.getChatChannel(msg.guild.id).send("Color-reduced preview:",
-                file = discord.File(fileData, return_name))
-        await msg.delete()
+
+            if quant_img is not None:
+                fileData = io.BytesIO()
+                quant_img.save(fileData, format='PNG')
+                fileData.seek(0)
+                await self.getChatChannel(msg.guild.id).send("Color-reduced preview:",
+                    file=discord.File(fileData, return_name))
+            await msg.delete()
+        except Exception as e:
+            await self.getChatChannel(msg.guild.id).send(msg_body + "\n(An error occurred with the file)")
+            raise e
+
+
 
     async def stageSubmission(self, msg, full_idx, chosen_node, asset_type, author):
 
         title = SpriteUtils.getIdxName(self.tracker, full_idx)
-        return_file, return_name = SpriteUtils.getLinkFile(msg.attachments[0].url, asset_type)
-        if return_file is None:
+        try:
+            return_file, return_name = SpriteUtils.getLinkFile(msg.attachments[0].url, asset_type)
+        except Exception as e:
             await self.getChatChannel(msg.guild.id).send("An error occurred with the file {0}.".format(msg.attachments[0].filename))
             await msg.delete()
-        else:
-            new_msg = await msg.channel.send("{0} {1}\n{2}".format(author, " ".join(title), msg.content),
-                                                     file=discord.File(return_file, return_name))
-            await msg.delete()
+            raise e
+
+        new_msg = await msg.channel.send("{0} {1}\n{2}".format(author, " ".join(title), msg.content),
+                                                 file=discord.File(return_file, return_name))
+        await msg.delete()
 
         pending_dict = chosen_node.__dict__[asset_type+"_pending"]
         change_status = len(pending_dict) == 0
@@ -388,11 +400,13 @@ class SpriteBot:
         if asset_type == "sprite":
             pass
         elif asset_type == "portrait":
-            portrait_img = SpriteUtils.getLinkImg(msg.attachments[0].url)
-            if portrait_img is None:
+            try:
+                portrait_img = SpriteUtils.getLinkImg(msg.attachments[0].url)
+            except Exception as e:
                 await self.getChatChannel(msg.guild.id).send(orig_sender + " " + "Removed unknown file: {0}".format(file_name))
                 await msg.delete()
-                return
+                raise e
+
             if recolor:
                 portrait_img = SpriteUtils.removePalette(portrait_img)
             SpriteUtils.placePortraitToPath(portrait_img, gen_path)
@@ -1274,7 +1288,7 @@ async def on_message(msg: discord.Message):
                 await sprite_bot.rescan(msg)
             elif args[0] == "update" and msg.author.id == sprite_bot.config.root:
                 await sprite_bot.updateBot(msg)
-            elif args[0] == "push" and msg.author.id == sprite_bot.config.root:
+            elif args[0] == "forcepush" and msg.author.id == sprite_bot.config.root:
                 await sprite_bot.gitCommit("Tracker update from forced push.")
                 await sprite_bot.gitPush()
                 msg.channel.send(msg.author.mention + " Changes pushed.")
