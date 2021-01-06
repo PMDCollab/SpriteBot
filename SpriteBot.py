@@ -324,7 +324,7 @@ class SpriteBot:
 
         return True
 
-    async def returnMsgFile(self, msg, msg_body, asset_type, quant_img):
+    async def returnMsgFile(self, msg, msg_body, asset_type, quant_img=None):
         return_file, return_name = SpriteUtils.getLinkFile(msg.attachments[0].url, asset_type)
         if return_file is None:
             await self.getChatChannel(msg.guild.id).send(msg_body + "\n(An error occurred with the file)")
