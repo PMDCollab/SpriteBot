@@ -708,6 +708,25 @@ class SpriteBot:
         self.saveTracker()
         return new_link
 
+    def retrieveCreditFile(self, full_idx, chosen_node, asset_type):
+        # otherwise, use the provided path
+        if chosen_node.__dict__[asset_type + "_credit"] == "":
+            return None
+        full_arr = [self.config.path, asset_type] + full_idx
+        gen_path = os.path.join(*full_arr)
+
+        credits = SpriteUtils.getFileCredits(gen_path)
+
+        credit_strings = []
+        for credit in credits:
+            credit_id = credit[1]
+            entry = self.names[credit_id]
+            if entry.name != '':
+                credit_id = entry.name
+            credit_strings.append("{0}\t{1}".format(credit_id, entry.contact))
+
+        return credit_strings
+
     async def completeSlot(self, msg, name_args, asset_type, phase):
         name_seq = [SpriteUtils.sanitizeName(i) for i in name_args]
         full_idx = SpriteUtils.findFullTrackerIdx(self.tracker, name_seq, 0)
@@ -798,6 +817,46 @@ class SpriteBot:
             response += " does not need a {0}.".format(asset_type)
 
         await msg.channel.send(response)
+
+
+    async def getCredit(self, msg, name_args, asset_type):
+        # compute answer from current status
+        if len(name_args) == 0:
+            await msg.channel.send(msg.author.mention + " Specify a Pokemon.")
+            return
+        name_seq = [SpriteUtils.sanitizeName(i) for i in name_args]
+        full_idx = SpriteUtils.findFullTrackerIdx(self.tracker, name_seq, 0)
+        if full_idx is None:
+            await msg.channel.send(msg.author.mention + " No such Pokemon.")
+            return
+
+        chosen_node = SpriteUtils.getNodeFromIdx(self.tracker, full_idx, 0)
+
+        credit_lines = self.retrieveCreditFile(full_idx, chosen_node, asset_type)
+        if credit_lines is None:
+            await msg.channel.send(msg.author.mention + " No credit found.")
+
+        response = msg.author.mention + " "
+        status = self.getStatusEmoji(chosen_node, asset_type)
+        response += "Full credit for {0} #{1:03d}: {2}".format(status, int(full_idx[0]), " ".join(name_seq))
+
+        credit_str = "```"
+        too_long = False
+        for credit_line in credit_lines:
+            if len(credit_str) + len(credit_line) < 1950:
+                credit_str += '\n' + credit_line
+            else:
+                too_long = True
+                break
+        credit_str += "```"
+
+        if too_long:
+            file_data = io.StringIO()
+            file_data.write(credit_str)
+            await msg.channel.send(response, file=discord.File(file_data, 'credits.txt'))
+        else:
+            await msg.channel.send(response + credit_str)
+
 
     async def getProfile(self, msg):
         msg_mention = "<@!{0}>".format(msg.author.id)
@@ -1262,6 +1321,10 @@ async def on_message(msg: discord.Message):
                 await sprite_bot.queryStatus(msg, args[1:], "portrait", False)
             elif args[0] == "recolorportrait":
                 await sprite_bot.queryStatus(msg, args[1:], "portrait", True)
+            elif args[0] == "spritecredit":
+                await sprite_bot.getCredit(msg, args[1:], "sprite")
+            elif args[0] == "portraitcredit":
+                await sprite_bot.getCredit(msg, args[1:], "portrait")
             elif args[0] == "profile":
                 await sprite_bot.getProfile(msg)
             elif args[0] == "register":

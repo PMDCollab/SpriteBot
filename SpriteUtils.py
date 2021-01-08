@@ -637,7 +637,6 @@ Assumes that the data path is always valid.
 Returns file handle and an extension for the file format
 """
 def generateFileData(path, asset_type, recolor):
-
     if asset_type == "portrait":
         if recolor:
             portraitImg = preparePortraitRecolor(path)
@@ -655,6 +654,14 @@ def generateFileData(path, asset_type, recolor):
         else:
             spriteZip = prepareSpriteZip(path)
             return spriteZip, ".zip"
+
+
+def getFileCredits(path):
+    id_list = []
+    with open(os.path.join(path, "credits.txt"), 'r', encoding='utf-8') as txt:
+        for line in txt:
+            id_list.append(line.strip().split('\t'))
+    return id_list
 
 def appendCredits(path, id):
     with open(os.path.join(path, "credits.txt"), 'a+', encoding='utf-8') as txt:
