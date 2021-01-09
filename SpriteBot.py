@@ -286,11 +286,43 @@ class SpriteBot:
         return result_url
 
     async def verifySubmission(self, msg, full_idx, asset_type, recolor, msg_args):
-
         decline_msg = None
         quant_img = None
         if asset_type == "sprite":
-            decline_msg = "Sprites currently not accepted."
+            # get the sprite zip and verify its contents
+            try:
+                wan_zip = SpriteUtils.getLinkZipGroup(msg.attachments[0].url)
+            except Exception as e:
+                await self.returnMsgFile(msg, msg.author.mention + " Submission was in the wrong format.", asset_type)
+                raise e
+
+            orig_zip = None
+            # if it's a shiny, get the original image
+            if SpriteUtils.isShinyIdx(full_idx):
+                orig_idx = SpriteUtils.createShinyIdx(full_idx, False)
+                orig_node = SpriteUtils.getNodeFromIdx(self.tracker, orig_idx, 0)
+
+                if orig_node.__dict__[asset_type + "_credit"] == "":
+                    # this means there's no original portrait to base the recolor off of
+                    await self.returnMsgFile(msg, msg.author.mention + " Cannot submit a shiny when the original isn't finished.", asset_type)
+                    return False
+
+                orig_link = await self.retrieveLinkMsg(orig_idx, orig_node, asset_type, recolor)
+                try:
+                    orig_zip = SpriteUtils.getLinkZipGroup(orig_link)
+                except Exception as e:
+                    await self.returnMsgFile(msg, msg.author.mention + " A problem occurred reading original sprite.", asset_type)
+                    raise e
+
+            # if the file needs to be compared to an original, verify it as a recolor. Otherwise, by itself.
+            try:
+                if orig_zip is None:
+                    SpriteUtils.verifySprite(msg_args, wan_zip)
+                else:
+                    SpriteUtils.verifySpriteRecolor(msg_args, orig_zip, wan_zip, recolor)
+            except SpriteUtils.SpriteVerifyError as e:
+                decline_msg = e.message
+                quant_img = e.preview_img
         elif asset_type == "portrait":
             # get the portrait image and verify its contents
             try:
@@ -314,14 +346,18 @@ class SpriteBot:
                 try:
                     orig_img = SpriteUtils.getLinkImg(orig_link)
                 except Exception as e:
-                    await self.returnMsgFile(msg, msg.author.mention + " A problem occurred reading original image.", asset_type)
+                    await self.returnMsgFile(msg, msg.author.mention + " A problem occurred reading original portrait.", asset_type)
                     raise e
 
             # if the file needs to be compared to an original, verify it as a recolor. Otherwise, by itself.
-            if orig_img is None:
-                decline_msg, quant_img = SpriteUtils.verifyPortrait(msg_args, img)
-            else:
-                decline_msg = SpriteUtils.verifyRecolor(msg_args, orig_img, img, recolor)
+            try:
+                if orig_img is None:
+                    SpriteUtils.verifyPortrait(msg_args, img)
+                else:
+                    SpriteUtils.verifyPortraitRecolor(msg_args, orig_img, img, recolor)
+            except SpriteUtils.SpriteVerifyError as e:
+                decline_msg = e.message
+                quant_img = e.preview_img
 
         if decline_msg is not None:
             await self.returnMsgFile(msg, msg.author.mention + " " + decline_msg, asset_type, quant_img)
@@ -398,7 +434,24 @@ class SpriteBot:
         full_arr = [self.config.path, asset_type] + full_idx
         gen_path = os.path.join(*full_arr)
         if asset_type == "sprite":
-            pass
+            if recolor:
+                orig_idx = SpriteUtils.createShinyIdx(full_idx, False)
+                orig_arr = [self.config.path, asset_type] + orig_idx
+                orig_path = os.path.join(*orig_arr)
+                orig_node = SpriteUtils.getNodeFromIdx(self.tracker, orig_idx, 0)
+                orig_link = await self.retrieveLinkMsg(orig_idx, orig_node, asset_type, recolor)
+                try:
+                    orig_img = SpriteUtils.getLinkImg(orig_link)
+                    recolor_img = SpriteUtils.getLinkImg(msg.attachments[0].url)
+                except Exception as e:
+                    await self.getChatChannel(msg.guild.id).send(
+                        orig_sender + " " + "Removed unknown file: {0}".format(file_name))
+                    await msg.delete()
+                    raise e
+                SpriteUtils.placeSpriteRecolorToPath(orig_img, orig_path, recolor_img, gen_path)
+            else:
+                wan_file = SpriteUtils.getLinkFile(msg.attachments[0].url, asset_type)
+                SpriteUtils.placeSpriteZipToPath(wan_file, gen_path)
         elif asset_type == "portrait":
             try:
                 portrait_img = SpriteUtils.getLinkImg(msg.attachments[0].url)
@@ -468,7 +521,7 @@ class SpriteBot:
         await msg.delete()
         self.changed = True
 
-    async def submissionDeclined(self, msg, orig_sender):
+    async def submissionDeclined(self, msg, orig_sender, declines):
 
         file_name = msg.attachments[0].filename
         file_valid, full_idx, asset_type, recolor = SpriteUtils.getStatsFromFilename(file_name)
@@ -484,7 +537,8 @@ class SpriteBot:
         if str(msg.id) in pending_dict:
             del pending_dict[str(msg.id)]
 
-        await self.returnMsgFile(msg, orig_sender + " " + "Declined {0}:".format(asset_type), asset_type)
+        mentions = ["<@!" + str(ii) + ">" for ii in declines]
+        await self.returnMsgFile(msg, orig_sender + " " + "{0} declined by {1}:".format(asset_type, ', '.join(mentions)), asset_type)
         self.changed |= change_status
 
     async def checkAllSubmissions(self):
@@ -536,7 +590,7 @@ class SpriteBot:
 
             auto = False
             approve = []
-            decline = 0
+            decline = []
 
             if ss:
                 async for user in ss.users():
@@ -550,10 +604,10 @@ class SpriteBot:
 
             async for user in xs.users():
                 if await self.isAuthorized(user, msg.guild) or user.id == orig_sender_id:
-                    decline += 1
+                    decline.append(user.id)
 
-            if decline > 0:
-                await self.submissionDeclined(msg, orig_sender)
+            if len(decline) > 0:
+                await self.submissionDeclined(msg, orig_sender, decline)
                 return True
             elif auto or len(approve) >= 2:
                 await self.submissionApproved(msg, orig_sender, orig_author, approve)

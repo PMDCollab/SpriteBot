@@ -89,6 +89,12 @@ ACTIONS = [ "None",
             "HighJump" ]
 
 
+class SpriteVerifyError(Exception):
+    def __init__(self, message, preview_img=None):
+        self.message = message
+        self.preview_img = preview_img
+        super().__init__(self.message)
+
 def isBlank(inImg):
     inData = inImg.getdata()
     for data in inData:
@@ -193,15 +199,28 @@ def getLinkImg(url):
             zip_data.write(response.read())
             zip_data.seek(0)
             with zipfile.ZipFile(zip_data, 'r') as zip:
-                file_data = BytesIO()
-                file_data.write(zip.read(file + ".png"))
-                file_data.seek(0)
-                img = Image.open(file_data).convert("RGBA")
+                img = readZipImg(zip, file + ".png")
         else:
             img = Image.open(response).convert("RGBA")
 
     return img
 
+def readZipImg(zip, file_name):
+    file_data = BytesIO()
+    file_data.write(zip.read(file_name))
+    file_data.seek(0)
+    return Image.open(file_data).convert("RGBA")
+
+def getLinkZipGroup(url):
+    full_path, ext = os.path.splitext(url)
+    _, file = os.path.split(full_path)
+    req = urllib.request.Request(url, None, RETRIEVE_HEADERS)
+    zip_data = BytesIO()
+    with urllib.request.urlopen(req) as response:
+        zip_data.write(response.read())
+    zip_data.seek(0)
+
+    return zip_data
 
 def getLinkFile(url, asset_type):
     full_path, ext = os.path.splitext(url)
@@ -267,9 +286,12 @@ def downloadFromUrl(path, sprite_link):
 File verification
 """
 
-def verifyRecolor(msg_args, orig_img, img, recolor):
+def verifySpriteRecolor(msg_args, orig_img, img, recolor):
+    raise SpriteVerifyError("Recolor verification not yet implemented.")
+
+def verifyPortraitRecolor(msg_args, orig_img, img, recolor):
     if orig_img.size != img.size:
-        return "Recolor has dimensions {0} instead of {1}.".format(str(img.size), str(orig_img.size))
+        raise SpriteVerifyError("Recolor has dimensions {0} instead of {1}.".format(str(img.size), str(orig_img.size)))
     else:
         if recolor:
             orig_img = removePalette(orig_img)
@@ -282,7 +304,7 @@ def verifyRecolor(msg_args, orig_img, img, recolor):
             correctedDiff = pixDiff
 
         if len(correctedDiff) > 0:
-            return "Recolor has differing pixel opacity at:\n {0}".format(str(correctedDiff)[:1000])
+            raise SpriteVerifyError("Recolor has differing pixel opacity at:\n {0}".format(str(correctedDiff)[:1000]))
         else:
             paletteDiff = comparePalette(orig_img, img)
             if paletteDiff != 0:
@@ -292,10 +314,9 @@ def verifyRecolor(msg_args, orig_img, img, recolor):
                     diff_str = str(paletteDiff)
                 if len(msg_args) == 0 or not msg_args[0] == diff_str:
                     base_str = "Recolor has `{0}` colors compared to the original.\nIf this was intended, resubmit and specify `{0}` in the message."
-                    return base_str.format(diff_str)
+                    raise SpriteVerifyError(base_str.format(diff_str))
                 else:
                     msg_args.pop(0)
-    return None
 
 def getEmotionFromTilePos(tile_pos):
     rogue_idx = tile_pos[1] * PORTRAIT_TILE_X + tile_pos[0]
@@ -304,15 +325,78 @@ def getEmotionFromTilePos(tile_pos):
         rogue_str += " Flipped"
     return rogue_str
 
+def verifySprite(msg_args, wan_zip):
+    #with zipfile.ZipFile(wan_zip, 'r') as zip:
+    #    file_data = BytesIO()
+    #    file_data.write(zip.read("AnimData.xml"))
+    #    file_data.seek(0)
+
+    #    anim_dims = {}
+    #    tree = ET.parse(file_data)
+    #    root = tree.getroot()
+    #    sdwSize = int(root.find('ShadowSize').text)
+    #    if sdwSize < 0 or sdwSize > 2:
+    #        return "Invalid shadow size: {0}".format(sdwSize)
+    #    anims_node = root.find('Anims')
+    #    for anim_node in anims_node.iter('Anim'):
+    #        name = anim_node.find('Name').text
+    #        backref_node = anim_node.find('CopyOf')
+    #        if backref_node is None:
+    #            frame_width = anim_node.find('FrameWidth')
+    #            frame_height = anim_node.find('FrameHeight')
+    #            durations_node = anim_node.find('Durations')
+    #            duration_count = 0
+    #            for dur_node in durations_node.iter('Duration'):
+    #                duration_count += 1
+    #            anim_dims[name] = ((int(frame_width.text), int(frame_height.text)), duration_count)
+
+    #    name_list = zip.namelist()
+    #    for name in name_list:
+    #        if name.endswith('.png'):
+    #            anim_name = name.split('-')[0]
+    #            if anim_name not in anim_dims:
+    #                return "Unexpected Anim file: {0}".format(name)
+    #        elif name.endswith('.xml'):
+    #            pass
+    #        else:
+    #            return "Unexpected File {0}".format(name)
+
+    #    for anim_name in anim_dims:
+    #        anim_png_name = anim_name + "-Anim.png"
+    #        offset_png_name = anim_name + "-Offsets.png"
+    #        shadow_png_name = anim_name + "-Shadow.png"
+    #        if anim_png_name not in name_list or offset_png_name not in name_list or shadow_png_name not in name_list:
+    #            return "Unexpected Anim specified in XML: {0}".format(name)
+
+    #        anim_img = readZipImg(zip, anim_png_name)
+    #        offset_img = readZipImg(zip, offset_png_name)
+    #        shadow_img = readZipImg(zip, shadow_png_name)
+
+    #        wan_zip.anims[anim_name] = WanAnim(anim_dims[anim_name][0], anim_dims[anim_name][1], anim_img, offset_img,
+    #                                           shadow_img)
+    # verify image sizes match up to dimensions times frames
+    # verify image tile height is 8 or less
+    # verify internal indices 1-13 exist
+    # verify all names are real
+    # verify no names are duplicated
+    # verify no indices are duplicated
+    # verify CopyOf always leads to a valid result
+    # then, check the colors
+    # verify there's a shadow (And only one shadow) for everything
+    # verify there's offsets (and only one of each offset) for everything
+    # warn if there exists a single frame with the same graphics but multiple offset configurations
+
+    pass
+
 def verifyPortrait(msg_args, img):
     # make sure the dimensions are sound
     if img.size[0] % PORTRAIT_SIZE != 0 or img.size[1] % PORTRAIT_SIZE != 0:
-        return "Portrait has an invalid size of {0}, Not divisble by {1}x{1}".format(str(img.size), PORTRAIT_SIZE), None
+        raise SpriteVerifyError("Portrait has an invalid size of {0}, Not divisble by {1}x{1}".format(str(img.size), PORTRAIT_SIZE))
 
     img_tile_size = (img.size[0] // PORTRAIT_SIZE, img.size[1] // PORTRAIT_SIZE)
     max_size = (PORTRAIT_TILE_X * PORTRAIT_SIZE, PORTRAIT_TILE_Y * PORTRAIT_SIZE)
     if img.size[0] > max_size[0] or img.size[1] > max_size[1]:
-        return "Portrait has an invalid size of {0}, exceeding max of {1}".format(str(img.size), str(max_size)), None
+        raise SpriteVerifyError("Portrait has an invalid size of {0}, exceeding max of {1}".format(str(img.size), str(max_size)))
 
     in_data = img.getdata()
     occupied = [[]] * PORTRAIT_TILE_X
@@ -352,10 +436,10 @@ def verifyPortrait(msg_args, img):
 
 
     if len(rogue_pixels) > 0:
-        return "Semi-transparent pixels found at: {0}".format(str(rogue_pixels)[:1900]), None
+        raise SpriteVerifyError("Semi-transparent pixels found at: {0}".format(str(rogue_pixels)[:1900]))
     if len(rogue_tiles) > 0:
         rogue_emotes = [getEmotionFromTilePos(a) for a in rogue_tiles]
-        return "The following emotions have transparent pixels: {0}".format(str(rogue_emotes)[:1900]), None
+        raise SpriteVerifyError("The following emotions have transparent pixels: {0}".format(str(rogue_emotes)[:1900]))
 
     overpalette = { }
     for emote_loc in palette_counts:
@@ -379,9 +463,9 @@ def verifyPortrait(msg_args, img):
             #    reduced_img.paste(reduced_portrait, crop_pos)
 
             rogue_emotes = [getEmotionFromTilePos(a) for a in overpalette]
-            return "Some emotions have over 15 colors.\n" \
+            raise SpriteVerifyError("Some emotions have over 15 colors.\n" \
                    "If this is acceptable, include `overcolor` in the message.  Otherwise reduce colors for emotes:\n" \
-                   "{0}".format(str(rogue_emotes)[:1900]), reduced_img
+                   "{0}".format(str(rogue_emotes)[:1900]), reduced_img)
 
     # make sure all mirrored emotions have their original emotions
     # make sure if there is one mirrored emotion, there is all mirrored emotions
@@ -405,12 +489,11 @@ def verifyPortrait(msg_args, img):
             msg_args.pop(0)
 
         if has_missing_original:
-            return "File has a flipped emotion when the original is missing.", None
+            raise SpriteVerifyError("File has a flipped emotion when the original is missing.")
         if not escape_clause:
-            return "File is missing some flipped emotions." \
-                   "If you want to submit incomplete, include `noflip` in the message.", None
+            raise SpriteVerifyError("File is missing some flipped emotions." \
+                   "If you want to submit incomplete, include `noflip` in the message.")
 
-    return None, None
 
 
 def verifyPortraitFilled(species_path):
@@ -427,7 +510,7 @@ def verifyPortraitFilled(species_path):
 File data writeback
 """
 
-def placeSpriteZipToPath(outZip, dest_path):
+def placeSpriteZipToPath(wan_file, dest_path):
     if not os.path.exists(dest_path):
         os.makedirs(dest_path, exist_ok=True)
     else:
@@ -438,9 +521,12 @@ def placeSpriteZipToPath(outZip, dest_path):
                 os.remove(os.path.join(dest_path, file))
 
     # extract all
+    with zipfile.ZipFile(wan_file, 'r') as zip:
+        zip.extractall(path=dest_path)
 
-def placeSpriteRecolorToPath(outImg, dest_path):
+def placeSpriteRecolorToPath(origImg, orig_path, outImg, dest_path):
     # remove palette bar of both images
+    origImg = origImg.crop((0, 1, origImg.size[0], origImg.size[1]))
     outImg = outImg.crop((0, 1, outImg.size[0], outImg.size[1]))
     # obtain a mapping from the color image of the shiny path
     shiny_frames = []
@@ -456,7 +542,7 @@ def placeSpriteRecolorToPath(outImg, dest_path):
             frame_tex = outImg.crop(abs_bounds)
             shiny_frames.append(frame_tex)
 
-    frames, frame_mapping = getFramesAndMappings(dest_path)
+    frames, frame_mapping = getFramesAndMappings(orig_path)
 
     for anim_name in frame_mapping:
         img_path = os.path.join(dest_path, anim_name + '-Anim.png')
