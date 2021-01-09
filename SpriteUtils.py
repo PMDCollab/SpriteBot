@@ -15,7 +15,6 @@ from io import BytesIO
 import zipfile
 import xml.etree.ElementTree as ET
 import xml.dom.minidom as minidom
-from skytemple_tilequant.aikku.image_converter import AikkuImageConverter as QuantConverter, DitheringMode
 
 RETRIEVE_HEADERS = { 'User-Agent': 'Mozilla/5.0 (Windows; U; Windows NT 5.1; en-US; rv:1.9.0.7) Gecko/2009021910 Firefox/3.0.7'}
 PORTRAIT_SIZE = 40
@@ -368,15 +367,16 @@ def verifyPortrait(msg_args, img):
         if escape_clause:
             msg_args.pop(0)
         else:
-            reduced_img = img.copy()
-            for emote_loc in overpalette:
-                crop_pos = (emote_loc[0] * PORTRAIT_SIZE, emote_loc[1] * PORTRAIT_SIZE,
-                            (emote_loc[0] + 1) * PORTRAIT_SIZE, (emote_loc[1] + 1) * PORTRAIT_SIZE)
-                portrait_img = reduced_img.crop(crop_pos)
+            reduced_img = None
+            #reduced_img = img.copy()
+            #for emote_loc in overpalette:
+            #    crop_pos = (emote_loc[0] * PORTRAIT_SIZE, emote_loc[1] * PORTRAIT_SIZE,
+            #                (emote_loc[0] + 1) * PORTRAIT_SIZE, (emote_loc[1] + 1) * PORTRAIT_SIZE)
+            #    portrait_img = reduced_img.crop(crop_pos)
 
-                converter = QuantConverter(portrait_img, None, PORTRAIT_SIZE, PORTRAIT_SIZE)
-                reduced_portrait = converter.convert(num_palettes=1, colors_per_palette=16, dithering_mode=DitheringMode.NONE)
-                reduced_img.paste(reduced_portrait, crop_pos)
+            #    converter = QuantConverter(portrait_img, None, PORTRAIT_SIZE, PORTRAIT_SIZE)
+            #    reduced_portrait = converter.convert(num_palettes=1, colors_per_palette=16, dithering_mode=DitheringMode.NONE)
+            #    reduced_img.paste(reduced_portrait, crop_pos)
 
             rogue_emotes = [getEmotionFromTilePos(a) for a in overpalette]
             return "Some emotions have over 15 colors.\n" \
