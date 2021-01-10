@@ -450,7 +450,7 @@ class SpriteBot:
                     raise e
                 SpriteUtils.placeSpriteRecolorToPath(orig_img, orig_path, recolor_img, gen_path)
             else:
-                wan_file = SpriteUtils.getLinkFile(msg.attachments[0].url, asset_type)
+                wan_file = SpriteUtils.getLinkZipGroup(msg.attachments[0].url)
                 SpriteUtils.placeSpriteZipToPath(wan_file, gen_path)
         elif asset_type == "portrait":
             try:

@@ -15,6 +15,7 @@ from io import BytesIO
 import zipfile
 import xml.etree.ElementTree as ET
 import xml.dom.minidom as minidom
+import utils as exUtils
 
 RETRIEVE_HEADERS = { 'User-Agent': 'Mozilla/5.0 (Windows; U; Windows NT 5.1; en-US; rv:1.9.0.7) Gecko/2009021910 Firefox/3.0.7'}
 PORTRAIT_SIZE = 40
@@ -40,6 +41,15 @@ EMOTIONS = [ "Normal",
             "Stunned",
             "Special2",
             "Special3" ]
+
+DIRECTIONS = [ "Down",
+               "DownRight",
+               "Right",
+               "UpRight",
+               "Up",
+               "UpLeft",
+               "Left",
+               "DownLeft"]
 
 ACTIONS = [ "None",
             "Idle",
@@ -77,16 +87,87 @@ ACTIONS = [ "None",
             "Gas",
             "Shock",
             "Emit",
-            "Special",
+            "SpAttack",
             "Withdraw",
             "RearUp",
             "Swell",
             "Swing",
             "Double",
             "Rotate",
-            "Spin",
+            "Hop",
+            "Hover",
+            "QuickStrike",
+            "EventSleep",
+            "Wake",
+            "Eat",
+            "Tumble",
+            "Pose",
+            "Pull",
+            "Pain",
+            "Float",
+            "DeepBreath",
+            "Nod",
+            "Sit",
+            "LookUp",
+            "Sink",
+            "Trip",
+            "Laying",
+            "LeapForth",
+            "Head",
+            "Cringe",
+            "LostBalance",
+            "TumbleBack",
+            "HitGround",
+            "Faint",
+            "Fainted",
+            "StandingUp",
+            "DigIn",
+            "DigOut",
+            "Wiggle",
+            "Yawn",
+            "RaiseArms",
+            "CarefulWalk",
+            "Injured",
             "Jump",
-            "HighJump" ]
+            "Roar",
+            "Wave",
+            "Cry",
+            "Bow",
+            "Special0",
+            "Special1",
+            "Special2",
+            "Special3",
+            "Special4",
+            "Special5",
+            "Special6",
+            "Special7",
+            "Special8",
+            "Special9",
+            "Special10",
+            "Special11",
+            "Special12",
+            "Special13",
+            "Special14",
+            "Special15",
+            "Special16",
+            "Special17",
+            "Special18",
+            "Special19",
+            "Special20",
+            "Special21",
+            "Special22",
+            "Special23",
+            "Special24",
+            "Special25",
+            "Special26",
+            "Special27",
+            "Special28",
+            "Special29",
+            "Special30",
+            "Special31" ]
+
+DRAW_CENTER_X = 0
+DRAW_CENTER_Y = -4
 
 
 class SpriteVerifyError(Exception):
@@ -94,6 +175,47 @@ class SpriteVerifyError(Exception):
         self.message = message
         self.preview_img = preview_img
         super().__init__(self.message)
+
+
+class AnimStat:
+
+    def __init__(self, index, name, size, backref):
+        self.index = index
+        self.name = name
+        self.size = size
+        self.backref = backref
+        self.durations = []
+        self.rushFrame = -1
+        self.hitFrame = -1
+        self.returnFrame = -1
+
+
+class FrameOffset:
+
+    def __init__(self, head, lhand, rhand, center):
+        self.head = head
+        self.lhand = lhand
+        self.rhand = rhand
+        self.center = center
+
+    def AddLoc(self, loc):
+        self.head = exUtils.addLoc(self.head, loc)
+        self.lhand = exUtils.addLoc(self.lhand, loc)
+        self.rhand = exUtils.addLoc(self.rhand, loc)
+        self.center = exUtils.addLoc(self.center, loc)
+
+    def GetBounds(self):
+        maxBounds = (10000, 10000, -10000, -10000)
+        maxBounds = exUtils.combineExtents(maxBounds, self.getBounds(self.head))
+        maxBounds = exUtils.combineExtents(maxBounds, self.getBounds(self.lhand))
+        maxBounds = exUtils.combineExtents(maxBounds, self.getBounds(self.rhand))
+        maxBounds = exUtils.combineExtents(maxBounds, self.getBounds(self.center))
+        return maxBounds
+
+    def getBounds(self, start):
+        return (start[0], start[1], start[0] + 1, start[1] + 1)
+
+
 
 def isBlank(inImg):
     inData = inImg.getdata()
@@ -286,7 +408,7 @@ def downloadFromUrl(path, sprite_link):
 File verification
 """
 
-def verifySpriteRecolor(msg_args, orig_img, img, recolor):
+def verifySpriteRecolor(msg_args, orig_zip, wan_zip, recolor):
     raise SpriteVerifyError("Recolor verification not yet implemented.")
 
 def verifyPortraitRecolor(msg_args, orig_img, img, recolor):
@@ -325,68 +447,284 @@ def getEmotionFromTilePos(tile_pos):
         rogue_str += " Flipped"
     return rogue_str
 
+
+def mapDuplicateImportImgs(imgs, final_imgs, img_map, offset_diffs):
+    map_back = {}
+    for idx, img in enumerate(imgs):
+        dupe = False
+        flip = -1
+        for final_idx, final_img in enumerate(final_imgs):
+            imgs_equal = exUtils.imgsEqual(final_img[0], img[0])
+            # if offsets are not synchronized, they are counted as different
+            if imgs_equal:
+                imgs_equal = exUtils.offsetsEqual(final_img[1], img[1], img[0].size[0])
+                if not imgs_equal:
+                    earlier_idx = map_back[final_idx]
+                    if earlier_idx not in offset_diffs:
+                        offset_diffs[earlier_idx] = []
+                    offset_diffs[earlier_idx].append(idx)
+            if imgs_equal:
+                img_map[idx] = (final_idx, (0, 0))
+                dupe = True
+                break
+            imgs_flip = exUtils.imgsEqual(final_img[0], img[0], True)
+            if imgs_flip:
+                imgs_flip = exUtils.offsetsEqual(final_img[1], img[1], img[0].size[0], True)
+                if not imgs_flip:
+                    earlier_idx = map_back[final_idx]
+                    if earlier_idx not in offset_diffs:
+                        offset_diffs[earlier_idx] = []
+                    offset_diffs[earlier_idx].append(idx)
+            if imgs_flip:
+                flip = final_idx
+
+        if not dupe:
+            img_map[idx] = (len(final_imgs), (0, 0))
+            map_back[len(final_imgs)] = idx
+            final_imgs.append((img[0], img[1], img[2], flip))
+
+
 def verifySprite(msg_args, wan_zip):
-    #with zipfile.ZipFile(wan_zip, 'r') as zip:
-    #    file_data = BytesIO()
-    #    file_data.write(zip.read("AnimData.xml"))
-    #    file_data.seek(0)
+    anim_stats = {}
+    anim_names = {}
 
-    #    anim_dims = {}
-    #    tree = ET.parse(file_data)
-    #    root = tree.getroot()
-    #    sdwSize = int(root.find('ShadowSize').text)
-    #    if sdwSize < 0 or sdwSize > 2:
-    #        return "Invalid shadow size: {0}".format(sdwSize)
-    #    anims_node = root.find('Anims')
-    #    for anim_node in anims_node.iter('Anim'):
-    #        name = anim_node.find('Name').text
-    #        backref_node = anim_node.find('CopyOf')
-    #        if backref_node is None:
-    #            frame_width = anim_node.find('FrameWidth')
-    #            frame_height = anim_node.find('FrameHeight')
-    #            durations_node = anim_node.find('Durations')
-    #            duration_count = 0
-    #            for dur_node in durations_node.iter('Duration'):
-    #                duration_count += 1
-    #            anim_dims[name] = ((int(frame_width.text), int(frame_height.text)), duration_count)
+    frames = []
+    palette = {}
+    frameToSequence = []
+    rogue_pixels = []
+    with zipfile.ZipFile(wan_zip, 'r') as zip:
+        file_data = BytesIO()
+        file_data.write(zip.read("AnimData.xml"))
+        file_data.seek(0)
 
-    #    name_list = zip.namelist()
-    #    for name in name_list:
-    #        if name.endswith('.png'):
-    #            anim_name = name.split('-')[0]
-    #            if anim_name not in anim_dims:
-    #                return "Unexpected Anim file: {0}".format(name)
-    #        elif name.endswith('.xml'):
-    #            pass
-    #        else:
-    #            return "Unexpected File {0}".format(name)
+        tree = ET.parse(file_data)
+        root = tree.getroot()
+        sdwSize = int(root.find('ShadowSize').text)
+        if sdwSize < 0 or sdwSize > 2:
+            raise SpriteVerifyError("Invalid shadow size: {0}".format(sdwSize))
+        anims_node = root.find('Anims')
+        for anim_node in anims_node.iter('Anim'):
+            name = anim_node.find('Name').text
+            # verify all names are real
+            if name not in ACTIONS:
+                raise SpriteVerifyError("Invalid anim name '{0}' in XML.".format(name))
+            index = -1
+            index_node = anim_node.find('Index')
+            if index_node is not None:
+                index = int(index_node.text)
+            backref_node = anim_node.find('CopyOf')
+            if backref_node is not None:
+                backref = backref_node.text
+                anim_stat = AnimStat(index, name, None, backref)
+            else:
+                frame_width = anim_node.find('FrameWidth')
+                frame_height = anim_node.find('FrameHeight')
+                anim_stat = AnimStat(index, name, (int(frame_width.text), int(frame_height.text)), None)
 
-    #    for anim_name in anim_dims:
-    #        anim_png_name = anim_name + "-Anim.png"
-    #        offset_png_name = anim_name + "-Offsets.png"
-    #        shadow_png_name = anim_name + "-Shadow.png"
-    #        if anim_png_name not in name_list or offset_png_name not in name_list or shadow_png_name not in name_list:
-    #            return "Unexpected Anim specified in XML: {0}".format(name)
+                rush_frame = anim_node.find('RushFrame')
+                if rush_frame is not None:
+                    anim_stat.rushFrame = int(rush_frame.text)
+                hit_frame = anim_node.find('HitFrame')
+                if hit_frame is not None:
+                    anim_stat.hitFrame = int(hit_frame.text)
+                return_frame = anim_node.find('ReturnFrame')
+                if return_frame is not None:
+                    anim_stat.returnFrame = int(return_frame.text)
 
-    #        anim_img = readZipImg(zip, anim_png_name)
-    #        offset_img = readZipImg(zip, offset_png_name)
-    #        shadow_img = readZipImg(zip, shadow_png_name)
+                durations_node = anim_node.find('Durations')
+                for dur_node in durations_node.iter('Duration'):
+                    duration = int(dur_node.text)
+                    anim_stat.durations.append(duration)
 
-    #        wan_zip.anims[anim_name] = WanAnim(anim_dims[anim_name][0], anim_dims[anim_name][1], anim_img, offset_img,
-    #                                           shadow_img)
-    # verify image sizes match up to dimensions times frames
-    # verify image tile height is 8 or less
-    # verify internal indices 1-13 exist
-    # verify all names are real
-    # verify no names are duplicated
-    # verify no indices are duplicated
-    # verify CopyOf always leads to a valid result
+                if name.lower() in anim_names:
+                    raise SpriteVerifyError("Anim '{0}' is specified twice in XML!".format(name))
+                anim_names[name.lower()] = index
+                if index == -1:
+                    raise SpriteVerifyError("{0} has its own sheet and does not have an index!".format(name))
+
+            if index > -1:
+                if index in anim_stats:
+                    raise SpriteVerifyError(
+                        "{0} and {1} both have the an index of {2}!".format(anim_stats[index].name, name, index))
+                anim_stats[index] = anim_stat
+
+        name_list = zip.namelist()
+        for name in name_list:
+            if name.endswith('.png'):
+                anim_name = name.split('-')[0].lower()
+                if anim_name not in anim_names:
+                    raise SpriteVerifyError("Unexpected Anim file: {0}".format(name))
+            elif name.endswith('.xml'):
+                pass
+            else:
+                raise SpriteVerifyError("Unexpected File {0}".format(name))
+
+        # verify internal indices 1-13 exist?
+
+
+        for anim_idx in anim_stats:
+            anim_stat = anim_stats[anim_idx]
+            if anim_stat.backref is not None:
+                continue
+            anim_name = anim_stat.name
+            anim_png_name = anim_name + "-Anim.png"
+            offset_png_name = anim_name + "-Offsets.png"
+            shadow_png_name = anim_name + "-Shadow.png"
+            if anim_png_name not in name_list:
+                raise SpriteVerifyError("Anim specified in XML has no Anim.png: {0}".format(anim_name))
+            if offset_png_name not in name_list:
+                raise SpriteVerifyError("Anim specified in XML has no Offsets.png: {0}".format(anim_name))
+            if shadow_png_name not in name_list:
+                raise SpriteVerifyError("Anim specified in XML has no Shadow.png: {0}".format(anim_name))
+
+            anim_img = readZipImg(zip, anim_png_name)
+            offset_img = readZipImg(zip, offset_png_name)
+            shadow_img = readZipImg(zip, shadow_png_name)
+
+            tileSize = anim_stat.size
+            durations = anim_stat.durations
+
+            # check against inconsistent sizing
+            if anim_img.size != offset_img.size or anim_img.size != shadow_img.size:
+                raise SpriteVerifyError("Anim, Offset, and Shadow sheets for {0} must be the same size!".format(anim_name))
+
+            if anim_img.size[0] % tileSize[0] != 0 or anim_img.size[1] % tileSize[1] != 0:
+                raise SpriteVerifyError("Sheet for {4} is {0}x{1} pixels and is not divisible by {2}x{3} in xml!".format(
+                    anim_img.size[0], anim_img.size[1], tileSize[0], tileSize[1], anim_name))
+
+            total_frames = anim_img.size[0] // tileSize[0]
+            total_dirs = anim_img.size[1] // tileSize[1]
+            if total_dirs != 1 and total_dirs != 8:
+                raise SpriteVerifyError("Sheet for {0} must be one-directional or 8-directional!".format(anim_name))
+            # check against inconsistent duration counts
+            if total_frames != len(durations):
+                raise SpriteVerifyError("Number of frames in {0} does not match count of durations ({1}) specified in xml!".format(anim_name, len(durations)))
+
+            if anim_stat.rushFrame >= len(durations):
+                raise SpriteVerifyError("RushFrame of {0} is greater than the number of frames ({1}) in {2}!".format(anim_stat.rushFrame, len(durations), anim_name))
+            if anim_stat.hitFrame >= len(durations):
+                raise SpriteVerifyError("HitFrame of {0} is greater than the number of frames ({1}) in {2}!".format(anim_stat.hitFrame, len(durations), anim_name))
+            if anim_stat.returnFrame >= len(durations):
+                raise SpriteVerifyError("ReturnFrame of {0} is greater than the number of frames ({1}) in {2}!".format(anim_stat.returnFrame, len(durations), anim_name))
+
+            datas = anim_img.getdata()
+            for xx in range(anim_img.size[0]):
+                for yy in range(anim_img.size[1]):
+                    cur_pixel = datas[yy * anim_img.size[0] + xx]
+                    cur_occupied = (cur_pixel[3] > 0)
+                    if cur_occupied and cur_pixel[3] < 255:
+                        rogue_pixels.append((xx, yy))
+                    else:
+                        if cur_pixel not in palette:
+                            palette[cur_pixel] = 0
+                        palette[cur_pixel] += 1
+
+            total_dirs = anim_img.size[1] // tileSize[1]
+            for dir in range(8):
+                if dir >= total_dirs:
+                    break
+                for jj in range(anim_img.size[0] // tileSize[0]):
+                    rel_center = (tileSize[0] // 2 - DRAW_CENTER_X, tileSize[1] // 2 - DRAW_CENTER_Y)
+                    tile_rect = (jj * tileSize[0], dir * tileSize[1], tileSize[0], tileSize[1])
+                    tile_bounds = (tile_rect[0], tile_rect[1], tile_rect[0] + tile_rect[2], tile_rect[1] + tile_rect[3])
+                    bounds = exUtils.getCoveredBounds(anim_img, tile_bounds)
+                    emptyBounds = False
+                    if bounds[0] >= bounds[2]:
+                        bounds = (rel_center[0], rel_center[1], rel_center[0]+1, rel_center[1]+1)
+                        emptyBounds = True
+                    rect = (bounds[0], bounds[1], bounds[2] - bounds[0], bounds[3] - bounds[1])
+                    abs_bounds = exUtils.addToBounds(bounds, (tile_rect[0], tile_rect[1]))
+                    frame_tex = anim_img.crop(abs_bounds)
+
+                    try:
+                        shadow_offset = exUtils.getOffsetFromRGB(shadow_img, tile_bounds, False, False, False, False, True)
+                        frame_offset = exUtils.getOffsetFromRGB(offset_img, tile_bounds, True, True, True, True, False)
+                    except exUtils.MultipleOffsetError as e:
+                        raise SpriteVerifyError(e.message)
+
+                    if emptyBounds and shadow_offset[4] is None and frame_offset[2] is None:
+                        continue
+
+                    offsets = FrameOffset(None, None, None, None)
+                    if frame_offset[2] is None:
+                        # raise warning if there's missing shadow or offsets
+                        raise SpriteVerifyError("No frame offset found in frame {0} for {1}".format((jj, dir), anim_name))
+                    else:
+                        offsets.center = frame_offset[2]
+                        if frame_offset[0] is None:
+                            offsets.head = frame_offset[2]
+                        else:
+                            offsets.head = frame_offset[0]
+                        offsets.lhand = frame_offset[1]
+                        offsets.rhand = frame_offset[3]
+                    offsets.AddLoc((-rect[0], -rect[1]))
+
+                    shadow = rel_center
+                    if shadow_offset[4] is not None:
+                        shadow = shadow_offset[4]
+                    else:
+                        raise ValueError("No shadow offset found in frame {0} for {1}".format((jj, dir), anim_name))
+                    shadow_diff = exUtils.addLoc(shadow, rect, True)
+
+                    frames.append((frame_tex, offsets, shadow_diff))
+                    frameToSequence.append((anim_name, DIRECTIONS[dir], jj))
+
+    # check for semitransparent pixels
+    if len(rogue_pixels) > 0:
+        raise SpriteVerifyError("Semi-transparent pixels found at: {0}".format(str(rogue_pixels)[:1900]))
+
+    offset_diffs = {}
+    frame_map = [None] * len(frames)
+    final_frames = []
+    mapDuplicateImportImgs(frames, final_frames, frame_map, offset_diffs)
+    if len(offset_diffs) > 0:
+        escape_clause = len(msg_args) > 0 and msg_args[0] == "multioffset"
+        if escape_clause:
+            msg_args.pop(0)
+        else:
+            offset_diff_names = []
+            for orig_idx in offset_diffs:
+                offset_group = [frameToSequence[orig_idx]]
+                for idx in offset_diffs[orig_idx]:
+                    offset_group.append(frameToSequence[idx])
+                offset_diff_names.append(offset_group)
+
+            raise SpriteVerifyError("Some frames have identical sprites but different offsets.\n"
+                                    "If this is acceptable, include `multioffset` in the message."
+                                    "  Otherwise make these frame offsets consistent:\n{0}".format(str(offset_diff_names)[:1900]))
+
     # then, check the colors
-    # verify there's a shadow (And only one shadow) for everything
-    # verify there's offsets (and only one of each offset) for everything
-    # warn if there exists a single frame with the same graphics but multiple offset configurations
+    if len(palette) > 15:
+        escape_clause = len(msg_args) > 0 and msg_args[0] == "overcolor"
+        if escape_clause:
+            msg_args.pop(0)
+        else:
+            #max_size = 0
+            #for frame_info in final_frames:
+            #    frame_tex = frame_info[0]
+            #    max_size = max(max_size, frame_tex.size[0])
+            #    max_size = max(max_size, frame_tex.size[1])
 
-    pass
+            #max_size = exUtils.roundUpToMult(max_size, 2)
+
+            #total_tile_width = 8
+            #total_tile_height = (len(frames) - 1) // 8 + 1
+
+            #combinedImg = Image.new('RGBA', (max_size * total_tile_width, max_size * total_tile_height), (0, 0, 0, 0))
+
+            #for idx, frame_info in enumerate(final_frames):
+            #    frame = frame_info[0]
+            #    xx = idx % total_tile_width
+            #    yy = idx // total_tile_width
+            #    tilePos = (xx * max_size, yy * max_size)
+            #    centerPos = ((max_size - frame.size[0]) // 2, (max_size - frame.size[1]) // 2)
+            #    combinedImg.paste(frame, (tilePos[0] + centerPos[0], tilePos[1] + centerPos[1]), frame)
+
+            reduced_img = None
+            raise SpriteVerifyError("The sprite has over 15 colors.\n"
+                                    "If this is acceptable, include `overcolor` in the message."
+                                    "  Otherwise reduce colors for the sprite.", reduced_img)
+
 
 def verifyPortrait(msg_args, img):
     # make sure the dimensions are sound
@@ -535,10 +873,10 @@ def placeSpriteRecolorToPath(origImg, orig_path, outImg, dest_path):
     for yy in range(0, outImg.size[1], max_size):
         for xx in range(0, outImg.size[0], max_size):
             tile_bounds = (xx, yy, xx + max_size, yy + max_size)
-            bounds = getCoveredBounds(outImg, tile_bounds)
+            bounds = exUtils.getCoveredBounds(outImg, tile_bounds)
             if bounds[0] >= bounds[2]:
                 continue
-            abs_bounds = addToBounds(bounds, (xx, yy))
+            abs_bounds = exUtils.addToBounds(bounds, (xx, yy))
             frame_tex = outImg.crop(abs_bounds)
             shiny_frames.append(frame_tex)
 
@@ -630,18 +968,18 @@ def getFramesAndMappings(path):
         for yy in range(0, img.size[1], frame_size[1]):
             for xx in range(0, img.size[0], frame_size[0]):
                 tile_bounds = (xx, yy, xx + frame_size[0], yy + frame_size[1])
-                bounds = getCoveredBounds(img, tile_bounds)
+                bounds = exUtils.getCoveredBounds(img, tile_bounds)
                 if bounds[0] >= bounds[2]:
                     continue
-                abs_bounds = addToBounds(bounds, (xx, yy))
+                abs_bounds = exUtils.addToBounds(bounds, (xx, yy))
                 frame_tex = img.crop(abs_bounds)
                 isDupe = False
                 for idx, frame in enumerate(frames):
-                    if ImgsEqual(frame, frame_tex):
+                    if exUtils.imgsEqual(frame, frame_tex):
                         anim_map[abs_bounds] = (idx, False)
                         isDupe = True
                         break
-                    if ImgsEqual(frame, frame_tex, True):
+                    if exUtils.imgsEqual(frame, frame_tex, True):
                         anim_map[abs_bounds] = (idx, True)
                         isDupe = True
                         break
@@ -660,7 +998,7 @@ def prepareSpriteRecolor(path):
         max_size = max(max_size, frame_tex.size[0])
         max_size = max(max_size, frame_tex.size[1])
 
-    max_size = RoundUpToMult(max_size, 2)
+    max_size = exUtils.roundUpToMult(max_size, 2)
 
     total_tile_width = 8
     total_tile_height = (len(frames) - 1) // 8 + 1
@@ -1134,57 +1472,4 @@ def sanitizeCredit(str):
     return re.sub("\t\n", "", str)
 
 
-
-
-def getCoveredBounds(inImg, max_box=None):
-    if max_box is None:
-        max_box = (0, 0, inImg.size[0], inImg.size[1])
-    minX, minY = inImg.size
-    maxX = -1
-    maxY = -1
-    datas = inImg.getdata()
-    for i in range(max_box[0], max_box[2]):
-        for j in range(max_box[1], max_box[3]):
-            if datas[i + j * inImg.size[0]][3] != 0:
-                if i < minX:
-                    minX = i
-                if i > maxX:
-                    maxX = i
-                if j < minY:
-                    minY = j
-                if j > maxY:
-                    maxY = j
-    abs_bounds = (minX, minY, maxX + 1, maxY + 1)
-    return addToBounds(abs_bounds, (max_box[0], max_box[1]), True)
-
-
-def RoundUpToMult(inInt, inMult):
-    subInt = inInt - 1
-    div = subInt // inMult
-    return (div + 1) * inMult
-
-
-def ImgsEqual(img1, img2, flip=False):
-    if img1.size[0] != img2.size[0] or img1.size[1] != img2.size[1]:
-        return False
-    data_1 = img1.getdata()
-    data_2 = img2.getdata()
-    for xx in range(img1.size[0]):
-        for yy in range(img1.size[1]):
-            idx1 = xx + yy * img1.size[0]
-            x2 = xx
-            if flip:
-                x2 = img1.size[0] - 1 - xx
-            idx2 = x2 + yy * img1.size[0]
-            if data_1[idx1] != data_2[idx2]:
-                return False
-
-    return True
-
-
-def addToBounds(bounds, add, sub=False):
-    mult = 1
-    if sub:
-        mult = -1
-    return (bounds[0] + add[0] * mult, bounds[1] + add[1] * mult, bounds[2] + add[0] * mult, bounds[3] + add[1] * mult)
 
