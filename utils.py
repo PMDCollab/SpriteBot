@@ -94,27 +94,27 @@ def getOffsetFromRGB(img, bounds, black, r, g, b, white):
                     if results[0] is None:
                         results[0] = (i - bounds[0], j - bounds[1])
                     else:
-                        raise MultipleOffsetError("Multiple black pixels found!")
+                        raise MultipleOffsetError("Multiple black pixels found when searching for offsets!")
                 if r and color[0] == 255:
                     if results[1] is None:
                         results[1] = (i - bounds[0], j - bounds[1])
                     else:
-                        raise MultipleOffsetError("Multiple red pixels found!")
+                        raise MultipleOffsetError("Multiple red pixels found found when searching for offsets!")
                 if g and color[1] == 255:
                     if results[2] is None:
                         results[2] = (i - bounds[0], j - bounds[1])
                     else:
-                        raise MultipleOffsetError("Multiple green pixels found!")
+                        raise MultipleOffsetError("Multiple green pixels found found when searching for offsets!")
                 if b and color[2] == 255:
                     if results[3] is None:
                         results[3] = (i - bounds[0], j - bounds[1])
                     else:
-                        raise MultipleOffsetError("Multiple blue pixels found!")
+                        raise MultipleOffsetError("Multiple blue pixels found found when searching for offsets!")
                 if white and color[0] == 255 and color[1] == 255 and color[2] == 255:
                     if results[4] is None:
                         results[4] = (i - bounds[0], j - bounds[1])
                     else:
-                        raise MultipleOffsetError("Multiple white pixels found!")
+                        raise MultipleOffsetError("Multiple white pixels found found when searching for ofsfets!")
     return results
 
 

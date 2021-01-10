@@ -51,8 +51,19 @@ DIRECTIONS = [ "Down",
                "Left",
                "DownLeft"]
 
-ACTIONS = [ "None",
-            "Idle",
+ACTION_MAP = { 0: "Walk",
+               1: "Attack",
+               5: "Sleep",
+               6: "Hurt",
+               7: "Idle",
+               8: "Swing",
+               9: "Double",
+               10: "Hop",
+               11: "Charge",
+               12: "Rotate"
+               }
+
+ACTIONS = [ "Idle",
             "Walk",
             "Sleep",
             "Hurt",
@@ -166,6 +177,7 @@ ACTIONS = [ "None",
             "Special30",
             "Special31" ]
 
+ZIP_SIZE_LIMIT = 5000000
 DRAW_CENTER_X = 0
 DRAW_CENTER_Y = -4
 
@@ -327,7 +339,14 @@ def getLinkImg(url):
 
     return img
 
+def verifyZipFile(zip, file_name):
+    info = zip.getinfo(file_name)
+    if info.file_size > ZIP_SIZE_LIMIT:
+        raise SpriteVerifyError("Zipped file {0} is too large, at {1} bytes.".format(file_name, info.file_size))
+
 def readZipImg(zip, file_name):
+    verifyZipFile(zip, file_name)
+
     file_data = BytesIO()
     file_data.write(zip.read(file_name))
     file_data.seek(0)
@@ -496,6 +515,8 @@ def verifySprite(msg_args, wan_zip):
         name_list = zip.namelist()
         if 'AnimData.xml' not in name_list:
             raise SpriteVerifyError("No AnimData.xml found.")
+        verifyZipFile(zip, 'AnimData.xml')
+
         file_data = BytesIO()
         file_data.write(zip.read('AnimData.xml'))
         file_data.seek(0)
@@ -562,7 +583,19 @@ def verifySprite(msg_args, wan_zip):
                 raise SpriteVerifyError("Unexpected File {0}".format(name))
 
         # verify internal indices 1-13 exist?
-
+        missing_anims = []
+        for idx in range(2):
+            if ACTIONS[idx].lower() not in anim_names:
+                missing_anims.append(ACTIONS[idx])
+        if len(missing_anims) > 0:
+            raise SpriteVerifyError("Missing required anims:\n{0}".format(', '.join(missing_anims)))
+        violated_idx = []
+        for idx in ACTION_MAP:
+            anim_stat = anim_stats[idx]
+            if anim_stat.name != ACTION_MAP[idx]:
+                violated_idx.append(ACTION_MAP[idx] + ' -> ' + str(idx))
+        if len(violated_idx) > 0:
+            raise SpriteVerifyError("Some anims are required to have specific indices:\n{0}".format('\n'.join(violated_idx)))
 
         for anim_idx in anim_stats:
             anim_stat = anim_stats[anim_idx]
@@ -642,7 +675,7 @@ def verifySprite(msg_args, wan_zip):
                         shadow_offset = exUtils.getOffsetFromRGB(shadow_img, tile_bounds, False, False, False, False, True)
                         frame_offset = exUtils.getOffsetFromRGB(offset_img, tile_bounds, True, True, True, True, False)
                     except exUtils.MultipleOffsetError as e:
-                        raise SpriteVerifyError(e.message)
+                        raise SpriteVerifyError(e.message + '\n' + str((anim_name, DIRECTIONS[dir], jj)))
 
                     if emptyBounds and shadow_offset[4] is None and frame_offset[2] is None:
                         continue
@@ -665,7 +698,7 @@ def verifySprite(msg_args, wan_zip):
                     if shadow_offset[4] is not None:
                         shadow = shadow_offset[4]
                     else:
-                        raise ValueError("No shadow offset found in frame {0} for {1}".format((jj, dir), anim_name))
+                        raise SpriteVerifyError("No shadow offset found in frame {0} for {1}".format((jj, dir), anim_name))
                     shadow_diff = exUtils.addLoc(shadow, rect, True)
 
                     frames.append((frame_tex, offsets, shadow_diff))
