@@ -493,8 +493,11 @@ def verifySprite(msg_args, wan_zip):
     frameToSequence = []
     rogue_pixels = []
     with zipfile.ZipFile(wan_zip, 'r') as zip:
+        name_list = zip.namelist()
+        if 'AnimData.xml' not in name_list:
+            raise SpriteVerifyError("No AnimData.xml found.")
         file_data = BytesIO()
-        file_data.write(zip.read("AnimData.xml"))
+        file_data.write(zip.read('AnimData.xml'))
         file_data.seek(0)
 
         tree = ET.parse(file_data)
@@ -548,7 +551,6 @@ def verifySprite(msg_args, wan_zip):
                         "{0} and {1} both have the an index of {2}!".format(anim_stats[index].name, name, index))
                 anim_stats[index] = anim_stat
 
-        name_list = zip.namelist()
         for name in name_list:
             if name.endswith('.png'):
                 anim_name = name.split('-')[0].lower()
