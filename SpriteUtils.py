@@ -683,7 +683,7 @@ def verifySprite(msg_args, wan_zip):
                     offsets = FrameOffset(None, None, None, None)
                     if frame_offset[2] is None:
                         # raise warning if there's missing shadow or offsets
-                        raise SpriteVerifyError("No frame offset found in frame {0} for {1}".format((jj, dir), anim_name))
+                        raise SpriteVerifyError("No frame offset found in frame {0} for {1}".format((DIRECTIONS[dir], jj), anim_name))
                     else:
                         offsets.center = frame_offset[2]
                         if frame_offset[0] is None:
@@ -730,35 +730,35 @@ def verifySprite(msg_args, wan_zip):
 
     # then, check the colors
     if len(palette) > 15:
-        escape_clause = len(msg_args) > 0 and msg_args[0] == "overcolor"
+        escape_clause = len(msg_args) > 0 and msg_args[0] == "=" + str(len(palette))
         if escape_clause:
             msg_args.pop(0)
         else:
-            #max_size = 0
-            #for frame_info in final_frames:
-            #    frame_tex = frame_info[0]
-            #    max_size = max(max_size, frame_tex.size[0])
-            #    max_size = max(max_size, frame_tex.size[1])
+            max_size = 0
+            for frame_info in final_frames:
+                frame_tex = frame_info[0]
+                max_size = max(max_size, frame_tex.size[0])
+                max_size = max(max_size, frame_tex.size[1])
 
-            #max_size = exUtils.roundUpToMult(max_size, 2)
+            max_size = exUtils.roundUpToMult(max_size, 2)
 
-            #total_tile_width = 8
-            #total_tile_height = (len(frames) - 1) // 8 + 1
+            total_tile_width = 8
+            total_tile_height = (len(final_frames) - 1) // 8 + 1
 
-            #combinedImg = Image.new('RGBA', (max_size * total_tile_width, max_size * total_tile_height), (0, 0, 0, 0))
+            combinedImg = Image.new('RGBA', (max_size * total_tile_width, max_size * total_tile_height), (0, 0, 0, 0))
 
-            #for idx, frame_info in enumerate(final_frames):
-            #    frame = frame_info[0]
-            #    xx = idx % total_tile_width
-            #    yy = idx // total_tile_width
-            #    tilePos = (xx * max_size, yy * max_size)
-            #    centerPos = ((max_size - frame.size[0]) // 2, (max_size - frame.size[1]) // 2)
-            #    combinedImg.paste(frame, (tilePos[0] + centerPos[0], tilePos[1] + centerPos[1]), frame)
+            for idx, frame_info in enumerate(final_frames):
+                frame = frame_info[0]
+                xx = idx % total_tile_width
+                yy = idx // total_tile_width
+                tilePos = (xx * max_size, yy * max_size)
+                centerPos = ((max_size - frame.size[0]) // 2, (max_size - frame.size[1]) // 2)
+                combinedImg.paste(frame, (tilePos[0] + centerPos[0], tilePos[1] + centerPos[1]), frame)
 
-            reduced_img = None
-            raise SpriteVerifyError("The sprite has over 15 colors.\n"
-                                    "If this is acceptable, include `overcolor` in the message."
-                                    "  Otherwise reduce colors for the sprite.", reduced_img)
+            reduced_img = simple_quant(combinedImg)
+            raise SpriteVerifyError("The sprite has {0} non-transparent colors with only 15 allowed.\n"
+                                    "If this is acceptable, include `={0}` in the message."
+                                    "  Otherwise reduce colors for the sprite.".format(len(palette)), reduced_img)
 
 
 def verifyPortrait(msg_args, img):
@@ -824,16 +824,14 @@ def verifyPortrait(msg_args, img):
         if escape_clause:
             msg_args.pop(0)
         else:
-            reduced_img = None
-            #reduced_img = img.copy()
-            #for emote_loc in overpalette:
-            #    crop_pos = (emote_loc[0] * PORTRAIT_SIZE, emote_loc[1] * PORTRAIT_SIZE,
-            #                (emote_loc[0] + 1) * PORTRAIT_SIZE, (emote_loc[1] + 1) * PORTRAIT_SIZE)
-            #    portrait_img = reduced_img.crop(crop_pos)
+            reduced_img = img.copy()
+            for emote_loc in overpalette:
+                crop_pos = (emote_loc[0] * PORTRAIT_SIZE, emote_loc[1] * PORTRAIT_SIZE,
+                            (emote_loc[0] + 1) * PORTRAIT_SIZE, (emote_loc[1] + 1) * PORTRAIT_SIZE)
+                portrait_img = reduced_img.crop(crop_pos)
 
-            #    converter = QuantConverter(portrait_img, None, PORTRAIT_SIZE, PORTRAIT_SIZE)
-            #    reduced_portrait = converter.convert(num_palettes=1, colors_per_palette=16, dithering_mode=DitheringMode.NONE)
-            #    reduced_img.paste(reduced_portrait, crop_pos)
+                reduced_portrait = simple_quant(portrait_img)
+                reduced_img.paste(reduced_portrait, crop_pos)
 
             rogue_emotes = [getEmotionFromTilePos(a) for a in overpalette]
             raise SpriteVerifyError("Some emotions have over 15 colors.\n" \
@@ -1506,5 +1504,22 @@ def sanitizeName(str):
 def sanitizeCredit(str):
     return re.sub("\t\n", "", str)
 
-
-
+def simple_quant(img: Image.Image) -> Image.Image:
+    """
+    Simple single-palette image quantization. Reduces to 15 colors and adds one transparent color at index 0.
+    The transparent (alpha=0) pixels in the input image are converted to that color.
+    If you need to do tiled multi-palette quantization, use Tilequant instead!
+    """
+    if img.mode != 'RGBA':
+        img = img.convert('RGBA')
+    transparency_map = [px[3] == 0 for px in img.getdata()]
+    qimg = img.quantize(15, dither=0).convert('RGBA')
+    # Shift up all pixel values by 1 and add the transparent pixels
+    pixels = qimg.load()
+    k = 0
+    for j in range(img.size[1]):
+        for i in range(img.size[0]):
+            if transparency_map[k]:
+                pixels[i, j] = (0, 0, 0, 0)
+            k += 1
+    return qimg

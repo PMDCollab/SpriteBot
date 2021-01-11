@@ -376,7 +376,7 @@ class SpriteBot:
                 quant_img.save(fileData, format='PNG')
                 fileData.seek(0)
                 await self.getChatChannel(msg.guild.id).send("Color-reduced preview:",
-                    file=discord.File(fileData, return_name))
+                    file=discord.File(fileData, return_name.replace('.zip', '.png')))
             await msg.delete()
         except Exception as e:
             await self.getChatChannel(msg.guild.id).send(msg_body + "\n(An error occurred with the file)")
