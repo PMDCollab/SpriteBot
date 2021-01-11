@@ -181,6 +181,7 @@ ZIP_SIZE_LIMIT = 5000000
 DRAW_CENTER_X = 0
 DRAW_CENTER_Y = -4
 
+ANIM_DATA_XML = "AnimData.xml"
 
 class SpriteVerifyError(Exception):
     def __init__(self, message, preview_img=None):
@@ -428,7 +429,118 @@ File verification
 """
 
 def verifySpriteRecolor(msg_args, orig_zip, wan_zip, recolor):
-    raise SpriteVerifyError("Recolor verification not yet implemented.")
+    if not recolor:
+        orig_palette = {}
+        shiny_palette = {}
+        with zipfile.ZipFile(orig_zip, 'r') as zip:
+            with zipfile.ZipFile(wan_zip, 'r') as shiny_zip:
+                name_list = zip.namelist()
+                shiny_name_list = shiny_zip.namelist()
+                if name_list != shiny_name_list:
+                    name_set = set(name_list)
+                    shiny_name_set = set(shiny_name_list)
+                    missing_shiny = name_set - shiny_name_set
+                    missing_orig = shiny_name_set - name_set
+                    report = ""
+                    if len(missing_shiny) > 0:
+                        report += "\nFiles missing: {0}".format(missing_shiny)
+                    if len(missing_orig) > 0:
+                        report += "\nFiles extra: {0}".format(missing_orig)
+                    raise SpriteVerifyError("File list of recolor does not match original.{0}".format(report))
+
+                bin_diff = []
+                for shiny_name in shiny_name_list:
+                    if not shiny_name.endswith("-Anim.png"):
+                        verifyZipFile(shiny_zip, shiny_name)
+                        orig_anim_data = zip.read(shiny_name)
+                        shiny_anim_data = shiny_zip.read(shiny_name)
+                        if orig_anim_data != shiny_anim_data:
+                            bin_diff.append(shiny_name)
+
+                if len(bin_diff) > 0:
+                    raise SpriteVerifyError("The files below must remain the same as they are for the original sprite."
+                                            "  Please copy them from the original zip:\n{0}".format(", ".join(bin_diff)[:1900]))
+
+                trans_diff = {}
+                black_diff = {}
+                for shiny_name in shiny_name_list:
+                    if shiny_name.endswith("-Anim.png"):
+                        anim_name = shiny_name.replace('-Anim.png', '')
+                        verifyZipFile(shiny_zip, shiny_name)
+                        orig_anim_img = readZipImg(zip, shiny_name)
+                        shiny_anim_img = readZipImg(shiny_zip, shiny_name)
+                        if orig_anim_img.size != shiny_anim_img.size:
+                            raise SpriteVerifyError(
+                                "Anim {0} has a size {1}x{2} that is different"
+                                " from the original's size of {3}x{4}".format(shiny_name, shiny_anim_img.size[0],
+                                                                              shiny_anim_img.size[1],
+                                                                              orig_anim_img.size[0],
+                                                                              orig_anim_img.size[1]))
+                        orig_data = orig_anim_img.getdata()
+                        shiny_data = shiny_anim_img.getdata()
+                        for yy in range(orig_data.size[1]):
+                            for xx in range(orig_data.size[0]):
+                                orig_color = orig_data[yy * orig_data.size[0] + xx]
+                                shiny_color = shiny_data[yy * orig_data.size[0] + xx]
+                                # test against transparency, black pixel changes
+                                if orig_color[3] != shiny_color[3]:
+                                    if anim_name not in trans_diff:
+                                        trans_diff[anim_name] = []
+                                    trans_diff[anim_name].append((xx, yy))
+                                if (orig_color == (0, 0, 0, 255)) != (shiny_color == (0, 0, 0, 255)):
+                                    if anim_name not in black_diff:
+                                        black_diff[anim_name] = []
+                                    black_diff[anim_name].append((xx, yy))
+                                # compile palette
+                                if orig_color[3] == 255:
+                                    if orig_color not in orig_palette:
+                                        orig_palette[orig_color] = 0
+                                    orig_palette[orig_color] += 1
+                                if shiny_color[3] == 255:
+                                    if shiny_color not in shiny_palette:
+                                        shiny_palette[shiny_color] = 0
+                                    shiny_palette[shiny_color] += 1
+
+                if len(trans_diff) > 0:
+                    px_strings = []
+                    for anim_name in trans_diff:
+                        px_strings.append(anim_name + ": " + ", ".join([str(a) for a in trans_diff[anim_name]]))
+                    raise SpriteVerifyError("Some pixels were found to have changed transparency:\n{0}".format(
+                        "\n".join(px_strings)[:1900]))
+
+                if len(black_diff) > 0:
+                    px_strings = []
+                    for anim_name in black_diff:
+                        px_strings.append(anim_name + ": " + ", ".join([str(a) for a in black_diff[anim_name]]))
+                    raise SpriteVerifyError("Some pixels were found to have changed from black to another color:\n{0}".format(
+                        "\n".join(px_strings)[:1900]))
+
+                if len(orig_palette) != len(shiny_palette):
+                    paletteDiff = len(shiny_palette) - len(orig_palette)
+                    if paletteDiff != 0:
+                        if paletteDiff > 0:
+                            diff_str = "+" + str(paletteDiff)
+                        else:
+                            diff_str = str(paletteDiff)
+                        if len(msg_args) == 0 or not msg_args[0] == diff_str:
+                            base_str = "Recolor has `{0}` colors compared to the original.\nIf this was intended, resubmit and specify `{0}` in the message."
+                            raise SpriteVerifyError(base_str.format(diff_str))
+                        else:
+                            msg_args.pop(0)
+
+                # then, check the colors
+                if len(shiny_palette) > 15:
+                    escape_clause = len(msg_args) > 0 and msg_args[0] == "=" + str(len(shiny_palette))
+                    if escape_clause:
+                        msg_args.pop(0)
+                    else:
+                        combinedImg = getCombinedImg(shiny_zip, True)
+                        reduced_img = simple_quant(combinedImg)
+                        raise SpriteVerifyError("The sprite has {0} non-transparent colors with only 15 allowed.\n"
+                                                "If this is acceptable, include `={0}` in the message."
+                                                "  Otherwise reduce colors for the sprite.".format(len(shiny_palette)), reduced_img)
+    else:
+        raise SpriteVerifyError("Recolor verification not yet implemented.")
 
 def verifyPortraitRecolor(msg_args, orig_img, img, recolor):
     if orig_img.size != img.size:
@@ -476,8 +588,8 @@ def mapDuplicateImportImgs(imgs, final_imgs, img_map, offset_diffs):
             imgs_equal = exUtils.imgsEqual(final_img[0], img[0])
             # if offsets are not synchronized, they are counted as different
             if imgs_equal:
-                imgs_equal = exUtils.offsetsEqual(final_img[1], img[1], img[0].size[0])
-                if not imgs_equal:
+                offsets_equal = exUtils.offsetsEqual(final_img[1], img[1], img[0].size[0])
+                if not offsets_equal:
                     earlier_idx = map_back[final_idx]
                     if earlier_idx not in offset_diffs:
                         offset_diffs[earlier_idx] = []
@@ -488,8 +600,8 @@ def mapDuplicateImportImgs(imgs, final_imgs, img_map, offset_diffs):
                 break
             imgs_flip = exUtils.imgsEqual(final_img[0], img[0], True)
             if imgs_flip:
-                imgs_flip = exUtils.offsetsEqual(final_img[1], img[1], img[0].size[0], True)
-                if not imgs_flip:
+                offsets_flip = exUtils.offsetsEqual(final_img[1], img[1], img[0].size[0], True)
+                if not offsets_flip:
                     earlier_idx = map_back[final_idx]
                     if earlier_idx not in offset_diffs:
                         offset_diffs[earlier_idx] = []
@@ -513,12 +625,12 @@ def verifySprite(msg_args, wan_zip):
     rogue_pixels = []
     with zipfile.ZipFile(wan_zip, 'r') as zip:
         name_list = zip.namelist()
-        if 'AnimData.xml' not in name_list:
-            raise SpriteVerifyError("No AnimData.xml found.")
-        verifyZipFile(zip, 'AnimData.xml')
+        if ANIM_DATA_XML not in name_list:
+            raise SpriteVerifyError("No {0} found.".format(ANIM_DATA_XML))
+        verifyZipFile(zip, ANIM_DATA_XML)
 
         file_data = BytesIO()
-        file_data.write(zip.read('AnimData.xml'))
+        file_data.write(zip.read(ANIM_DATA_XML))
         file_data.seek(0)
 
         tree = ET.parse(file_data)
@@ -978,9 +1090,15 @@ def prepareSpriteZip(path):
             zip.write(full_file, arcname=file)
     return fileData
 
-def getFramesAndMappings(path):
+def getFramesAndMappings(path, is_zip):
     anim_dims = {}
-    tree = ET.parse(os.path.join(path, 'AnimData.xml'))
+    if is_zip:
+        file_data = BytesIO()
+        file_data.write(path.read(ANIM_DATA_XML))
+        file_data.seek(0)
+        tree = ET.parse(file_data)
+    else:
+        tree = ET.parse(os.path.join(path, ANIM_DATA_XML))
     root = tree.getroot()
     anims_node = root.find('Anims')
     for anim_node in anims_node.iter('Anim'):
@@ -996,7 +1114,10 @@ def getFramesAndMappings(path):
     for anim_name in anim_dims:
         anim_map = {}
         frame_size = anim_dims[anim_name]
-        img = Image.open(os.path.join(path, anim_name + '-Anim.png')).convert("RGBA")
+        if is_zip:
+            img = readZipImg(path, anim_name + '-Anim.png')
+        else:
+            img = Image.open(os.path.join(path, anim_name + '-Anim.png')).convert("RGBA")
 
         for yy in range(0, img.size[1], frame_size[1]):
             for xx in range(0, img.size[0], frame_size[0]):
@@ -1023,10 +1144,10 @@ def getFramesAndMappings(path):
         frame_mapping[anim_name] = anim_map
     return frames, frame_mapping
 
-def prepareSpriteRecolor(path):
+def getCombinedImg(path, is_zip):
 
     max_size = 0
-    frames, frame_mapping = getFramesAndMappings(path)
+    frames, frame_mapping = getFramesAndMappings(path, is_zip)
     for frame_tex in frames:
         max_size = max(max_size, frame_tex.size[0])
         max_size = max(max_size, frame_tex.size[1])
@@ -1045,8 +1166,12 @@ def prepareSpriteRecolor(path):
         centerPos = ((max_size - frame.size[0]) // 2, (max_size - frame.size[1]) // 2)
         combinedImg.paste(frame, (tilePos[0] + centerPos[0], tilePos[1] + centerPos[1]), frame)
 
-    combinedImg = insertPalette(combinedImg)
     return combinedImg
+
+def prepareSpriteRecolor(path):
+    combinedImg = getCombinedImg(path, False)
+    return insertPalette(combinedImg)
+
 
 """
 Returns Image
