@@ -606,15 +606,16 @@ class SpriteBot:
                 if await self.isAuthorized(user, msg.guild) or user.id == orig_sender_id:
                     decline.append(user.id)
 
+            file_name = msg.attachments[0].filename
+            name_valid, full_idx, asset_type, recolor = SpriteUtils.getStatsFromFilename(file_name)
+
             if len(decline) > 0:
                 await self.submissionDeclined(msg, orig_sender, decline)
                 return True
-            elif auto or len(approve) >= 2:
+            elif auto or (asset_type == "sprite" and len(approve) >= 3) or (asset_type == "portrait" and len(approve) >= 2):
                 await self.submissionApproved(msg, orig_sender, orig_author, approve)
                 return False
             else:
-                file_name = msg.attachments[0].filename
-                name_valid, full_idx, asset_type, recolor = SpriteUtils.getStatsFromFilename(file_name)
                 chosen_node = SpriteUtils.getNodeFromIdx(self.tracker, full_idx, 0)
                 pending_dict = chosen_node.__dict__[asset_type + "_pending"]
                 pending_dict[str(msg.id)] = True
