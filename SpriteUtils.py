@@ -759,12 +759,13 @@ def verifySprite(msg_args, wan_zip):
                 for yy in range(anim_img.size[1]):
                     cur_pixel = datas[yy * anim_img.size[0] + xx]
                     cur_occupied = (cur_pixel[3] > 0)
-                    if cur_occupied and cur_pixel[3] < 255:
-                        rogue_pixels.append((xx, yy))
-                    else:
-                        if cur_pixel not in palette:
-                            palette[cur_pixel] = 0
-                        palette[cur_pixel] += 1
+                    if cur_occupied:
+                        if cur_pixel[3] < 255:
+                            rogue_pixels.append((xx, yy))
+                        else:
+                            if cur_pixel not in palette:
+                                palette[cur_pixel] = 0
+                            palette[cur_pixel] += 1
 
             total_dirs = anim_img.size[1] // tileSize[1]
             for dir in range(8):
