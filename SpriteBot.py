@@ -1174,17 +1174,20 @@ class SpriteBot:
 
         species_dict = self.tracker[species_idx]
         if len(args) == 1:
-            # check against data population
-            if SpriteUtils.isDataPopulated(species_dict):
-                await msg.channel.send(msg.author.mention + " Can only delete empty slots!")
-                return
-
             # check against count
             if int(species_idx) != len(self.tracker) - 1:
                 await msg.channel.send(msg.author.mention + " Can only delete the last species!")
                 return
 
+            # check against data population
+            if SpriteUtils.isDataPopulated(species_dict) and msg.author.id != self.config.root:
+                await msg.channel.send(msg.author.mention + " Can only delete empty slots!")
+                return
+
+
             del self.tracker[species_idx]
+            SpriteUtils.deleteData(os.path.join(self.config.path, 'sprite', species_idx))
+            SpriteUtils.deleteData(os.path.join(self.config.path, 'portrait', species_idx))
             await msg.channel.send(msg.author.mention + " Deleted #{0:03d}: {1}!".format(int(species_idx), species_name))
         else:
 
@@ -1194,18 +1197,20 @@ class SpriteBot:
                 await msg.channel.send(msg.author.mention + " {2} doesn't exist within #{0:03d}: {1}!".format(int(species_idx), species_name, form_name))
                 return
 
-            # check against data population
-            form_dict = species_dict.subgroups[form_idx]
-            if SpriteUtils.isDataPopulated(form_dict):
-                await msg.channel.send(msg.author.mention + " Can only delete empty slots!")
-                return
-
             # check against count
             if int(form_idx) != len(species_dict.subgroups) - 1:
                 await msg.channel.send(msg.author.mention + " Can only delete the last form!")
                 return
 
+            # check against data population
+            form_dict = species_dict.subgroups[form_idx]
+            if SpriteUtils.isDataPopulated(form_dict) and msg.author.id != self.config.root:
+                await msg.channel.send(msg.author.mention + " Can only delete empty slots!")
+                return
+
             del species_dict.subgroups[form_idx]
+            SpriteUtils.deleteData(os.path.join(self.config.path, 'sprite', species_idx, form_idx))
+            SpriteUtils.deleteData(os.path.join(self.config.path, 'portrait', species_idx, form_idx))
             await msg.channel.send(msg.author.mention + " Deleted #{0:03d}: {1} {2}!".format(int(species_idx), species_name, form_name))
 
         self.saveTracker()

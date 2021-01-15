@@ -1393,6 +1393,10 @@ def isDataPopulated(sub_dict):
             return True
     return False
 
+def deleteData(path):
+    if os.path.exists(path):
+        shutil.rmtree(path)
+
 def getIdxName(tracker_dict, full_idx):
     if len(full_idx) == 0:
         return []
