@@ -839,7 +839,7 @@ def verifySprite(msg_args, wan_zip):
 
             raise SpriteVerifyError("Some frames have identical sprites but different offsets.\n"
                                     "If this is acceptable, include `multioffset` in the message."
-                                    "  Otherwise make these frame offsets consistent:\n{0}".format(str(offset_diff_names)[:1900]))
+                                    "  Otherwise make these frame offsets consistent:\n{0}".format(str(offset_diff_names)[:1800]))
 
     # then, check the colors
     if len(palette) > 15:
