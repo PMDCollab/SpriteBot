@@ -292,6 +292,8 @@ class SpriteBot:
             # get the sprite zip and verify its contents
             try:
                 wan_zip = SpriteUtils.getLinkZipGroup(msg.attachments[0].url)
+            except SpriteUtils.SpriteVerifyError as e:
+                await self.returnMsgFile(msg, msg.author.mention + " Submission was in the wrong format.", asset_type)
             except Exception as e:
                 await self.returnMsgFile(msg, msg.author.mention + " Submission was in the wrong format.", asset_type)
                 raise e
@@ -310,6 +312,8 @@ class SpriteBot:
                 orig_link = await self.retrieveLinkMsg(orig_idx, orig_node, asset_type, recolor)
                 try:
                     orig_zip = SpriteUtils.getLinkZipGroup(orig_link)
+                except SpriteUtils.SpriteVerifyError as e:
+                    await self.returnMsgFile(msg, msg.author.mention + " A problem occurred reading original sprite.", asset_type)
                 except Exception as e:
                     await self.returnMsgFile(msg, msg.author.mention + " A problem occurred reading original sprite.", asset_type)
                     raise e
@@ -327,6 +331,8 @@ class SpriteBot:
             # get the portrait image and verify its contents
             try:
                 img = SpriteUtils.getLinkImg(msg.attachments[0].url)
+            except SpriteUtils.SpriteVerifyError as e:
+                await self.returnMsgFile(msg, msg.author.mention + " Submission was in the wrong format.", asset_type)
             except Exception as e:
                 await self.returnMsgFile(msg, msg.author.mention + " Submission was in the wrong format.", asset_type)
                 raise e
@@ -345,6 +351,8 @@ class SpriteBot:
                 orig_link = await self.retrieveLinkMsg(orig_idx, orig_node, asset_type, recolor)
                 try:
                     orig_img = SpriteUtils.getLinkImg(orig_link)
+                except SpriteUtils.SpriteVerifyError as e:
+                    await self.returnMsgFile(msg, msg.author.mention + " A problem occurred reading original portrait.", asset_type)
                 except Exception as e:
                     await self.returnMsgFile(msg, msg.author.mention + " A problem occurred reading original portrait.", asset_type)
                     raise e
@@ -389,6 +397,9 @@ class SpriteBot:
         title = SpriteUtils.getIdxName(self.tracker, full_idx)
         try:
             return_file, return_name = SpriteUtils.getLinkFile(msg.attachments[0].url, asset_type)
+        except SpriteUtils.SpriteVerifyError as e:
+            await self.getChatChannel(msg.guild.id).send("An error occurred with the file {0}.".format(msg.attachments[0].filename))
+            await msg.delete()
         except Exception as e:
             await self.getChatChannel(msg.guild.id).send("An error occurred with the file {0}.".format(msg.attachments[0].filename))
             await msg.delete()
@@ -443,6 +454,10 @@ class SpriteBot:
                 try:
                     orig_img = SpriteUtils.getLinkImg(orig_link)
                     recolor_img = SpriteUtils.getLinkImg(msg.attachments[0].url)
+                except SpriteUtils.SpriteVerifyError as e:
+                    await self.getChatChannel(msg.guild.id).send(
+                        orig_sender + " " + "Removed unknown file: {0}".format(file_name))
+                    await msg.delete()
                 except Exception as e:
                     await self.getChatChannel(msg.guild.id).send(
                         orig_sender + " " + "Removed unknown file: {0}".format(file_name))
@@ -455,6 +470,9 @@ class SpriteBot:
         elif asset_type == "portrait":
             try:
                 portrait_img = SpriteUtils.getLinkImg(msg.attachments[0].url)
+            except SpriteUtils.SpriteVerifyError as e:
+                await self.getChatChannel(msg.guild.id).send(orig_sender + " " + "Removed unknown file: {0}".format(file_name))
+                await msg.delete()
             except Exception as e:
                 await self.getChatChannel(msg.guild.id).send(orig_sender + " " + "Removed unknown file: {0}".format(file_name))
                 await msg.delete()

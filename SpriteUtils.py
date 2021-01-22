@@ -328,15 +328,18 @@ def getLinkImg(url):
     unzip = ext == ".zip"
     _, file = os.path.split(full_path)
     req = urllib.request.Request(url, None, RETRIEVE_HEADERS)
-    with urllib.request.urlopen(req) as response:
-        if unzip:
-            zip_data = BytesIO()
-            zip_data.write(response.read())
-            zip_data.seek(0)
-            with zipfile.ZipFile(zip_data, 'r') as zip:
-                img = readZipImg(zip, file + ".png")
-        else:
-            img = Image.open(response).convert("RGBA")
+    try:
+        with urllib.request.urlopen(req) as response:
+            if unzip:
+                zip_data = BytesIO()
+                zip_data.write(response.read())
+                zip_data.seek(0)
+                with zipfile.ZipFile(zip_data, 'r') as zip:
+                    img = readZipImg(zip, file + ".png")
+            else:
+                img = Image.open(response).convert("RGBA")
+    except zipfile.BadZipfile as e:
+        raise SpriteVerifyError(str(e))
 
     return img
 
@@ -372,16 +375,19 @@ def getLinkFile(url, asset_type):
 
     req = urllib.request.Request(url, None, RETRIEVE_HEADERS)
     file_data = BytesIO()
-    with urllib.request.urlopen(req) as response:
-        if unzip:
-            zip_data = BytesIO()
-            zip_data.write(response.read())
-            zip_data.seek(0)
-            with zipfile.ZipFile(zip_data, 'r') as zip:
-                file_data.write(zip.read(file + ".png"))
-                output_file = file + ".png"
-        else:
-            file_data.write(response.read())
+    try:
+        with urllib.request.urlopen(req) as response:
+            if unzip:
+                zip_data = BytesIO()
+                zip_data.write(response.read())
+                zip_data.seek(0)
+                with zipfile.ZipFile(zip_data, 'r') as zip:
+                    file_data.write(zip.read(file + ".png"))
+                    output_file = file + ".png"
+            else:
+                file_data.write(response.read())
+    except zipfile.BadZipfile as e:
+        raise SpriteVerifyError(str(e))
 
     file_data.seek(0)
     return file_data, output_file
@@ -432,113 +438,116 @@ def verifySpriteRecolor(msg_args, orig_zip, wan_zip, recolor):
     if not recolor:
         orig_palette = {}
         shiny_palette = {}
-        with zipfile.ZipFile(orig_zip, 'r') as zip:
-            with zipfile.ZipFile(wan_zip, 'r') as shiny_zip:
-                name_list = zip.namelist()
-                shiny_name_list = shiny_zip.namelist()
-                if name_list != shiny_name_list:
-                    name_set = set(name_list)
-                    shiny_name_set = set(shiny_name_list)
-                    missing_shiny = name_set - shiny_name_set
-                    missing_orig = shiny_name_set - name_set
-                    report = ""
-                    if len(missing_shiny) > 0:
-                        report += "\nFiles missing: {0}".format(missing_shiny)
-                    if len(missing_orig) > 0:
-                        report += "\nFiles extra: {0}".format(missing_orig)
-                    raise SpriteVerifyError("File list of recolor does not match original.{0}".format(report))
+        try:
+            with zipfile.ZipFile(orig_zip, 'r') as zip:
+                with zipfile.ZipFile(wan_zip, 'r') as shiny_zip:
+                    name_list = zip.namelist()
+                    shiny_name_list = shiny_zip.namelist()
+                    if name_list != shiny_name_list:
+                        name_set = set(name_list)
+                        shiny_name_set = set(shiny_name_list)
+                        missing_shiny = name_set - shiny_name_set
+                        missing_orig = shiny_name_set - name_set
+                        report = ""
+                        if len(missing_shiny) > 0:
+                            report += "\nFiles missing: {0}".format(missing_shiny)
+                        if len(missing_orig) > 0:
+                            report += "\nFiles extra: {0}".format(missing_orig)
+                        raise SpriteVerifyError("File list of recolor does not match original.{0}".format(report))
 
-                bin_diff = []
-                for shiny_name in shiny_name_list:
-                    if not shiny_name.endswith("-Anim.png"):
-                        verifyZipFile(shiny_zip, shiny_name)
-                        orig_anim_data = zip.read(shiny_name)
-                        shiny_anim_data = shiny_zip.read(shiny_name)
-                        if orig_anim_data != shiny_anim_data:
-                            bin_diff.append(shiny_name)
+                    bin_diff = []
+                    for shiny_name in shiny_name_list:
+                        if not shiny_name.endswith("-Anim.png"):
+                            verifyZipFile(shiny_zip, shiny_name)
+                            orig_anim_data = zip.read(shiny_name)
+                            shiny_anim_data = shiny_zip.read(shiny_name)
+                            if orig_anim_data != shiny_anim_data:
+                                bin_diff.append(shiny_name)
 
-                if len(bin_diff) > 0:
-                    raise SpriteVerifyError("The files below must remain the same as they are for the original sprite."
-                                            "  Please copy them from the original zip:\n{0}".format(", ".join(bin_diff)[:1900]))
+                    if len(bin_diff) > 0:
+                        raise SpriteVerifyError("The files below must remain the same as they are for the original sprite."
+                                                "  Please copy them from the original zip:\n{0}".format(", ".join(bin_diff)[:1900]))
 
-                trans_diff = {}
-                black_diff = {}
-                for shiny_name in shiny_name_list:
-                    if shiny_name.endswith("-Anim.png"):
-                        anim_name = shiny_name.replace('-Anim.png', '')
-                        verifyZipFile(shiny_zip, shiny_name)
-                        orig_anim_img = readZipImg(zip, shiny_name)
-                        shiny_anim_img = readZipImg(shiny_zip, shiny_name)
-                        if orig_anim_img.size != shiny_anim_img.size:
-                            raise SpriteVerifyError(
-                                "Anim {0} has a size {1}x{2} that is different"
-                                " from the original's size of {3}x{4}".format(shiny_name, shiny_anim_img.size[0],
-                                                                              shiny_anim_img.size[1],
-                                                                              orig_anim_img.size[0],
-                                                                              orig_anim_img.size[1]))
-                        orig_data = orig_anim_img.getdata()
-                        shiny_data = shiny_anim_img.getdata()
-                        for yy in range(orig_data.size[1]):
-                            for xx in range(orig_data.size[0]):
-                                orig_color = orig_data[yy * orig_data.size[0] + xx]
-                                shiny_color = shiny_data[yy * orig_data.size[0] + xx]
-                                # test against transparency, black pixel changes
-                                if orig_color[3] != shiny_color[3]:
-                                    if anim_name not in trans_diff:
-                                        trans_diff[anim_name] = []
-                                    trans_diff[anim_name].append((xx, yy))
-                                if (orig_color == (0, 0, 0, 255)) != (shiny_color == (0, 0, 0, 255)):
-                                    if anim_name not in black_diff:
-                                        black_diff[anim_name] = []
-                                    black_diff[anim_name].append((xx, yy))
-                                # compile palette
-                                if orig_color[3] == 255:
-                                    if orig_color not in orig_palette:
-                                        orig_palette[orig_color] = 0
-                                    orig_palette[orig_color] += 1
-                                if shiny_color[3] == 255:
-                                    if shiny_color not in shiny_palette:
-                                        shiny_palette[shiny_color] = 0
-                                    shiny_palette[shiny_color] += 1
+                    trans_diff = {}
+                    black_diff = {}
+                    for shiny_name in shiny_name_list:
+                        if shiny_name.endswith("-Anim.png"):
+                            anim_name = shiny_name.replace('-Anim.png', '')
+                            verifyZipFile(shiny_zip, shiny_name)
+                            orig_anim_img = readZipImg(zip, shiny_name)
+                            shiny_anim_img = readZipImg(shiny_zip, shiny_name)
+                            if orig_anim_img.size != shiny_anim_img.size:
+                                raise SpriteVerifyError(
+                                    "Anim {0} has a size {1}x{2} that is different"
+                                    " from the original's size of {3}x{4}".format(shiny_name, shiny_anim_img.size[0],
+                                                                                  shiny_anim_img.size[1],
+                                                                                  orig_anim_img.size[0],
+                                                                                  orig_anim_img.size[1]))
+                            orig_data = orig_anim_img.getdata()
+                            shiny_data = shiny_anim_img.getdata()
+                            for yy in range(orig_data.size[1]):
+                                for xx in range(orig_data.size[0]):
+                                    orig_color = orig_data[yy * orig_data.size[0] + xx]
+                                    shiny_color = shiny_data[yy * orig_data.size[0] + xx]
+                                    # test against transparency, black pixel changes
+                                    if orig_color[3] != shiny_color[3]:
+                                        if anim_name not in trans_diff:
+                                            trans_diff[anim_name] = []
+                                        trans_diff[anim_name].append((xx, yy))
+                                    if (orig_color == (0, 0, 0, 255)) != (shiny_color == (0, 0, 0, 255)):
+                                        if anim_name not in black_diff:
+                                            black_diff[anim_name] = []
+                                        black_diff[anim_name].append((xx, yy))
+                                    # compile palette
+                                    if orig_color[3] == 255:
+                                        if orig_color not in orig_palette:
+                                            orig_palette[orig_color] = 0
+                                        orig_palette[orig_color] += 1
+                                    if shiny_color[3] == 255:
+                                        if shiny_color not in shiny_palette:
+                                            shiny_palette[shiny_color] = 0
+                                        shiny_palette[shiny_color] += 1
 
-                if len(trans_diff) > 0:
-                    px_strings = []
-                    for anim_name in trans_diff:
-                        px_strings.append(anim_name + ": " + ", ".join([str(a) for a in trans_diff[anim_name]]))
-                    raise SpriteVerifyError("Some pixels were found to have changed transparency:\n{0}".format(
-                        "\n".join(px_strings)[:1900]))
+                    if len(trans_diff) > 0:
+                        px_strings = []
+                        for anim_name in trans_diff:
+                            px_strings.append(anim_name + ": " + ", ".join([str(a) for a in trans_diff[anim_name]]))
+                        raise SpriteVerifyError("Some pixels were found to have changed transparency:\n{0}".format(
+                            "\n".join(px_strings)[:1900]))
 
-                if len(black_diff) > 0:
-                    px_strings = []
-                    for anim_name in black_diff:
-                        px_strings.append(anim_name + ": " + ", ".join([str(a) for a in black_diff[anim_name]]))
-                    raise SpriteVerifyError("Some pixels were found to have changed from black to another color:\n{0}".format(
-                        "\n".join(px_strings)[:1900]))
+                    if len(black_diff) > 0:
+                        px_strings = []
+                        for anim_name in black_diff:
+                            px_strings.append(anim_name + ": " + ", ".join([str(a) for a in black_diff[anim_name]]))
+                        raise SpriteVerifyError("Some pixels were found to have changed from black to another color:\n{0}".format(
+                            "\n".join(px_strings)[:1900]))
 
-                if len(orig_palette) != len(shiny_palette):
-                    paletteDiff = len(shiny_palette) - len(orig_palette)
-                    if paletteDiff != 0:
-                        if paletteDiff > 0:
-                            diff_str = "+" + str(paletteDiff)
-                        else:
-                            diff_str = str(paletteDiff)
-                        if len(msg_args) == 0 or not msg_args[0] == diff_str:
-                            base_str = "Recolor has `{0}` colors compared to the original.\nIf this was intended, resubmit and specify `{0}` in the message."
-                            raise SpriteVerifyError(base_str.format(diff_str))
-                        else:
+                    if len(orig_palette) != len(shiny_palette):
+                        paletteDiff = len(shiny_palette) - len(orig_palette)
+                        if paletteDiff != 0:
+                            if paletteDiff > 0:
+                                diff_str = "+" + str(paletteDiff)
+                            else:
+                                diff_str = str(paletteDiff)
+                            if len(msg_args) == 0 or not msg_args[0] == diff_str:
+                                base_str = "Recolor has `{0}` colors compared to the original.\nIf this was intended, resubmit and specify `{0}` in the message."
+                                raise SpriteVerifyError(base_str.format(diff_str))
+                            else:
+                                msg_args.pop(0)
+
+                    # then, check the colors
+                    if len(shiny_palette) > 15:
+                        escape_clause = len(msg_args) > 0 and msg_args[0] == "=" + str(len(shiny_palette))
+                        if escape_clause:
                             msg_args.pop(0)
-
-                # then, check the colors
-                if len(shiny_palette) > 15:
-                    escape_clause = len(msg_args) > 0 and msg_args[0] == "=" + str(len(shiny_palette))
-                    if escape_clause:
-                        msg_args.pop(0)
-                    else:
-                        combinedImg = getCombinedImg(shiny_zip, True)
-                        reduced_img = simple_quant(combinedImg)
-                        raise SpriteVerifyError("The sprite has {0} non-transparent colors with only 15 allowed.\n"
-                                                "If this is acceptable, include `={0}` in the message."
-                                                "  Otherwise reduce colors for the sprite.".format(len(shiny_palette)), reduced_img)
+                        else:
+                            combinedImg = getCombinedImg(shiny_zip, True)
+                            reduced_img = simple_quant(combinedImg)
+                            raise SpriteVerifyError("The sprite has {0} non-transparent colors with only 15 allowed.\n"
+                                                    "If this is acceptable, include `={0}` in the message."
+                                                    "  Otherwise reduce colors for the sprite.".format(len(shiny_palette)), reduced_img)
+        except zipfile.BadZipfile as e:
+            raise SpriteVerifyError(str(e))
     else:
         raise SpriteVerifyError("Recolor verification not yet implemented.")
 
@@ -623,256 +632,258 @@ def verifySprite(msg_args, wan_zip):
     palette = {}
     frameToSequence = []
     rogue_pixels = []
-    with zipfile.ZipFile(wan_zip, 'r') as zip:
-        name_list = zip.namelist()
-        if ANIM_DATA_XML not in name_list:
-            raise SpriteVerifyError("No {0} found.".format(ANIM_DATA_XML))
-        verifyZipFile(zip, ANIM_DATA_XML)
+    try:
+        with zipfile.ZipFile(wan_zip, 'r') as zip:
+            name_list = zip.namelist()
+            if ANIM_DATA_XML not in name_list:
+                raise SpriteVerifyError("No {0} found.".format(ANIM_DATA_XML))
+            verifyZipFile(zip, ANIM_DATA_XML)
 
-        file_data = BytesIO()
-        file_data.write(zip.read(ANIM_DATA_XML))
-        file_data.seek(0)
+            file_data = BytesIO()
+            file_data.write(zip.read(ANIM_DATA_XML))
+            file_data.seek(0)
 
-        tree = ET.parse(file_data)
-        root = tree.getroot()
-        sdwSize = int(root.find('ShadowSize').text)
-        if sdwSize < 0 or sdwSize > 2:
-            raise SpriteVerifyError("Invalid shadow size: {0}".format(sdwSize))
-        anims_node = root.find('Anims')
-        for anim_node in anims_node.iter('Anim'):
-            name = anim_node.find('Name').text
-            # verify all names are real
-            if name not in ACTIONS:
-                raise SpriteVerifyError("Invalid anim name '{0}' in XML.".format(name))
-            index = -1
-            index_node = anim_node.find('Index')
-            if index_node is not None:
-                index = int(index_node.text)
-            backref_node = anim_node.find('CopyOf')
-            if backref_node is not None:
-                backref = backref_node.text
-                anim_stat = AnimStat(index, name, None, backref)
-            else:
-                frame_width = anim_node.find('FrameWidth')
-                frame_height = anim_node.find('FrameHeight')
-                anim_stat = AnimStat(index, name, (int(frame_width.text), int(frame_height.text)), None)
+            tree = ET.parse(file_data)
+            root = tree.getroot()
+            sdwSize = int(root.find('ShadowSize').text)
+            if sdwSize < 0 or sdwSize > 2:
+                raise SpriteVerifyError("Invalid shadow size: {0}".format(sdwSize))
+            anims_node = root.find('Anims')
+            for anim_node in anims_node.iter('Anim'):
+                name = anim_node.find('Name').text
+                # verify all names are real
+                if name not in ACTIONS:
+                    raise SpriteVerifyError("Invalid anim name '{0}' in XML.".format(name))
+                index = -1
+                index_node = anim_node.find('Index')
+                if index_node is not None:
+                    index = int(index_node.text)
+                backref_node = anim_node.find('CopyOf')
+                if backref_node is not None:
+                    backref = backref_node.text
+                    anim_stat = AnimStat(index, name, None, backref)
+                else:
+                    frame_width = anim_node.find('FrameWidth')
+                    frame_height = anim_node.find('FrameHeight')
+                    anim_stat = AnimStat(index, name, (int(frame_width.text), int(frame_height.text)), None)
 
-                rush_frame = anim_node.find('RushFrame')
-                if rush_frame is not None:
-                    anim_stat.rushFrame = int(rush_frame.text)
-                hit_frame = anim_node.find('HitFrame')
-                if hit_frame is not None:
-                    anim_stat.hitFrame = int(hit_frame.text)
-                return_frame = anim_node.find('ReturnFrame')
-                if return_frame is not None:
-                    anim_stat.returnFrame = int(return_frame.text)
+                    rush_frame = anim_node.find('RushFrame')
+                    if rush_frame is not None:
+                        anim_stat.rushFrame = int(rush_frame.text)
+                    hit_frame = anim_node.find('HitFrame')
+                    if hit_frame is not None:
+                        anim_stat.hitFrame = int(hit_frame.text)
+                    return_frame = anim_node.find('ReturnFrame')
+                    if return_frame is not None:
+                        anim_stat.returnFrame = int(return_frame.text)
 
-                durations_node = anim_node.find('Durations')
-                for dur_node in durations_node.iter('Duration'):
-                    duration = int(dur_node.text)
-                    anim_stat.durations.append(duration)
+                    durations_node = anim_node.find('Durations')
+                    for dur_node in durations_node.iter('Duration'):
+                        duration = int(dur_node.text)
+                        anim_stat.durations.append(duration)
 
-                if name.lower() in anim_names:
-                    raise SpriteVerifyError("Anim '{0}' is specified twice in XML!".format(name))
-                anim_names[name.lower()] = index
-                if index == -1:
-                    raise SpriteVerifyError("{0} has its own sheet and does not have an index!".format(name))
+                    if name.lower() in anim_names:
+                        raise SpriteVerifyError("Anim '{0}' is specified twice in XML!".format(name))
+                    anim_names[name.lower()] = index
+                    if index == -1:
+                        raise SpriteVerifyError("{0} has its own sheet and does not have an index!".format(name))
 
-            if index > -1:
-                if index in anim_stats:
-                    raise SpriteVerifyError(
-                        "{0} and {1} both have the an index of {2}!".format(anim_stats[index].name, name, index))
-                anim_stats[index] = anim_stat
+                if index > -1:
+                    if index in anim_stats:
+                        raise SpriteVerifyError(
+                            "{0} and {1} both have the an index of {2}!".format(anim_stats[index].name, name, index))
+                    anim_stats[index] = anim_stat
 
-        for name in name_list:
-            if name.endswith('.png'):
-                anim_name = name.split('-')[0].lower()
-                if anim_name not in anim_names:
-                    raise SpriteVerifyError("Unexpected Anim file: {0}".format(name))
-            elif name.endswith('.xml'):
-                pass
-            else:
-                raise SpriteVerifyError("Unexpected File {0}".format(name))
+            for name in name_list:
+                if name.endswith('.png'):
+                    anim_name = name.split('-')[0].lower()
+                    if anim_name not in anim_names:
+                        raise SpriteVerifyError("Unexpected Anim file: {0}".format(name))
+                elif name.endswith('.xml'):
+                    pass
+                else:
+                    raise SpriteVerifyError("Unexpected File {0}".format(name))
 
-        # verify internal indices 1-13 exist?
-        missing_anims = []
-        for idx in range(2):
-            if ACTIONS[idx].lower() not in anim_names:
-                missing_anims.append(ACTIONS[idx])
-        if len(missing_anims) > 0:
-            raise SpriteVerifyError("Missing required anims:\n{0}".format(', '.join(missing_anims)))
-        violated_idx = []
-        for idx in ACTION_MAP:
-            anim_stat = anim_stats[idx]
-            if anim_stat.name != ACTION_MAP[idx]:
-                violated_idx.append(ACTION_MAP[idx] + ' -> ' + str(idx))
-        if len(violated_idx) > 0:
-            raise SpriteVerifyError("Some anims are required to have specific indices:\n{0}".format('\n'.join(violated_idx)))
+            # verify internal indices 1-13 exist?
+            missing_anims = []
+            for idx in range(2):
+                if ACTIONS[idx].lower() not in anim_names:
+                    missing_anims.append(ACTIONS[idx])
+            if len(missing_anims) > 0:
+                raise SpriteVerifyError("Missing required anims:\n{0}".format(', '.join(missing_anims)))
+            violated_idx = []
+            for idx in ACTION_MAP:
+                anim_stat = anim_stats[idx]
+                if anim_stat.name != ACTION_MAP[idx]:
+                    violated_idx.append(ACTION_MAP[idx] + ' -> ' + str(idx))
+            if len(violated_idx) > 0:
+                raise SpriteVerifyError("Some anims are required to have specific indices:\n{0}".format('\n'.join(violated_idx)))
 
-        for anim_idx in anim_stats:
-            anim_stat = anim_stats[anim_idx]
-            if anim_stat.backref is not None:
-                continue
-            anim_name = anim_stat.name
-            anim_png_name = anim_name + "-Anim.png"
-            offset_png_name = anim_name + "-Offsets.png"
-            shadow_png_name = anim_name + "-Shadow.png"
-            if anim_png_name not in name_list:
-                raise SpriteVerifyError("Anim specified in XML has no Anim.png: {0}".format(anim_name))
-            if offset_png_name not in name_list:
-                raise SpriteVerifyError("Anim specified in XML has no Offsets.png: {0}".format(anim_name))
-            if shadow_png_name not in name_list:
-                raise SpriteVerifyError("Anim specified in XML has no Shadow.png: {0}".format(anim_name))
+            for anim_idx in anim_stats:
+                anim_stat = anim_stats[anim_idx]
+                if anim_stat.backref is not None:
+                    continue
+                anim_name = anim_stat.name
+                anim_png_name = anim_name + "-Anim.png"
+                offset_png_name = anim_name + "-Offsets.png"
+                shadow_png_name = anim_name + "-Shadow.png"
+                if anim_png_name not in name_list:
+                    raise SpriteVerifyError("Anim specified in XML has no Anim.png: {0}".format(anim_name))
+                if offset_png_name not in name_list:
+                    raise SpriteVerifyError("Anim specified in XML has no Offsets.png: {0}".format(anim_name))
+                if shadow_png_name not in name_list:
+                    raise SpriteVerifyError("Anim specified in XML has no Shadow.png: {0}".format(anim_name))
 
-            anim_img = readZipImg(zip, anim_png_name)
-            offset_img = readZipImg(zip, offset_png_name)
-            shadow_img = readZipImg(zip, shadow_png_name)
+                anim_img = readZipImg(zip, anim_png_name)
+                offset_img = readZipImg(zip, offset_png_name)
+                shadow_img = readZipImg(zip, shadow_png_name)
 
-            tileSize = anim_stat.size
-            durations = anim_stat.durations
+                tileSize = anim_stat.size
+                durations = anim_stat.durations
 
-            # check against inconsistent sizing
-            if anim_img.size != offset_img.size or anim_img.size != shadow_img.size:
-                raise SpriteVerifyError("Anim, Offset, and Shadow sheets for {0} must be the same size!".format(anim_name))
+                # check against inconsistent sizing
+                if anim_img.size != offset_img.size or anim_img.size != shadow_img.size:
+                    raise SpriteVerifyError("Anim, Offset, and Shadow sheets for {0} must be the same size!".format(anim_name))
 
-            if anim_img.size[0] % tileSize[0] != 0 or anim_img.size[1] % tileSize[1] != 0:
-                raise SpriteVerifyError("Sheet for {4} is {0}x{1} pixels and is not divisible by {2}x{3} in xml!".format(
-                    anim_img.size[0], anim_img.size[1], tileSize[0], tileSize[1], anim_name))
+                if anim_img.size[0] % tileSize[0] != 0 or anim_img.size[1] % tileSize[1] != 0:
+                    raise SpriteVerifyError("Sheet for {4} is {0}x{1} pixels and is not divisible by {2}x{3} in xml!".format(
+                        anim_img.size[0], anim_img.size[1], tileSize[0], tileSize[1], anim_name))
 
-            total_frames = anim_img.size[0] // tileSize[0]
-            total_dirs = anim_img.size[1] // tileSize[1]
-            if total_dirs != 1 and total_dirs != 8:
-                raise SpriteVerifyError("Sheet for {0} must be one-directional or 8-directional!".format(anim_name))
-            # check against inconsistent duration counts
-            if total_frames != len(durations):
-                raise SpriteVerifyError("Number of frames in {0} does not match count of durations ({1}) specified in xml!".format(anim_name, len(durations)))
+                total_frames = anim_img.size[0] // tileSize[0]
+                total_dirs = anim_img.size[1] // tileSize[1]
+                if total_dirs != 1 and total_dirs != 8:
+                    raise SpriteVerifyError("Sheet for {0} must be one-directional or 8-directional!".format(anim_name))
+                # check against inconsistent duration counts
+                if total_frames != len(durations):
+                    raise SpriteVerifyError("Number of frames in {0} does not match count of durations ({1}) specified in xml!".format(anim_name, len(durations)))
 
-            if anim_stat.rushFrame >= len(durations):
-                raise SpriteVerifyError("RushFrame of {0} is greater than the number of frames ({1}) in {2}!".format(anim_stat.rushFrame, len(durations), anim_name))
-            if anim_stat.hitFrame >= len(durations):
-                raise SpriteVerifyError("HitFrame of {0} is greater than the number of frames ({1}) in {2}!".format(anim_stat.hitFrame, len(durations), anim_name))
-            if anim_stat.returnFrame >= len(durations):
-                raise SpriteVerifyError("ReturnFrame of {0} is greater than the number of frames ({1}) in {2}!".format(anim_stat.returnFrame, len(durations), anim_name))
+                if anim_stat.rushFrame >= len(durations):
+                    raise SpriteVerifyError("RushFrame of {0} is greater than the number of frames ({1}) in {2}!".format(anim_stat.rushFrame, len(durations), anim_name))
+                if anim_stat.hitFrame >= len(durations):
+                    raise SpriteVerifyError("HitFrame of {0} is greater than the number of frames ({1}) in {2}!".format(anim_stat.hitFrame, len(durations), anim_name))
+                if anim_stat.returnFrame >= len(durations):
+                    raise SpriteVerifyError("ReturnFrame of {0} is greater than the number of frames ({1}) in {2}!".format(anim_stat.returnFrame, len(durations), anim_name))
 
-            datas = anim_img.getdata()
-            for xx in range(anim_img.size[0]):
-                for yy in range(anim_img.size[1]):
-                    cur_pixel = datas[yy * anim_img.size[0] + xx]
-                    cur_occupied = (cur_pixel[3] > 0)
-                    if cur_occupied:
-                        if cur_pixel[3] < 255:
-                            rogue_pixels.append((xx, yy))
+                datas = anim_img.getdata()
+                for xx in range(anim_img.size[0]):
+                    for yy in range(anim_img.size[1]):
+                        cur_pixel = datas[yy * anim_img.size[0] + xx]
+                        cur_occupied = (cur_pixel[3] > 0)
+                        if cur_occupied:
+                            if cur_pixel[3] < 255:
+                                rogue_pixels.append((xx, yy))
+                            else:
+                                if cur_pixel not in palette:
+                                    palette[cur_pixel] = 0
+                                palette[cur_pixel] += 1
+
+                total_dirs = anim_img.size[1] // tileSize[1]
+                for dir in range(8):
+                    if dir >= total_dirs:
+                        break
+                    for jj in range(anim_img.size[0] // tileSize[0]):
+                        rel_center = (tileSize[0] // 2 - DRAW_CENTER_X, tileSize[1] // 2 - DRAW_CENTER_Y)
+                        tile_rect = (jj * tileSize[0], dir * tileSize[1], tileSize[0], tileSize[1])
+                        tile_bounds = (tile_rect[0], tile_rect[1], tile_rect[0] + tile_rect[2], tile_rect[1] + tile_rect[3])
+                        bounds = exUtils.getCoveredBounds(anim_img, tile_bounds)
+                        emptyBounds = False
+                        if bounds[0] >= bounds[2]:
+                            bounds = (rel_center[0], rel_center[1], rel_center[0]+1, rel_center[1]+1)
+                            emptyBounds = True
+                        rect = (bounds[0], bounds[1], bounds[2] - bounds[0], bounds[3] - bounds[1])
+                        abs_bounds = exUtils.addToBounds(bounds, (tile_rect[0], tile_rect[1]))
+                        frame_tex = anim_img.crop(abs_bounds)
+
+                        try:
+                            shadow_offset = exUtils.getOffsetFromRGB(shadow_img, tile_bounds, False, False, False, False, True)
+                            frame_offset = exUtils.getOffsetFromRGB(offset_img, tile_bounds, True, True, True, True, False)
+                        except exUtils.MultipleOffsetError as e:
+                            raise SpriteVerifyError(e.message + '\n' + str((anim_name, DIRECTIONS[dir], jj)))
+
+                        if emptyBounds and shadow_offset[4] is None and frame_offset[2] is None:
+                            continue
+
+                        offsets = FrameOffset(None, None, None, None)
+                        if frame_offset[2] is None:
+                            # raise warning if there's missing shadow or offsets
+                            raise SpriteVerifyError("No frame offset found in frame {0} for {1}".format((DIRECTIONS[dir], jj), anim_name))
                         else:
-                            if cur_pixel not in palette:
-                                palette[cur_pixel] = 0
-                            palette[cur_pixel] += 1
+                            offsets.center = frame_offset[2]
+                            if frame_offset[0] is None:
+                                offsets.head = frame_offset[2]
+                            else:
+                                offsets.head = frame_offset[0]
+                            offsets.lhand = frame_offset[1]
+                            offsets.rhand = frame_offset[3]
+                        offsets.AddLoc((-rect[0], -rect[1]))
 
-            total_dirs = anim_img.size[1] // tileSize[1]
-            for dir in range(8):
-                if dir >= total_dirs:
-                    break
-                for jj in range(anim_img.size[0] // tileSize[0]):
-                    rel_center = (tileSize[0] // 2 - DRAW_CENTER_X, tileSize[1] // 2 - DRAW_CENTER_Y)
-                    tile_rect = (jj * tileSize[0], dir * tileSize[1], tileSize[0], tileSize[1])
-                    tile_bounds = (tile_rect[0], tile_rect[1], tile_rect[0] + tile_rect[2], tile_rect[1] + tile_rect[3])
-                    bounds = exUtils.getCoveredBounds(anim_img, tile_bounds)
-                    emptyBounds = False
-                    if bounds[0] >= bounds[2]:
-                        bounds = (rel_center[0], rel_center[1], rel_center[0]+1, rel_center[1]+1)
-                        emptyBounds = True
-                    rect = (bounds[0], bounds[1], bounds[2] - bounds[0], bounds[3] - bounds[1])
-                    abs_bounds = exUtils.addToBounds(bounds, (tile_rect[0], tile_rect[1]))
-                    frame_tex = anim_img.crop(abs_bounds)
-
-                    try:
-                        shadow_offset = exUtils.getOffsetFromRGB(shadow_img, tile_bounds, False, False, False, False, True)
-                        frame_offset = exUtils.getOffsetFromRGB(offset_img, tile_bounds, True, True, True, True, False)
-                    except exUtils.MultipleOffsetError as e:
-                        raise SpriteVerifyError(e.message + '\n' + str((anim_name, DIRECTIONS[dir], jj)))
-
-                    if emptyBounds and shadow_offset[4] is None and frame_offset[2] is None:
-                        continue
-
-                    offsets = FrameOffset(None, None, None, None)
-                    if frame_offset[2] is None:
-                        # raise warning if there's missing shadow or offsets
-                        raise SpriteVerifyError("No frame offset found in frame {0} for {1}".format((DIRECTIONS[dir], jj), anim_name))
-                    else:
-                        offsets.center = frame_offset[2]
-                        if frame_offset[0] is None:
-                            offsets.head = frame_offset[2]
+                        shadow = rel_center
+                        if shadow_offset[4] is not None:
+                            shadow = shadow_offset[4]
                         else:
-                            offsets.head = frame_offset[0]
-                        offsets.lhand = frame_offset[1]
-                        offsets.rhand = frame_offset[3]
-                    offsets.AddLoc((-rect[0], -rect[1]))
+                            raise SpriteVerifyError("No shadow offset found in frame {0} for {1}".format((jj, dir), anim_name))
+                        shadow_diff = exUtils.addLoc(shadow, rect, True)
 
-                    shadow = rel_center
-                    if shadow_offset[4] is not None:
-                        shadow = shadow_offset[4]
-                    else:
-                        raise SpriteVerifyError("No shadow offset found in frame {0} for {1}".format((jj, dir), anim_name))
-                    shadow_diff = exUtils.addLoc(shadow, rect, True)
+                        frames.append((frame_tex, offsets, shadow_diff))
+                        frameToSequence.append((anim_name, DIRECTIONS[dir], jj))
 
-                    frames.append((frame_tex, offsets, shadow_diff))
-                    frameToSequence.append((anim_name, DIRECTIONS[dir], jj))
+        # check for semitransparent pixels
+        if len(rogue_pixels) > 0:
+            raise SpriteVerifyError("Semi-transparent pixels found at: {0}".format(str(rogue_pixels)[:1900]))
 
-    # check for semitransparent pixels
-    if len(rogue_pixels) > 0:
-        raise SpriteVerifyError("Semi-transparent pixels found at: {0}".format(str(rogue_pixels)[:1900]))
+        offset_diffs = {}
+        frame_map = [None] * len(frames)
+        final_frames = []
+        mapDuplicateImportImgs(frames, final_frames, frame_map, offset_diffs)
+        if len(offset_diffs) > 0:
+            escape_clause = len(msg_args) > 0 and msg_args[0] == "multioffset"
+            if escape_clause:
+                msg_args.pop(0)
+            else:
+                offset_diff_names = []
+                for orig_idx in offset_diffs:
+                    offset_group = [frameToSequence[orig_idx]]
+                    for idx in offset_diffs[orig_idx]:
+                        offset_group.append(frameToSequence[idx])
+                    offset_diff_names.append(offset_group)
 
-    offset_diffs = {}
-    frame_map = [None] * len(frames)
-    final_frames = []
-    mapDuplicateImportImgs(frames, final_frames, frame_map, offset_diffs)
-    if len(offset_diffs) > 0:
-        escape_clause = len(msg_args) > 0 and msg_args[0] == "multioffset"
-        if escape_clause:
-            msg_args.pop(0)
-        else:
-            offset_diff_names = []
-            for orig_idx in offset_diffs:
-                offset_group = [frameToSequence[orig_idx]]
-                for idx in offset_diffs[orig_idx]:
-                    offset_group.append(frameToSequence[idx])
-                offset_diff_names.append(offset_group)
+                raise SpriteVerifyError("Some frames have identical sprites but different offsets.\n"
+                                        "If this is acceptable, include `multioffset` in the message."
+                                        "  Otherwise make these frame offsets consistent:\n{0}".format(str(offset_diff_names)[:1800]))
 
-            raise SpriteVerifyError("Some frames have identical sprites but different offsets.\n"
-                                    "If this is acceptable, include `multioffset` in the message."
-                                    "  Otherwise make these frame offsets consistent:\n{0}".format(str(offset_diff_names)[:1800]))
+        # then, check the colors
+        if len(palette) > 15:
+            escape_clause = len(msg_args) > 0 and msg_args[0] == "=" + str(len(palette))
+            if escape_clause:
+                msg_args.pop(0)
+            else:
+                max_size = 0
+                for frame_info in final_frames:
+                    frame_tex = frame_info[0]
+                    max_size = max(max_size, frame_tex.size[0])
+                    max_size = max(max_size, frame_tex.size[1])
 
-    # then, check the colors
-    if len(palette) > 15:
-        escape_clause = len(msg_args) > 0 and msg_args[0] == "=" + str(len(palette))
-        if escape_clause:
-            msg_args.pop(0)
-        else:
-            max_size = 0
-            for frame_info in final_frames:
-                frame_tex = frame_info[0]
-                max_size = max(max_size, frame_tex.size[0])
-                max_size = max(max_size, frame_tex.size[1])
+                max_size = exUtils.roundUpToMult(max_size, 2)
 
-            max_size = exUtils.roundUpToMult(max_size, 2)
+                total_tile_width = 8
+                total_tile_height = (len(final_frames) - 1) // 8 + 1
 
-            total_tile_width = 8
-            total_tile_height = (len(final_frames) - 1) // 8 + 1
+                combinedImg = Image.new('RGBA', (max_size * total_tile_width, max_size * total_tile_height), (0, 0, 0, 0))
 
-            combinedImg = Image.new('RGBA', (max_size * total_tile_width, max_size * total_tile_height), (0, 0, 0, 0))
+                for idx, frame_info in enumerate(final_frames):
+                    frame = frame_info[0]
+                    xx = idx % total_tile_width
+                    yy = idx // total_tile_width
+                    tilePos = (xx * max_size, yy * max_size)
+                    centerPos = ((max_size - frame.size[0]) // 2, (max_size - frame.size[1]) // 2)
+                    combinedImg.paste(frame, (tilePos[0] + centerPos[0], tilePos[1] + centerPos[1]), frame)
 
-            for idx, frame_info in enumerate(final_frames):
-                frame = frame_info[0]
-                xx = idx % total_tile_width
-                yy = idx // total_tile_width
-                tilePos = (xx * max_size, yy * max_size)
-                centerPos = ((max_size - frame.size[0]) // 2, (max_size - frame.size[1]) // 2)
-                combinedImg.paste(frame, (tilePos[0] + centerPos[0], tilePos[1] + centerPos[1]), frame)
-
-            reduced_img = simple_quant(combinedImg)
-            raise SpriteVerifyError("The sprite has {0} non-transparent colors with only 15 allowed.\n"
-                                    "If this is acceptable, include `={0}` in the message."
-                                    "  Otherwise reduce colors for the sprite.".format(len(palette)), reduced_img)
-
+                reduced_img = simple_quant(combinedImg)
+                raise SpriteVerifyError("The sprite has {0} non-transparent colors with only 15 allowed.\n"
+                                        "If this is acceptable, include `={0}` in the message."
+                                        "  Otherwise reduce colors for the sprite.".format(len(palette)), reduced_img)
+    except zipfile.BadZipfile as e:
+        raise SpriteVerifyError(str(e))
 
 def verifyPortrait(msg_args, img):
     # make sure the dimensions are sound
@@ -1005,8 +1016,11 @@ def placeSpriteZipToPath(wan_file, dest_path):
                 os.remove(os.path.join(dest_path, file))
 
     # extract all
-    with zipfile.ZipFile(wan_file, 'r') as zip:
-        zip.extractall(path=dest_path)
+    try:
+        with zipfile.ZipFile(wan_file, 'r') as zip:
+            zip.extractall(path=dest_path)
+    except zipfile.BadZipfile as e:
+        raise SpriteVerifyError(str(e))
 
 def placeSpriteRecolorToPath(origImg, orig_path, outImg, dest_path):
     # remove palette bar of both images
