@@ -713,9 +713,10 @@ def verifySprite(msg_args, wan_zip):
                 raise SpriteVerifyError("Missing required anims:\n{0}".format(', '.join(missing_anims)))
             violated_idx = []
             for idx in ACTION_MAP:
-                anim_stat = anim_stats[idx]
-                if anim_stat.name != ACTION_MAP[idx]:
-                    violated_idx.append(ACTION_MAP[idx] + ' -> ' + str(idx))
+                if idx in anim_stats:
+                    anim_stat = anim_stats[idx]
+                    if anim_stat.name != ACTION_MAP[idx]:
+                        violated_idx.append(ACTION_MAP[idx] + ' -> ' + str(idx))
             if len(violated_idx) > 0:
                 raise SpriteVerifyError("Some anims are required to have specific indices:\n{0}".format('\n'.join(violated_idx)))
 
