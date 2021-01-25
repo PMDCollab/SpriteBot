@@ -389,6 +389,8 @@ def getLinkFile(url, asset_type):
                     output_file = file + ".png"
             else:
                 file_data.write(response.read())
+    except KeyError as e:
+        raise SpriteVerifyError(str(e))
     except zipfile.BadZipfile as e:
         raise SpriteVerifyError(str(e))
 

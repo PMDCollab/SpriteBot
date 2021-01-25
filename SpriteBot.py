@@ -293,9 +293,9 @@ class SpriteBot:
             try:
                 wan_zip = SpriteUtils.getLinkZipGroup(msg.attachments[0].url)
             except SpriteUtils.SpriteVerifyError as e:
-                await self.returnMsgFile(msg, msg.author.mention + " Submission was in the wrong format.", asset_type)
+                await self.returnMsgFile(msg, msg.author.mention + " Submission was in the wrong format.\n{0}".format(str(e)), asset_type)
             except Exception as e:
-                await self.returnMsgFile(msg, msg.author.mention + " Submission was in the wrong format.", asset_type)
+                await self.returnMsgFile(msg, msg.author.mention + " Submission was in the wrong format.\n{0}".format(str(e)), asset_type)
                 raise e
 
             orig_zip = None
@@ -332,9 +332,10 @@ class SpriteBot:
             try:
                 img = SpriteUtils.getLinkImg(msg.attachments[0].url)
             except SpriteUtils.SpriteVerifyError as e:
-                await self.returnMsgFile(msg, msg.author.mention + " Submission was in the wrong format.", asset_type)
+                await self.returnMsgFile(msg, msg.author.mention + " Submission was in the wrong format.\n{0}".format(str(e)), asset_type)
+                return False
             except Exception as e:
-                await self.returnMsgFile(msg, msg.author.mention + " Submission was in the wrong format.", asset_type)
+                await self.returnMsgFile(msg, msg.author.mention + " Submission was in the wrong format.\n{0}".format(str(e)), asset_type)
                 raise e
 
             orig_img = None
@@ -353,6 +354,7 @@ class SpriteBot:
                     orig_img = SpriteUtils.getLinkImg(orig_link)
                 except SpriteUtils.SpriteVerifyError as e:
                     await self.returnMsgFile(msg, msg.author.mention + " A problem occurred reading original portrait.", asset_type)
+                    return False
                 except Exception as e:
                     await self.returnMsgFile(msg, msg.author.mention + " A problem occurred reading original portrait.", asset_type)
                     raise e
@@ -374,7 +376,6 @@ class SpriteBot:
         return True
 
     async def returnMsgFile(self, msg, msg_body, asset_type, quant_img=None):
-
         try:
             return_file, return_name = SpriteUtils.getLinkFile(msg.attachments[0].url, asset_type)
             await self.getChatChannel(msg.guild.id).send(msg_body, file=discord.File(return_file, return_name))
@@ -385,10 +386,14 @@ class SpriteBot:
                 fileData.seek(0)
                 await self.getChatChannel(msg.guild.id).send("Color-reduced preview:",
                     file=discord.File(fileData, return_name.replace('.zip', '.png')))
-            await msg.delete()
+        except SpriteUtils.SpriteVerifyError as e:
+            await self.getChatChannel(msg.guild.id).send(msg_body + "\n(An error occurred with the file)")
         except Exception as e:
             await self.getChatChannel(msg.guild.id).send(msg_body + "\n(An error occurred with the file)")
-            raise e
+            trace = traceback.format_exc()
+            user = await self.client.fetch_user(self.config.root)
+            await user.send("```" + trace[:1950] + "```")
+        await msg.delete()
 
 
 
@@ -398,10 +403,10 @@ class SpriteBot:
         try:
             return_file, return_name = SpriteUtils.getLinkFile(msg.attachments[0].url, asset_type)
         except SpriteUtils.SpriteVerifyError as e:
-            await self.getChatChannel(msg.guild.id).send("An error occurred with the file {0}.".format(msg.attachments[0].filename))
+            await self.getChatChannel(msg.guild.id).send("An error occurred with the file {0}.\n{1}".format(msg.attachments[0].filename, str(e)))
             await msg.delete()
         except Exception as e:
-            await self.getChatChannel(msg.guild.id).send("An error occurred with the file {0}.".format(msg.attachments[0].filename))
+            await self.getChatChannel(msg.guild.id).send("An error occurred with the file {0}.\n{1}".format(msg.attachments[0].filename, str(e)))
             await msg.delete()
             raise e
 
