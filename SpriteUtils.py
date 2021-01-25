@@ -344,7 +344,10 @@ def getLinkImg(url):
     return img
 
 def verifyZipFile(zip, file_name):
-    info = zip.getinfo(file_name)
+    try:
+        info = zip.getinfo(file_name)
+    except KeyError as e:
+        raise SpriteVerifyError(str(e))
     if info.file_size > ZIP_SIZE_LIMIT:
         raise SpriteVerifyError("Zipped file {0} is too large, at {1} bytes.".format(file_name, info.file_size))
 
