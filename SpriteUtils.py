@@ -592,6 +592,9 @@ def getEmotionFromTilePos(tile_pos):
         rogue_str += " Flipped"
     return rogue_str
 
+def getLRSwappedOffset(offset):
+    swapped_offset = FrameOffset(offset.head, offset.rhand, offset.lhand, offset.center)
+    return swapped_offset
 
 def mapDuplicateImportImgs(imgs, final_imgs, img_map, offset_diffs):
     map_back = {}
@@ -603,6 +606,7 @@ def mapDuplicateImportImgs(imgs, final_imgs, img_map, offset_diffs):
             # if offsets are not synchronized, they are counted as different
             if imgs_equal:
                 offsets_equal = exUtils.offsetsEqual(final_img[1], img[1], img[0].size[0])
+                offsets_equal |= exUtils.offsetsEqual(final_img[1], getLRSwappedOffset(img[1]), img[0].size[0])
                 if not offsets_equal:
                     earlier_idx = map_back[final_idx]
                     if earlier_idx not in offset_diffs:
@@ -615,6 +619,7 @@ def mapDuplicateImportImgs(imgs, final_imgs, img_map, offset_diffs):
             imgs_flip = exUtils.imgsEqual(final_img[0], img[0], True)
             if imgs_flip:
                 offsets_flip = exUtils.offsetsEqual(final_img[1], img[1], img[0].size[0], True)
+                offsets_flip |= exUtils.offsetsEqual(final_img[1], getLRSwappedOffset(img[1]), img[0].size[0], True)
                 if not offsets_flip:
                     earlier_idx = map_back[final_idx]
                     if earlier_idx not in offset_diffs:
