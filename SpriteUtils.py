@@ -458,7 +458,8 @@ def verifySpriteRecolor(msg_args, orig_zip, wan_zip, recolor):
                             report += "\nFiles missing: {0}".format(missing_shiny)
                         if len(missing_orig) > 0:
                             report += "\nFiles extra: {0}".format(missing_orig)
-                        raise SpriteVerifyError("File list of recolor does not match original.{0}".format(report))
+                        if len(report) > 0:
+                            raise SpriteVerifyError("File list of recolor does not match original.{0}".format(report))
 
                     bin_diff = []
                     for shiny_name in shiny_name_list:
