@@ -410,7 +410,12 @@ class SpriteBot:
             await msg.delete()
             raise e
 
-        new_msg = await msg.channel.send("{0} {1}\n{2}".format(author, " ".join(title), msg.content),
+        orig_msg = ""
+        orig_link = chosen_node.__dict__[asset_type + "_link"]
+        if orig_link != "":
+            orig_msg = "\n(Original Below) {0}".format(orig_link)
+        new_msg = await msg.channel.send("{0} {1}\n{2}".format(author, " ".join(title),
+                                                               msg.content + orig_msg),
                                                  file=discord.File(return_file, return_name))
         await msg.delete()
 
