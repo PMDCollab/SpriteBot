@@ -397,7 +397,7 @@ class SpriteBot:
 
 
 
-    async def stageSubmission(self, msg, full_idx, chosen_node, asset_type, author):
+    async def stageSubmission(self, msg, full_idx, chosen_node, asset_type, author, recolor, overcolor):
 
         title = SpriteUtils.getIdxName(self.tracker, full_idx)
         try:
@@ -410,13 +410,23 @@ class SpriteBot:
             await msg.delete()
             raise e
 
-        orig_msg = ""
-        orig_link = chosen_node.__dict__[asset_type + "_link"]
-        if orig_link != "":
-            orig_msg = "\n(Original Below) {0}".format(orig_link)
+        send_files = [discord.File(return_file, return_name)]
+        add_msg = ""
+        if overcolor:
+            return_img = SpriteUtils.getLinkImg(msg.attachments[0].url)
+            reduced_img = SpriteUtils.simple_quant(return_img)
+
+            reduced_file = io.BytesIO()
+            reduced_img.save(reduced_file, format='PNG')
+            reduced_file.seek(0)
+            send_files.append(discord.File(reduced_file, return_name.replace('.png', '_reduced.png')))
+            add_msg += "\nReduced Color Preview included."
+        if chosen_node.__dict__[asset_type + "_credit"] != "":
+            orig_link = await self.retrieveLinkMsg(full_idx, chosen_node, asset_type, recolor)
+            add_msg += "\nCurrent Version: {0}".format(orig_link)
         new_msg = await msg.channel.send("{0} {1}\n{2}".format(author, " ".join(title),
-                                                               msg.content + orig_msg),
-                                                 file=discord.File(return_file, return_name))
+                                                               msg.content + add_msg),
+                                                 files=send_files)
         await msg.delete()
 
         pending_dict = chosen_node.__dict__[asset_type+"_pending"]
@@ -671,6 +681,7 @@ class SpriteBot:
                 return False
 
             msg_args = msg.content.split()
+            overcolor = ('overcolor' in msg_args)
             # at this point, we confirm the file name is valid, now check the contents
             verified = await self.verifySubmission(msg, full_idx, asset_type, recolor, msg_args)
             if not verified:
@@ -689,7 +700,7 @@ class SpriteBot:
 
                 author = "{0}/{1}".format(author, msg_args[0])
 
-            await self.stageSubmission(msg, full_idx, chosen_node, asset_type, author)
+            await self.stageSubmission(msg, full_idx, chosen_node, asset_type, author, recolor, overcolor)
             return True
 
 
