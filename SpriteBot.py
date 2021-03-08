@@ -239,7 +239,7 @@ class SpriteBot:
         # fall back on a quoted mention
         # return "`" + mention + "`"
 
-    def getPostsFromDict(self, tracker_dict, posts, indices):
+    def getPostsFromDict(self, include_sprite, include_portrait, include_credit, tracker_dict, posts, indices):
         if tracker_dict.name != "":
             new_titles = SpriteUtils.getIdxName(self.tracker, indices)
             dexnum = int(indices[0])
@@ -247,19 +247,25 @@ class SpriteBot:
             post = ""
 
             # status
-            post += self.getStatusEmoji(tracker_dict, "sprite")
-            post += self.getStatusEmoji(tracker_dict, "portrait")
+            if include_sprite:
+                post += self.getStatusEmoji(tracker_dict, "sprite")
+            if include_portrait:
+                post += self.getStatusEmoji(tracker_dict, "portrait")
             # name
             post += " `#" + "{:03d}".format(dexnum) + "`: `" + name_str + "` "
 
             # credits
-            post += self.getPostCredit(tracker_dict.sprite_credit)
-            post += "/"
-            post += self.getPostCredit(tracker_dict.portrait_credit)
+            if include_credit:
+                if include_sprite:
+                    post += self.getPostCredit(tracker_dict.sprite_credit)
+                    if include_portrait:
+                        post += "/"
+                if include_portrait:
+                    post += self.getPostCredit(tracker_dict.portrait_credit)
             posts.append(post)
 
         for sub_dict in tracker_dict.subgroups:
-            self.getPostsFromDict(tracker_dict.subgroups[sub_dict], posts, indices + [sub_dict])
+            self.getPostsFromDict(include_sprite, include_portrait, include_credit, tracker_dict.subgroups[sub_dict], posts, indices + [sub_dict])
 
 
     async def isAuthorized(self, user, guild):
@@ -752,7 +758,7 @@ class SpriteBot:
         posts = []
         over_dict = SpriteUtils.initSubNode("")
         over_dict.subgroups = self.tracker
-        self.getPostsFromDict(over_dict, posts, [])
+        self.getPostsFromDict(True, True, True, over_dict, posts, [])
 
         msgs_used = 0
         msgs_used, changed = await self.sendInfoPosts(channel, posts, msg_ids, msgs_used)
@@ -867,7 +873,7 @@ class SpriteBot:
 
         await msg.channel.send(msg.author.mention + " Cleared links for #{0:03d}: {1}.".format(int(full_idx[0]), " ".join(name_seq)))
 
-    async def listForms(self, msg, name_args):
+    async def listForms(self, msg, name_args, asset_type):
         # compute answer from current status
         if len(name_args) == 0:
             await msg.channel.send(msg.author.mention + " Specify a Pokemon.")
@@ -883,7 +889,7 @@ class SpriteBot:
         posts = []
         over_dict = SpriteUtils.initSubNode("")
         over_dict.subgroups = { full_idx[0] : chosen_node }
-        self.getPostsFromDict(over_dict, posts, [])
+        self.getPostsFromDict(asset_type == 'sprite', asset_type == 'portrait', False, over_dict, posts, [])
         msgs_used, changed = await self.sendInfoPosts(msg.channel, posts, [], 0)
 
     async def queryStatus(self, msg, name_args, asset_type, recolor):
@@ -1430,12 +1436,14 @@ async def on_message(msg: discord.Message):
                 await sprite_bot.addGender(msg, args[1:])
             elif args[0] == "deletegender" and authorized:
                 await sprite_bot.removeGender(msg, args[1:])
-            elif args[0] == "forms":
-                await sprite_bot.listForms(msg, args[1:])
+            elif args[0] == "listsprite":
+                await sprite_bot.listForms(msg, args[1:], "sprite")
             elif args[0] == "sprite":
                 await sprite_bot.queryStatus(msg, args[1:], "sprite", False)
             elif args[0] == "recolorsprite":
                 await sprite_bot.queryStatus(msg, args[1:], "sprite", True)
+            elif args[0] == "listportrait":
+                await sprite_bot.listForms(msg, args[1:], "portrait")
             elif args[0] == "portrait":
                 await sprite_bot.queryStatus(msg, args[1:], "portrait", False)
             elif args[0] == "recolorportrait":
