@@ -867,6 +867,24 @@ class SpriteBot:
 
         await msg.channel.send(msg.author.mention + " Cleared links for #{0:03d}: {1}.".format(int(full_idx[0]), " ".join(name_seq)))
 
+    async def listForms(self, msg, name_args):
+        # compute answer from current status
+        if len(name_args) == 0:
+            await msg.channel.send(msg.author.mention + " Specify a Pokemon.")
+            return
+        name_seq = [SpriteUtils.sanitizeName(name_args[0])]
+        full_idx = SpriteUtils.findFullTrackerIdx(self.tracker, name_seq, 0)
+        if full_idx is None:
+            await msg.channel.send(msg.author.mention + " No such Pokemon.")
+            return
+
+        chosen_node = SpriteUtils.getNodeFromIdx(self.tracker, full_idx, 0)
+
+        posts = []
+        over_dict = SpriteUtils.initSubNode("")
+        over_dict.subgroups = { full_idx[0] : chosen_node }
+        self.getPostsFromDict(over_dict, posts, [])
+        msgs_used, changed = await self.sendInfoPosts(msg.channel, posts, [], 0)
 
     async def queryStatus(self, msg, name_args, asset_type, recolor):
         # compute answer from current status
@@ -1412,6 +1430,8 @@ async def on_message(msg: discord.Message):
                 await sprite_bot.addGender(msg, args[1:])
             elif args[0] == "deletegender" and authorized:
                 await sprite_bot.removeGender(msg, args[1:])
+            elif args[0] == "forms":
+                await sprite_bot.listForms(msg, args[1:])
             elif args[0] == "sprite":
                 await sprite_bot.queryStatus(msg, args[1:], "sprite", False)
             elif args[0] == "recolorsprite":
