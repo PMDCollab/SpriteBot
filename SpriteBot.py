@@ -18,6 +18,9 @@ INFO_FILE_PATH = 'info.txt'
 CONFIG_FILE_PATH = 'config.json'
 TRACKER_FILE_PATH = 'tracker.json'
 
+PHASE_INCOMPLETE = 0
+PHASE_EXISTS = 1
+PHASE_FULL = 2
 
 # Command prefix.
 COMMAND_PREFIX = '!'
@@ -187,10 +190,10 @@ class SpriteBot:
         added = chosen_node.__dict__[asset_type + "_credit"] != ""
         complete = chosen_node.__dict__[asset_type+"_complete"]
         required = chosen_node.__dict__[asset_type+"_required"]
-        if complete > 1: # star
+        if complete > PHASE_EXISTS: # star
             return "\u2B50"
         elif len(pending) > 0:
-            if complete > 0:  # interrobang
+            if complete > PHASE_INCOMPLETE:  # interrobang
                 return "\u2049"
             else:  # question
                 return "\u2754"
@@ -198,7 +201,7 @@ class SpriteBot:
             if len(pending) > 0:  # interrobang
                 return "\u2049"
             else:
-                if complete > 0:  # checkmark
+                if complete > PHASE_INCOMPLETE:  # checkmark
                     return "\u2705"
                 else:  # white circle
                     return "\u26AA"
@@ -266,6 +269,30 @@ class SpriteBot:
 
         for sub_dict in tracker_dict.subgroups:
             self.getPostsFromDict(include_sprite, include_portrait, include_credit, tracker_dict.subgroups[sub_dict], posts, indices + [sub_dict])
+
+
+
+    def getBountiesFromDict(self, asset_type, tracker_dict, entries, indices):
+        if tracker_dict.name != "":
+            new_titles = SpriteUtils.getIdxName(self.tracker, indices)
+            dexnum = int(indices[0])
+            name_str = " ".join(new_titles)
+            post = asset_type.title() + " of "
+
+            # status
+            post += self.getStatusEmoji(tracker_dict, asset_type)
+            # name
+            post += " `#" + "{:03d}".format(dexnum) + "`: `" + name_str + "` "
+
+            bounty_dict = tracker_dict.__dict__[asset_type + "_bounty"]
+
+            if PHASE_FULL in bounty_dict:
+                bounty = bounty_dict[PHASE_FULL]
+                if bounty > 0:
+                    entries.append((bounty, post))
+
+        for sub_dict in tracker_dict.subgroups:
+            self.getBountiesFromDict(asset_type, tracker_dict.subgroups[sub_dict], entries, indices + [sub_dict])
 
 
     async def isAuthorized(self, user, guild):
@@ -847,13 +874,13 @@ class SpriteBot:
         chosen_node = SpriteUtils.getNodeFromIdx(self.tracker, full_idx, 0)
 
         phase_str = "incomplete"
-        if phase == 1:
+        if phase == PHASE_EXISTS:
             phase_str = "exists"
-        elif phase == 2:
+        elif phase == PHASE_FULL:
             phase_str = "fully featured"
 
         # if the node has no credit, fail
-        if chosen_node.__dict__[asset_type + "_credit"] == "" and phase > 0:
+        if chosen_node.__dict__[asset_type + "_credit"] == "" and phase > PHASE_INCOMPLETE:
             status = self.getStatusEmoji(chosen_node, asset_type)
             await msg.channel.send(msg.author.mention +
                                    " {0} #{1:03d}: {2} has no data and cannot be marked {3}.".format(status, int(full_idx[0]), " ".join(name_seq), phase_str))
@@ -867,6 +894,82 @@ class SpriteBot:
 
         self.saveTracker()
         self.changed = True
+
+    async def placeBounty(self, msg, name_args, asset_type):
+        try:
+            amt = int(name_args[-1])
+        except Exception as e:
+            await msg.channel.send(msg.author.mention + " Specify a Pokemon and an amount.")
+            return
+
+        if amt <= 0:
+            await msg.channel.send(msg.author.mention + " Specify an amount above 0.")
+            return
+
+        name_seq = [SpriteUtils.sanitizeName(i) for i in name_args[:-1]]
+        full_idx = SpriteUtils.findFullTrackerIdx(self.tracker, name_seq, 0)
+        if full_idx is None:
+            await msg.channel.send(msg.author.mention + " No such Pokemon.")
+            return
+        chosen_node = SpriteUtils.getNodeFromIdx(self.tracker, full_idx, 0)
+
+        status = self.getStatusEmoji(chosen_node, asset_type)
+        if chosen_node.__dict__[asset_type + "_complete"] == PHASE_FULL:
+            await msg.channel.send(msg.author.mention + " {0} #{1:03d} {2} is fully featured and cannot have a bounty.".format(status, int(full_idx[0]), " ".join(name_seq)))
+            return
+
+        cur_val = 0
+        if PHASE_FULL in chosen_node.__dict__[asset_type + "_bounty"]:
+            cur_val = chosen_node.__dict__[asset_type + "_bounty"][PHASE_FULL]
+
+        chosen_node.__dict__[asset_type + "_bounty"][PHASE_FULL] = cur_val + amt
+
+        # set to complete
+        await msg.channel.send(msg.author.mention + " {0} #{1:03d}: {2} now has a bounty of **{3}GP**.".format(status, int(full_idx[0]), " ".join(name_seq), cur_val + amt))
+
+        self.saveTracker()
+        self.changed = True
+
+
+    async def listBounties(self, msg, name_args):
+        include_sprite = True
+        include_portrait = True
+
+        if len(name_args) > 0:
+            if name_args[0].lower() == "sprite":
+                include_portrait = False
+            elif name_args[0].lower() == "portrait":
+                include_sprite = False
+            else:
+                await msg.channel.send(msg.author.mention + " Use 'sprite' or 'portrait' as argument.")
+                return
+
+        entries = []
+        over_dict = SpriteUtils.initSubNode("")
+        over_dict.subgroups = self.tracker
+
+        if include_sprite:
+            self.getBountiesFromDict("sprite", over_dict, entries, [])
+        if include_portrait:
+            self.getBountiesFromDict("portrait", over_dict, entries, [])
+
+        entries = sorted(entries, reverse=True)
+        entries = entries[:10]
+
+        posts = []
+        if include_sprite and include_portrait:
+            posts.append("**Top Bounties**")
+        elif include_sprite:
+            posts.append("**Top Bounties for Sprites**")
+        else:
+            posts.append("**Top Bounties for Portraits**")
+        for entry in entries:
+            posts.append("#{0:02d}. {2} for **{1}GP**".format(len(posts), entry[0], entry[1]))
+
+        if len(posts) == 1:
+            posts.append("[None]")
+
+        msgs_used, changed = await self.sendInfoPosts(msg.channel, posts, [], 0)
 
     async def clearCache(self, msg, name_args):
         name_seq = [SpriteUtils.sanitizeName(i) for i in name_args]
@@ -942,6 +1045,10 @@ class SpriteBot:
                     response += "\n [Recolor this {0} to its shiny palette and submit it.]".format(asset_type)
                 chosen_link = await self.retrieveLinkMsg(full_idx, chosen_node, asset_type, recolor)
                 response += "\n" + chosen_link
+            if PHASE_FULL in chosen_node.__dict__[asset_type + "_bounty"]:
+                bounty = chosen_node.__dict__[asset_type + "_bounty"][PHASE_FULL]
+                if bounty > 0:
+                    response += "\n This {0} has a bounty of **{1}GP**!".format(asset_type, bounty)
         else:
             response += " does not need a {0}.".format(asset_type)
 
@@ -1463,6 +1570,12 @@ async def on_message(msg: discord.Message):
                 await sprite_bot.getCredit(msg, args[1:], "sprite")
             elif args[0] == "portraitcredit":
                 await sprite_bot.getCredit(msg, args[1:], "portrait")
+            elif args[0] == "spritebounty":
+                await sprite_bot.placeBounty(msg, args[1:], "sprite")
+            elif args[0] == "portraitbounty":
+                await sprite_bot.placeBounty(msg, args[1:], "portrait")
+            elif args[0] == "bounties":
+                await sprite_bot.listBounties(msg, args[1:])
             elif args[0] == "profile":
                 await sprite_bot.getProfile(msg)
             elif args[0] == "register":
@@ -1472,18 +1585,18 @@ async def on_message(msg: discord.Message):
             elif args[0] == "unregister":
                 await sprite_bot.deleteProfile(msg, args[1:])
             elif args[0] == "spritewip" and authorized:
-                await sprite_bot.completeSlot(msg, args[1:], "sprite", 0)
+                await sprite_bot.completeSlot(msg, args[1:], "sprite", PHASE_INCOMPLETE)
             elif args[0] == "portraitwip" and authorized:
-                await sprite_bot.completeSlot(msg, args[1:], "portrait", 0)
+                await sprite_bot.completeSlot(msg, args[1:], "portrait", PHASE_INCOMPLETE)
             elif args[0] == "spriteexists" and authorized:
-                await sprite_bot.completeSlot(msg, args[1:], "sprite", 1)
+                await sprite_bot.completeSlot(msg, args[1:], "sprite", PHASE_EXISTS)
             elif args[0] == "portraitexists" and authorized:
-                await sprite_bot.completeSlot(msg, args[1:], "portrait", 1)
+                await sprite_bot.completeSlot(msg, args[1:], "portrait", PHASE_EXISTS)
             elif args[0] == "spritefilled" and authorized:
-                await sprite_bot.completeSlot(msg, args[1:], "sprite", 2)
+                await sprite_bot.completeSlot(msg, args[1:], "sprite", PHASE_FULL)
             elif args[0] == "portraitfilled" and authorized:
-                await sprite_bot.completeSlot(msg, args[1:], "portrait", 2)
-            elif args[0] == "clearcache":
+                await sprite_bot.completeSlot(msg, args[1:], "portrait", PHASE_FULL)
+            elif args[0] == "clearcache" and authorized:
                 await sprite_bot.clearCache(msg, args[1:])
             elif args[0] == "rescan" and msg.author.id == sprite_bot.config.root:
                 await sprite_bot.rescan(msg)
