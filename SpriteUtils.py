@@ -1556,28 +1556,6 @@ def fileSystemToJson(dict, species_path, prefix, tier):
             if str(modify_datetime) > last_modify:
                 last_modify = str(modify_datetime)
 
-    if False:
-        dict.__dict__[prefix + "_files"] = {}
-        repl_path = species_path.replace("/SpriteCollab", "/old_SpriteCollab")
-        if os.path.exists(repl_path):
-            file_list = []
-            if prefix == "sprite":
-                if os.path.exists(os.path.join(repl_path, ANIM_DATA_XML)):
-                    tree = ET.parse(os.path.join(repl_path, ANIM_DATA_XML))
-                    root = tree.getroot()
-                    anims_node = root.find('Anims')
-                    for anim_node in anims_node.iter('Anim'):
-                        name = anim_node.find('Name').text
-                        file_list.append(name)
-            else:
-                for inFile in os.listdir(repl_path):
-                    if inFile.endswith(".png"):
-                        file, _ = os.path.splitext(inFile)
-                        file_list.append(file)
-
-            for file in file_list:
-                dict.__dict__[prefix + "_files"][file] = True
-
     updateFiles(dict, species_path, prefix)
 
     updated = False

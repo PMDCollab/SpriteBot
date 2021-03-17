@@ -1483,7 +1483,7 @@ async def on_message(msg: discord.Message):
                 await sprite_bot.completeSlot(msg, args[1:], "sprite", 2)
             elif args[0] == "portraitfilled" and authorized:
                 await sprite_bot.completeSlot(msg, args[1:], "portrait", 2)
-            elif args[0] == "clearcache" and msg.author.id == sprite_bot.config.root:
+            elif args[0] == "clearcache":
                 await sprite_bot.clearCache(msg, args[1:])
             elif args[0] == "rescan" and msg.author.id == sprite_bot.config.root:
                 await sprite_bot.rescan(msg)
