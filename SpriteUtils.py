@@ -1480,6 +1480,7 @@ def initSubNode(name):
     sub_dict["portrait_credit"] = ""
     sub_dict["portrait_link"] = ""
     sub_dict["portrait_files"] = {}
+    sub_dict["portrait_bounty"] = {}
     sub_dict["portrait_modified"] = ""
     sub_dict["portrait_pending"] = {}
     sub_dict["portrait_recolor_link"] = ""
@@ -1487,6 +1488,7 @@ def initSubNode(name):
     sub_dict["sprite_complete"] = 0
     sub_dict["sprite_credit"] = ""
     sub_dict["sprite_files"] = {}
+    sub_dict["sprite_bounty"] = {}
     sub_dict["sprite_link"] = ""
     sub_dict["sprite_modified"] = ""
     sub_dict["sprite_pending"] = {}
