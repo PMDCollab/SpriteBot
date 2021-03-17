@@ -590,7 +590,7 @@ def getEmotionFromTilePos(tile_pos):
     rogue_idx = tile_pos[1] * PORTRAIT_TILE_X + tile_pos[0]
     rogue_str = EMOTIONS[rogue_idx % len(EMOTIONS)]
     if rogue_idx // len(EMOTIONS) > 0:
-        rogue_str += " Flipped"
+        rogue_str += "^"
     return rogue_str
 
 def getLRSwappedOffset(offset):
@@ -636,9 +636,6 @@ def mapDuplicateImportImgs(imgs, final_imgs, img_map, offset_diffs):
 
 
 def verifySprite(msg_args, wan_zip):
-    anim_stats = {}
-    anim_names = {}
-
     frames = []
     palette = {}
     frameToSequence = []
@@ -654,56 +651,7 @@ def verifySprite(msg_args, wan_zip):
             file_data.write(zip.read(ANIM_DATA_XML))
             file_data.seek(0)
 
-            tree = ET.parse(file_data)
-            root = tree.getroot()
-            sdwSize = int(root.find('ShadowSize').text)
-            if sdwSize < 0 or sdwSize > 2:
-                raise SpriteVerifyError("Invalid shadow size: {0}".format(sdwSize))
-            anims_node = root.find('Anims')
-            for anim_node in anims_node.iter('Anim'):
-                name = anim_node.find('Name').text
-                # verify all names are real
-                if name not in ACTIONS:
-                    raise SpriteVerifyError("Invalid anim name '{0}' in XML.".format(name))
-                index = -1
-                index_node = anim_node.find('Index')
-                if index_node is not None:
-                    index = int(index_node.text)
-                backref_node = anim_node.find('CopyOf')
-                if backref_node is not None:
-                    backref = backref_node.text
-                    anim_stat = AnimStat(index, name, None, backref)
-                else:
-                    frame_width = anim_node.find('FrameWidth')
-                    frame_height = anim_node.find('FrameHeight')
-                    anim_stat = AnimStat(index, name, (int(frame_width.text), int(frame_height.text)), None)
-
-                    rush_frame = anim_node.find('RushFrame')
-                    if rush_frame is not None:
-                        anim_stat.rushFrame = int(rush_frame.text)
-                    hit_frame = anim_node.find('HitFrame')
-                    if hit_frame is not None:
-                        anim_stat.hitFrame = int(hit_frame.text)
-                    return_frame = anim_node.find('ReturnFrame')
-                    if return_frame is not None:
-                        anim_stat.returnFrame = int(return_frame.text)
-
-                    durations_node = anim_node.find('Durations')
-                    for dur_node in durations_node.iter('Duration'):
-                        duration = int(dur_node.text)
-                        anim_stat.durations.append(duration)
-
-                    if name.lower() in anim_names:
-                        raise SpriteVerifyError("Anim '{0}' is specified twice in XML!".format(name))
-                    anim_names[name.lower()] = index
-                    if index == -1:
-                        raise SpriteVerifyError("{0} has its own sheet and does not have an index!".format(name))
-
-                if index > -1:
-                    if index in anim_stats:
-                        raise SpriteVerifyError(
-                            "{0} and {1} both have the an index of {2}!".format(anim_stats[index].name, name, index))
-                    anim_stats[index] = anim_stat
+            sdw_size, anim_names, anim_stats = getStatsFromTree(file_data)
 
             for name in name_list:
                 if name.endswith('.png'):
@@ -897,6 +845,171 @@ def verifySprite(msg_args, wan_zip):
     except zipfile.BadZipfile as e:
         raise SpriteVerifyError(str(e))
 
+def getStatsFromTree(file_data):
+    tree = ET.parse(file_data)
+    root = tree.getroot()
+    sdw_size = int(root.find('ShadowSize').text)
+    if sdw_size < 0 or sdw_size > 2:
+        raise SpriteVerifyError("Invalid shadow size: {0}".format(sdw_size))
+
+    anim_names = {}
+    anim_stats = {}
+    anims_node = root.find('Anims')
+    for anim_node in anims_node.iter('Anim'):
+        name = anim_node.find('Name').text
+        # verify all names are real
+        if name not in ACTIONS:
+            raise SpriteVerifyError("Invalid anim name '{0}' in XML.".format(name))
+        index = -1
+        index_node = anim_node.find('Index')
+        if index_node is not None:
+            index = int(index_node.text)
+        backref_node = anim_node.find('CopyOf')
+        if backref_node is not None:
+            backref = backref_node.text
+            anim_stat = AnimStat(index, name, None, backref)
+        else:
+            frame_width = anim_node.find('FrameWidth')
+            frame_height = anim_node.find('FrameHeight')
+            anim_stat = AnimStat(index, name, (int(frame_width.text), int(frame_height.text)), None)
+
+            rush_frame = anim_node.find('RushFrame')
+            if rush_frame is not None:
+                anim_stat.rushFrame = int(rush_frame.text)
+            hit_frame = anim_node.find('HitFrame')
+            if hit_frame is not None:
+                anim_stat.hitFrame = int(hit_frame.text)
+            return_frame = anim_node.find('ReturnFrame')
+            if return_frame is not None:
+                anim_stat.returnFrame = int(return_frame.text)
+
+            durations_node = anim_node.find('Durations')
+            for dur_node in durations_node.iter('Duration'):
+                duration = int(dur_node.text)
+                anim_stat.durations.append(duration)
+
+            if index == -1:
+                raise SpriteVerifyError("{0} has its own sheet and does not have an index!".format(name))
+
+        if name.lower() in anim_names:
+            raise SpriteVerifyError("Anim '{0}' is specified twice in XML!".format(name))
+        anim_names[name.lower()] = index
+
+        if index > -1:
+            if index in anim_stats:
+                raise SpriteVerifyError(
+                    "{0} and {1} both have the an index of {2}!".format(anim_stats[index].name, name, index))
+            anim_stats[index] = anim_stat
+
+    return sdw_size, anim_names, anim_stats
+
+def verifySpriteLock(dict, chosen_path, wan_zip, recolor):
+    # make sure all locked portraits are the same as their original counterparts
+    if recolor:
+        raise SpriteVerifyError("Recolor verification not yet implemented. Please submit the shiny spritesheet the normal way for now...")
+
+    violated_files = []
+    try:
+        with zipfile.ZipFile(wan_zip, 'r') as zip:
+            name_list = zip.namelist()
+            if ANIM_DATA_XML not in name_list:
+                raise SpriteVerifyError("No {0} found.".format(ANIM_DATA_XML))
+            verifyZipFile(zip, ANIM_DATA_XML)
+
+            file_data = BytesIO()
+            file_data.write(zip.read(ANIM_DATA_XML))
+            file_data.seek(0)
+
+            sdw_size, anim_names, anim_stats = getStatsFromTree(file_data)
+            if os.path.exists(os.path.join(chosen_path, ANIM_DATA_XML)):
+                sdw_size_cur, anim_names_cur, anim_stats_cur = getStatsFromTree(
+                    os.path.join(chosen_path, ANIM_DATA_XML))
+            else:
+                sdw_size_cur = 0
+                anim_names_cur = {}
+                anim_stats_cur = {}
+
+            has_lock = False
+            for anim_name in ACTIONS:
+                if anim_name in dict.sprite_files and dict.sprite_files[anim_name]:
+                    has_lock = True
+                    if anim_name.lower() not in anim_names:
+                        violated_files.append(anim_name)
+                        continue
+
+                    # check to ensure the indices are the same
+                    anim_idx = anim_names[anim_name.lower()]
+                    anim_idx_cur = anim_names_cur[anim_name.lower()]
+                    if anim_idx != anim_idx_cur:
+                        violated_files.append(anim_name)
+                        continue
+
+                    # check to make sure the stats are the same
+                    anim_stat = anim_stats[anim_idx]
+                    anim_stat_cur = anim_stats_cur[anim_idx_cur]
+
+                    stat_violated = False
+                    stat_violated |= anim_stat.index != anim_stat_cur.index
+                    stat_violated |= anim_stat.name != anim_stat_cur.name
+                    stat_violated |= anim_stat.size != anim_stat_cur.size
+                    stat_violated |= anim_stat.backref != anim_stat_cur.backref
+                    stat_violated |= anim_stat.rushFrame != anim_stat_cur.rushFrame
+                    stat_violated |= anim_stat.hitFrame != anim_stat_cur.hitFrame
+                    stat_violated |= anim_stat.returnFrame != anim_stat_cur.returnFrame
+                    stat_violated |= len(anim_stat.durations) != len(anim_stat_cur.durations)
+                    if not stat_violated:
+                        for idx, dur in enumerate(anim_stat.durations):
+                            stat_violated |= dur != anim_stat_cur.durations[idx]
+
+                    if stat_violated:
+                        violated_files.append(anim_name)
+                        continue
+
+                    if anim_stat.backref is not None:
+                        continue
+
+                    # check to make sure the images are the same
+                    anim_png_name = anim_name + "-Anim.png"
+                    offset_png_name = anim_name + "-Offsets.png"
+                    shadow_png_name = anim_name + "-Shadow.png"
+                    if anim_png_name not in name_list:
+                        raise SpriteVerifyError("Anim specified in XML has no Anim.png: {0}".format(anim_name))
+                    if offset_png_name not in name_list:
+                        raise SpriteVerifyError("Anim specified in XML has no Offsets.png: {0}".format(anim_name))
+                    if shadow_png_name not in name_list:
+                        raise SpriteVerifyError("Anim specified in XML has no Shadow.png: {0}".format(anim_name))
+
+                    anim_img = readZipImg(zip, anim_png_name)
+                    anim_img_cur = Image.open(os.path.join(chosen_path, anim_png_name)).convert("RGBA")
+                    if not exUtils.imgsEqual(anim_img, anim_img_cur):
+                        violated_files.append(anim_name)
+                        continue
+
+                    offset_img = readZipImg(zip, offset_png_name)
+                    offset_img_cur = Image.open(os.path.join(chosen_path, offset_png_name)).convert("RGBA")
+                    if not exUtils.imgsEqual(offset_img, offset_img_cur):
+                        violated_files.append(anim_name)
+                        continue
+
+                    shadow_img = readZipImg(zip, shadow_png_name)
+                    shadow_img_cur = Image.open(os.path.join(chosen_path, shadow_png_name)).convert("RGBA")
+                    if not exUtils.imgsEqual(shadow_img, shadow_img_cur):
+                        violated_files.append(anim_name)
+                        continue
+
+            if has_lock and sdw_size != sdw_size_cur:
+                raise SpriteVerifyError("The shadow size for this sprite is locked and cannot be changed.")
+
+
+
+    except zipfile.BadZipfile as e:
+        raise SpriteVerifyError(str(e))
+
+
+    if len(violated_files) > 0:
+        raise SpriteVerifyError(
+            "The following actions are locked and cannot be changed: {0}".format(str(violated_files)[:1900]))
+
 def verifyPortrait(msg_args, img):
     # make sure the dimensions are sound
     if img.size[0] % PORTRAIT_SIZE != 0 or img.size[1] % PORTRAIT_SIZE != 0:
@@ -1001,7 +1114,43 @@ def verifyPortrait(msg_args, img):
             raise SpriteVerifyError("File is missing some flipped emotions." \
                    "If you want to submit incomplete, include `noflip` in the message.")
 
+def verifyPortraitLock(dict, chosen_path, img, recolor):
+    # make sure all locked portraits are the same as their original counterparts
+    if recolor:
+        img = removePalette(img)
 
+    in_data = img.getdata()
+    violated_files = []
+    for xx in range(PORTRAIT_TILE_X):
+        for yy in range(PORTRAIT_TILE_Y):
+            emote_name = getEmotionFromTilePos((xx, yy))
+            if emote_name in dict.portrait_files and dict.portrait_files[emote_name]:
+                # check the current file against the new file
+                first_pos = (xx * PORTRAIT_SIZE, yy * PORTRAIT_SIZE)
+                png_name = os.path.join(chosen_path, emote_name + ".png")
+
+                if not (first_pos[0] < img.size[0] and first_pos[1] < img.size[1]):
+                    violated = True
+                else:
+                    chosen_img = Image.open(png_name).convert("RGBA")
+                    chosen_data = chosen_img.getdata()
+                    violated = False
+                    for mx in range(PORTRAIT_SIZE):
+                        for my in range(PORTRAIT_SIZE):
+                            cur_pos = (first_pos[0] + mx, first_pos[1] + my)
+                            cur_pixel = in_data[cur_pos[1] * img.size[0] + cur_pos[0]]
+                            chosen_pixel = chosen_data[my * chosen_img.size[0] + mx]
+                            if cur_pixel != chosen_pixel:
+                                violated = True
+                                break
+                        if violated:
+                            break
+                if violated:
+                    violated_files.append((xx, yy))
+
+    if len(violated_files) > 0:
+        violated_names = [getEmotionFromTilePos(a) for a in violated_files]
+        raise SpriteVerifyError("The following emotions are locked and cannot be changed: {0}".format(str(violated_names)[:1900]))
 
 def verifyPortraitFilled(species_path):
     for name in EMOTIONS:
@@ -1330,14 +1479,14 @@ def initSubNode(name):
     sub_dict["portrait_complete"] = 0
     sub_dict["portrait_credit"] = ""
     sub_dict["portrait_link"] = ""
-    sub_dict["portrait_files"] = []
+    sub_dict["portrait_files"] = {}
     sub_dict["portrait_modified"] = ""
     sub_dict["portrait_pending"] = {}
     sub_dict["portrait_recolor_link"] = ""
     sub_dict["portrait_required"] = False
     sub_dict["sprite_complete"] = 0
     sub_dict["sprite_credit"] = ""
-    sub_dict["sprite_files"] = []
+    sub_dict["sprite_files"] = {}
     sub_dict["sprite_link"] = ""
     sub_dict["sprite_modified"] = ""
     sub_dict["sprite_pending"] = {}
@@ -1347,22 +1496,30 @@ def initSubNode(name):
     return TrackerNode(sub_dict)
 
 
-def getFiles(path):
-    full_list = []
-    for inFile in os.listdir(path):
-        fullPath = os.path.join(path, inFile)
-        if os.path.isdir(fullPath):
-            pass
-        elif inFile == "credits.txt":
-            pass
-        else:
-            full_list.append(inFile)
-    return full_list
+def updateFiles(dict, species_path, prefix):
+    file_list = []
+    if prefix == "sprite":
+        if os.path.exists(os.path.join(species_path, ANIM_DATA_XML)):
+            tree = ET.parse(os.path.join(species_path, ANIM_DATA_XML))
+            root = tree.getroot()
+            anims_node = root.find('Anims')
+            for anim_node in anims_node.iter('Anim'):
+                name = anim_node.find('Name').text
+                file_list.append(name)
+    else:
+        for inFile in os.listdir(species_path):
+            if inFile.endswith(".png"):
+                file, _ = os.path.splitext(inFile)
+                file_list.append(file)
+
+    for file in file_list:
+        if file not in dict.__dict__[prefix + "_files"]:
+            dict.__dict__[prefix + "_files"][file] = False
+
 
 def fileSystemToJson(dict, species_path, prefix, tier):
     # get last modify date of everything that isn't credits.txt or dirs
     last_modify = ""
-    dict.__dict__[prefix + "_files"] = []
     for inFile in os.listdir(species_path):
         fullPath = os.path.join(species_path, inFile)
         if os.path.isdir(fullPath):
@@ -1398,7 +1555,30 @@ def fileSystemToJson(dict, species_path, prefix, tier):
             modify_datetime = datetime.datetime.utcfromtimestamp(os.path.getmtime(fullPath))
             if str(modify_datetime) > last_modify:
                 last_modify = str(modify_datetime)
-            dict.__dict__[prefix + "_files"].append(inFile)
+
+    if False:
+        dict.__dict__[prefix + "_files"] = {}
+        repl_path = species_path.replace("/SpriteCollab", "/old_SpriteCollab")
+        if os.path.exists(repl_path):
+            file_list = []
+            if prefix == "sprite":
+                if os.path.exists(os.path.join(repl_path, ANIM_DATA_XML)):
+                    tree = ET.parse(os.path.join(repl_path, ANIM_DATA_XML))
+                    root = tree.getroot()
+                    anims_node = root.find('Anims')
+                    for anim_node in anims_node.iter('Anim'):
+                        name = anim_node.find('Name').text
+                        file_list.append(name)
+            else:
+                for inFile in os.listdir(repl_path):
+                    if inFile.endswith(".png"):
+                        file, _ = os.path.splitext(inFile)
+                        file_list.append(file)
+
+            for file in file_list:
+                dict.__dict__[prefix + "_files"][file] = True
+
+    updateFiles(dict, species_path, prefix)
 
     updated = False
     if dict.__dict__[prefix + "_modified"] < last_modify:

@@ -294,6 +294,12 @@ class SpriteBot:
     async def verifySubmission(self, msg, full_idx, asset_type, recolor, msg_args):
         decline_msg = None
         quant_img = None
+
+        chosen_node = SpriteUtils.getNodeFromIdx(self.tracker, full_idx, 0)
+
+        full_arr = [self.config.path, asset_type] + full_idx
+        chosen_path = os.path.join(*full_arr)
+
         if asset_type == "sprite":
             # get the sprite zip and verify its contents
             try:
@@ -326,10 +332,11 @@ class SpriteBot:
 
             # if the file needs to be compared to an original, verify it as a recolor. Otherwise, by itself.
             try:
-                if orig_zip is None:
-                    SpriteUtils.verifySprite(msg_args, wan_zip)
-                else:
+                SpriteUtils.verifySpriteLock(chosen_node, chosen_path, wan_zip, recolor)
+                if SpriteUtils.isShinyIdx(full_idx):
                     SpriteUtils.verifySpriteRecolor(msg_args, orig_zip, wan_zip, recolor)
+                else:
+                    SpriteUtils.verifySprite(msg_args, wan_zip)
             except SpriteUtils.SpriteVerifyError as e:
                 decline_msg = e.message
                 quant_img = e.preview_img
@@ -356,21 +363,25 @@ class SpriteBot:
                     return False
 
                 orig_link = await self.retrieveLinkMsg(orig_idx, orig_node, asset_type, recolor)
+
                 try:
                     orig_img = SpriteUtils.getLinkImg(orig_link)
                 except SpriteUtils.SpriteVerifyError as e:
-                    await self.returnMsgFile(msg, msg.author.mention + " A problem occurred reading original portrait.", asset_type)
+                    await self.returnMsgFile(msg, msg.author.mention + " A problem occurred reading original portrait.",
+                                             asset_type)
                     return False
                 except Exception as e:
-                    await self.returnMsgFile(msg, msg.author.mention + " A problem occurred reading original portrait.", asset_type)
+                    await self.returnMsgFile(msg, msg.author.mention + " A problem occurred reading original portrait.",
+                                             asset_type)
                     raise e
 
             # if the file needs to be compared to an original, verify it as a recolor. Otherwise, by itself.
             try:
-                if orig_img is None:
-                    SpriteUtils.verifyPortrait(msg_args, img)
-                else:
+                SpriteUtils.verifyPortraitLock(chosen_node, chosen_path, img, recolor)
+                if SpriteUtils.isShinyIdx(full_idx):
                     SpriteUtils.verifyPortraitRecolor(msg_args, orig_img, img, recolor)
+                else:
+                    SpriteUtils.verifyPortrait(msg_args, img)
             except SpriteUtils.SpriteVerifyError as e:
                 decline_msg = e.message
                 quant_img = e.preview_img
@@ -520,7 +531,7 @@ class SpriteBot:
         chosen_node.__dict__[asset_type + "_modified"] = str(datetime.datetime.utcnow())
         chosen_node.__dict__[asset_type + "_credit"] = orig_author
         # update the file cache
-        chosen_node.__dict__[asset_type + "_files"] = SpriteUtils.getFiles(gen_path)
+        SpriteUtils.updateFiles(chosen_node, gen_path, asset_type)
 
         # remove from pending list
         pending_dict = chosen_node.__dict__[asset_type + "_pending"]
