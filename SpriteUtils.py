@@ -1447,15 +1447,6 @@ class TrackerNode:
 
         self.__dict__ = main_dict
 
-        if len(self.sprite_files) == 0:
-            self.sprite_files = {}
-        if len(self.portrait_files) == 0:
-            self.portrait_files = {}
-        if "sprite_bounty" not in self.__dict__:
-            self.sprite_bounty = {}
-        if "portrait_bounty" not in self.__dict__:
-            self.portrait_bounty = {}
-
         sub_dict = { }
         for key in self.subgroups:
             sub_dict[key] = TrackerNode(self.subgroups[key])

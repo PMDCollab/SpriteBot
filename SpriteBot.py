@@ -22,6 +22,8 @@ PHASE_INCOMPLETE = 0
 PHASE_EXISTS = 1
 PHASE_FULL = 2
 
+PHASES = [ "\u26AA incomplete", "\u2705 available", "\u2B50 fully featured" ]
+
 # Command prefix.
 COMMAND_PREFIX = '!'
 
@@ -285,11 +287,12 @@ class SpriteBot:
             post += " `#" + "{:03d}".format(dexnum) + "`: `" + name_str + "` "
 
             bounty_dict = tracker_dict.__dict__[asset_type + "_bounty"]
+            next_phase = tracker_dict.__dict__[asset_type + "_complete"] + 1
 
-            if PHASE_FULL in bounty_dict:
-                bounty = bounty_dict[PHASE_FULL]
+            if str(next_phase) in bounty_dict:
+                bounty = bounty_dict[str(next_phase)]
                 if bounty > 0:
-                    entries.append((bounty, post))
+                    entries.append((bounty, post, asset_type, next_phase))
 
         for sub_dict in tracker_dict.subgroups:
             self.getBountiesFromDict(asset_type, tracker_dict.subgroups[sub_dict], entries, indices + [sub_dict])
@@ -873,11 +876,7 @@ class SpriteBot:
             return
         chosen_node = SpriteUtils.getNodeFromIdx(self.tracker, full_idx, 0)
 
-        phase_str = "incomplete"
-        if phase == PHASE_EXISTS:
-            phase_str = "exists"
-        elif phase == PHASE_FULL:
-            phase_str = "fully featured"
+        phase_str = PHASES[phase]
 
         # if the node has no credit, fail
         if chosen_node.__dict__[asset_type + "_credit"] == "" and phase > PHASE_INCOMPLETE:
@@ -914,18 +913,19 @@ class SpriteBot:
         chosen_node = SpriteUtils.getNodeFromIdx(self.tracker, full_idx, 0)
 
         status = self.getStatusEmoji(chosen_node, asset_type)
-        if chosen_node.__dict__[asset_type + "_complete"] == PHASE_FULL:
+        if chosen_node.__dict__[asset_type + "_complete"] >= PHASE_FULL:
             await msg.channel.send(msg.author.mention + " {0} #{1:03d} {2} is fully featured and cannot have a bounty.".format(status, int(full_idx[0]), " ".join(name_seq)))
             return
 
         cur_val = 0
-        if PHASE_FULL in chosen_node.__dict__[asset_type + "_bounty"]:
-            cur_val = chosen_node.__dict__[asset_type + "_bounty"][PHASE_FULL]
+        result_phase = chosen_node.__dict__[asset_type + "_complete"] + 1
+        if str(result_phase) in chosen_node.__dict__[asset_type + "_bounty"]:
+            cur_val = chosen_node.__dict__[asset_type + "_bounty"][str(result_phase)]
 
-        chosen_node.__dict__[asset_type + "_bounty"][PHASE_FULL] = cur_val + amt
+        chosen_node.__dict__[asset_type + "_bounty"][str(result_phase)] = cur_val + amt
 
         # set to complete
-        await msg.channel.send(msg.author.mention + " {0} #{1:03d}: {2} now has a bounty of **{3}GP**.".format(status, int(full_idx[0]), " ".join(name_seq), cur_val + amt))
+        await msg.channel.send(msg.author.mention + " {0} #{1:03d}: {2} now has a bounty of **{3}GP**, paid out when the {4} becomes {5}.".format(status, int(full_idx[0]), " ".join(name_seq), cur_val + amt, asset_type, PHASES[result_phase].title()))
 
         self.saveTracker()
         self.changed = True
@@ -964,7 +964,7 @@ class SpriteBot:
         else:
             posts.append("**Top Bounties for Portraits**")
         for entry in entries:
-            posts.append("#{0:02d}. {2} for **{1}GP**".format(len(posts), entry[0], entry[1]))
+            posts.append("#{0:02d}. {2} for **{1}GP**, paid when the {3} becomes {4}.".format(len(posts), entry[0], entry[1], entry[2], PHASES[entry[3]].title()))
 
         if len(posts) == 1:
             posts.append("[None]")
@@ -1045,10 +1045,12 @@ class SpriteBot:
                     response += "\n [Recolor this {0} to its shiny palette and submit it.]".format(asset_type)
                 chosen_link = await self.retrieveLinkMsg(full_idx, chosen_node, asset_type, recolor)
                 response += "\n" + chosen_link
-            if PHASE_FULL in chosen_node.__dict__[asset_type + "_bounty"]:
-                bounty = chosen_node.__dict__[asset_type + "_bounty"][PHASE_FULL]
+
+            next_phase = chosen_node.__dict__[asset_type + "_complete"] + 1
+            if str(next_phase) in chosen_node.__dict__[asset_type + "_bounty"]:
+                bounty = chosen_node.__dict__[asset_type + "_bounty"][str(next_phase)]
                 if bounty > 0:
-                    response += "\n This {0} has a bounty of **{1}GP**!".format(asset_type, bounty)
+                    response += "\n This {0} has a bounty of **{1}GP**, paid out when it becomes {2}".format(asset_type, bounty, PHASES[next_phase].title())
         else:
             response += " does not need a {0}.".format(asset_type)
 
