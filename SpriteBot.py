@@ -981,12 +981,16 @@ class SpriteBot:
             return
         chosen_node = SpriteUtils.getNodeFromIdx(self.tracker, full_idx, 0)
 
-        try:
-            file_name = name_args[-1].title()
-            chosen_node.__dict__[asset_type + "_files"][file_name] = lock_state
-        except Exception as e:
+        file_name = name_args[-1]
+        for k in chosen_node.__dict__[asset_type + "_files"]:
+            if file_name.lower() == k.lower():
+                file_name = k
+                break
+
+        if file_name not in chosen_node.__dict__[asset_type + "_files"]:
             await msg.channel.send(msg.author.mention + " Specify a Pokemon and an existing emotion/animation.")
             return
+        chosen_node.__dict__[asset_type + "_files"][file_name] = lock_state
 
         status = self.getStatusEmoji(chosen_node, asset_type)
 
@@ -1674,6 +1678,10 @@ async def on_message(msg: discord.Message):
                 await sprite_bot.setLock(msg, args[1:], "portrait", False)
             elif args[0] == "unlocksprite" and msg.author.id == sprite_bot.config.root:
                 await sprite_bot.setLock(msg, args[1:], "sprite", False)
+            elif args[0] == "lockportrait" and msg.author.id == sprite_bot.config.root:
+                await sprite_bot.setLock(msg, args[1:], "portrait", True)
+            elif args[0] == "locksprite" and msg.author.id == sprite_bot.config.root:
+                await sprite_bot.setLock(msg, args[1:], "sprite", True)
             elif args[0] == "update" and msg.author.id == sprite_bot.config.root:
                 await sprite_bot.updateBot(msg)
             elif args[0] == "forcepush" and msg.author.id == sprite_bot.config.root:
