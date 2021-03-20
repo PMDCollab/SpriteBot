@@ -972,6 +972,33 @@ class SpriteBot:
         self.changed = True
 
 
+    async def setLock(self, msg, name_args, asset_type, lock_state):
+
+        name_seq = [SpriteUtils.sanitizeName(i) for i in name_args[:-1]]
+        full_idx = SpriteUtils.findFullTrackerIdx(self.tracker, name_seq, 0)
+        if full_idx is None:
+            await msg.channel.send(msg.author.mention + " No such Pokemon.")
+            return
+        chosen_node = SpriteUtils.getNodeFromIdx(self.tracker, full_idx, 0)
+
+        try:
+            file_name = name_args[-1].title()
+            chosen_node.__dict__[asset_type + "_files"][file_name] = lock_state
+        except Exception as e:
+            await msg.channel.send(msg.author.mention + " Specify a Pokemon and an existing emotion/animation.")
+            return
+
+        status = self.getStatusEmoji(chosen_node, asset_type)
+
+        lock_str = "unlocked"
+        if lock_state:
+            lock_str = "locked"
+        # set to complete
+        await msg.channel.send(msg.author.mention + " {0} #{1:03d}: {2} {3} is now {4}.".format(status, int(full_idx[0]), " ".join(name_seq), file_name, lock_str))
+
+        self.saveTracker()
+        self.changed = True
+
     async def listBounties(self, msg, name_args):
         include_sprite = True
         include_portrait = True
@@ -1643,6 +1670,10 @@ async def on_message(msg: discord.Message):
                 await sprite_bot.clearCache(msg, args[1:])
             elif args[0] == "rescan" and msg.author.id == sprite_bot.config.root:
                 await sprite_bot.rescan(msg)
+            elif args[0] == "unlockportrait" and msg.author.id == sprite_bot.config.root:
+                await sprite_bot.setLock(msg, args[1:], "portrait", False)
+            elif args[0] == "unlocksprite" and msg.author.id == sprite_bot.config.root:
+                await sprite_bot.setLock(msg, args[1:], "sprite", False)
             elif args[0] == "update" and msg.author.id == sprite_bot.config.root:
                 await sprite_bot.updateBot(msg)
             elif args[0] == "forcepush" and msg.author.id == sprite_bot.config.root:
