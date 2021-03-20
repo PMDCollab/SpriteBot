@@ -54,6 +54,7 @@ class BotConfig:
             self.path = ""
             self.root = 0
             self.push = False
+            self.points = 0
             self.update_ch = 0
             self.update_msg = 0
             self.servers = {}
@@ -299,6 +300,7 @@ class SpriteBot:
 
 
     async def isAuthorized(self, user, guild):
+
         if user.id == self.client.user.id:
             return False
         if user.id == self.config.root:
@@ -306,7 +308,11 @@ class SpriteBot:
         guild_id_str = str(guild.id)
         approve_role = guild.get_role(self.config.servers[guild_id_str].approval)
 
-        user_member = await guild.fetch_member(user.id)
+        try:
+            user_member = await guild.fetch_member(user.id)
+        except discord.NotFound as e:
+            user_member = None
+
         if user_member is None:
             return False
         if approve_role in user_member.roles:
@@ -916,6 +922,41 @@ class SpriteBot:
         if chosen_node.__dict__[asset_type + "_complete"] >= PHASE_FULL:
             await msg.channel.send(msg.author.mention + " {0} #{1:03d} {2} is fully featured and cannot have a bounty.".format(status, int(full_idx[0]), " ".join(name_seq)))
             return
+
+        if self.config.points == 0:
+            if not await self.isAuthorized(msg.author, msg.guild):
+                await msg.channel.send(msg.author.mention + " Not authorized.")
+                return
+        else:
+            user = await client.fetch_user(self.config.points)
+            resp = await user.send("!checkr {0}".format(msg.author.id))
+
+            # check for enough points
+            def check(m):
+                return m.channel == resp.channel and m.author.id == self.config.points
+
+            cur_amt = 0
+            try:
+                wait_msg = await client.wait_for('message', check=check, timeout=10.0)
+                result_json = json.loads(wait_msg.content)
+                cur_amt = int(result_json["result"])
+            except Exception as e:
+                await msg.channel.send(msg.author.mention + " Error retrieving guild points.")
+                return
+
+            if cur_amt < amt:
+                await msg.channel.send(msg.author.mention + " Not enough guild points! You currently have **{0}GP**.".format(cur_amt))
+                return
+            resp = await user.send("!tr {0} {1} {2}".format(msg.author.id, amt, msg.channel.id))
+
+            try:
+                wait_msg = await client.wait_for('message', check=check, timeout=10.0)
+                result_json = json.load(wait_msg.content)
+                if result_json["status"] != "success":
+                    raise Exception() # TODO: what exception is this?
+            except Exception as e:
+                await msg.channel.send(msg.author.mention + " Error taking guild points.")
+                return
 
         cur_val = 0
         result_phase = chosen_node.__dict__[asset_type + "_complete"] + 1
@@ -1572,9 +1613,9 @@ async def on_message(msg: discord.Message):
                 await sprite_bot.getCredit(msg, args[1:], "sprite")
             elif args[0] == "portraitcredit":
                 await sprite_bot.getCredit(msg, args[1:], "portrait")
-            elif args[0] == "spritebounty":
+            elif args[0] == "spritebounty" and authorized:
                 await sprite_bot.placeBounty(msg, args[1:], "sprite")
-            elif args[0] == "portraitbounty":
+            elif args[0] == "portraitbounty" and authorized:
                 await sprite_bot.placeBounty(msg, args[1:], "portrait")
             elif args[0] == "bounties":
                 await sprite_bot.listBounties(msg, args[1:])
