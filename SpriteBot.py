@@ -55,6 +55,7 @@ class BotConfig:
             self.root = 0
             self.push = False
             self.points = 0
+            self.points_ch = 0
             self.update_ch = 0
             self.update_msg = 0
             self.servers = {}
@@ -497,6 +498,8 @@ class SpriteBot:
         if orig_author != orig_sender:
             sender_info = "{0}/{1}".format(orig_sender, orig_author)
 
+        give_points = orig_author.startswith("<@!")
+
         file_name = msg.attachments[0].filename
         file_valid, full_idx, asset_type, recolor = SpriteUtils.getStatsFromFilename(file_name)
         if not file_valid:
@@ -555,6 +558,13 @@ class SpriteBot:
                 portrait_img = SpriteUtils.removePalette(portrait_img)
             SpriteUtils.placePortraitToPath(portrait_img, gen_path)
 
+
+        cur_credits = SpriteUtils.getFileCredits(gen_path)
+        for credit in cur_credits:
+            if credit[1] == orig_author:
+                give_points = False
+                break
+
         SpriteUtils.appendCredits(gen_path, orig_author)
         # add to universal names list and save if changed
         if orig_author not in self.names:
@@ -610,6 +620,14 @@ class SpriteBot:
 
         # delete post
         await msg.delete()
+
+        if give_points and self.config.points_ch != 0:
+            orig_author_id = orig_author[3:-1]
+            pts = 1
+            if asset_type == "sprite":
+                pts = 2
+            await self.client.get_channel(self.config.points_ch).send("!gr {0} {1} {2}".format(msg.author.id, pts, orig_author_id))
+
         self.changed = True
 
     async def submissionDeclined(self, msg, orig_sender, declines):
