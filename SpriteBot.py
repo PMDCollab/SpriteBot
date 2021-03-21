@@ -682,13 +682,17 @@ class SpriteBot:
             cks = None
             xs = None
             ss = None
+            remove_users = []
             for reaction in msg.reactions:
                 if reaction.emoji == '\u2705':
                     cks = reaction
-                if reaction.emoji == '\u274C':
+                elif reaction.emoji == '\u274C':
                     xs = reaction
-                if reaction.emoji == '\u2B50':
+                elif reaction.emoji == '\u2B50':
                     ss = reaction
+                else:
+                    async for user in reaction.users():
+                        remove_users.append((reaction, user))
 
             msg_lines = msg.content.split()
             main_data = msg_lines[0].split()
@@ -706,6 +710,8 @@ class SpriteBot:
                     if user.id == self.config.root:
                         auto = True
                         approve.append(user.id)
+                    else:
+                        remove_users.append((ss, user))
 
             async for user in cks.users():
                 if await self.isAuthorized(user, msg.guild):
@@ -714,6 +720,8 @@ class SpriteBot:
             async for user in xs.users():
                 if await self.isAuthorized(user, msg.guild) or user.id == orig_sender_id:
                     decline.append(user.id)
+                elif user.id != self.client.user.id:
+                    remove_users.append((xs, user))
 
             file_name = msg.attachments[0].filename
             name_valid, full_idx, asset_type, recolor = SpriteUtils.getStatsFromFilename(file_name)
@@ -728,6 +736,9 @@ class SpriteBot:
                 chosen_node = SpriteUtils.getNodeFromIdx(self.tracker, full_idx, 0)
                 pending_dict = chosen_node.__dict__[asset_type + "_pending"]
                 pending_dict[str(msg.id)] = True
+
+                for reaction, user in remove_users:
+                    await reaction.remove(user)
                 return False
         else:
             if len(msg.attachments) != 1:
