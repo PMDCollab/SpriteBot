@@ -626,7 +626,7 @@ class SpriteBot:
             pts = 1
             if asset_type == "sprite":
                 pts = 2
-            await self.client.get_channel(self.config.points_ch).send("!gr {0} {1} {2}".format(msg.author.id, pts, self.config.servers[str(msg.guild.id)].chat))
+            await self.client.get_channel(self.config.points_ch).send("!gr {0} {1} {2}".format(orig_author_id, pts, self.config.servers[str(msg.guild.id)].chat))
 
         self.changed = True
 
