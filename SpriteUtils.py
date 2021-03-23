@@ -1416,9 +1416,10 @@ def generateFileData(path, asset_type, recolor):
 
 def getFileCredits(path):
     id_list = []
-    with open(os.path.join(path, "credits.txt"), 'r', encoding='utf-8') as txt:
-        for line in txt:
-            id_list.append(line.strip().split('\t'))
+    if os.path.exists(os.path.join(path, "credits.txt")):
+        with open(os.path.join(path, "credits.txt"), 'r', encoding='utf-8') as txt:
+            for line in txt:
+                id_list.append(line.strip().split('\t'))
     return id_list
 
 def appendCredits(path, id):

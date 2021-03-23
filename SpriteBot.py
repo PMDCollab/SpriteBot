@@ -498,7 +498,7 @@ class SpriteBot:
         if orig_author != orig_sender:
             sender_info = "{0}/{1}".format(orig_sender, orig_author)
 
-        give_points = orig_author.startswith("<@!")
+        give_points = 1
 
         file_name = msg.attachments[0].filename
         file_valid, full_idx, asset_type, recolor = SpriteUtils.getStatsFromFilename(file_name)
@@ -558,11 +558,10 @@ class SpriteBot:
                 portrait_img = SpriteUtils.removePalette(portrait_img)
             SpriteUtils.placePortraitToPath(portrait_img, gen_path)
 
-
         cur_credits = SpriteUtils.getFileCredits(gen_path)
         for credit in cur_credits:
             if credit[1] == orig_author:
-                give_points = False
+                give_points -= 1
                 break
 
         SpriteUtils.appendCredits(gen_path, orig_author)
@@ -621,12 +620,14 @@ class SpriteBot:
         # delete post
         await msg.delete()
 
-        if give_points and self.config.points_ch != 0:
+        if not orig_author.startswith("<@!"):
+            give_points = 0
+
+        if give_points > 0 and self.config.points_ch != 0:
             orig_author_id = orig_author[3:-1]
-            pts = 1
             if asset_type == "sprite":
-                pts = 2
-            await self.client.get_channel(self.config.points_ch).send("!gr {0} {1} {2}".format(orig_author_id, pts, self.config.servers[str(msg.guild.id)].chat))
+                give_points *= 2
+            await self.client.get_channel(self.config.points_ch).send("!gr {0} {1} {2}".format(orig_author_id, give_points, self.config.servers[str(msg.guild.id)].chat))
 
         self.changed = True
 
