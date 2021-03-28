@@ -193,7 +193,8 @@ ZIP_SIZE_LIMIT = 5000000
 DRAW_CENTER_X = 0
 DRAW_CENTER_Y = -4
 
-ANIM_DATA_XML = "AnimData.xml"
+SINGLE_SHEET_XML = "FrameData.xml"
+MULTI_SHEET_XML = "AnimData.xml"
 
 class SpriteVerifyError(Exception):
     def __init__(self, message, preview_img=None):
@@ -655,12 +656,12 @@ def verifySprite(msg_args, wan_zip):
     try:
         with zipfile.ZipFile(wan_zip, 'r') as zip:
             name_list = zip.namelist()
-            if ANIM_DATA_XML not in name_list:
-                raise SpriteVerifyError("No {0} found.".format(ANIM_DATA_XML))
-            verifyZipFile(zip, ANIM_DATA_XML)
+            if MULTI_SHEET_XML not in name_list:
+                raise SpriteVerifyError("No {0} found.".format(MULTI_SHEET_XML))
+            verifyZipFile(zip, MULTI_SHEET_XML)
 
             file_data = BytesIO()
-            file_data.write(zip.read(ANIM_DATA_XML))
+            file_data.write(zip.read(MULTI_SHEET_XML))
             file_data.seek(0)
 
             sdw_size, anim_names, anim_stats = getStatsFromTree(file_data)
@@ -924,18 +925,18 @@ def verifySpriteLock(dict, chosen_path, wan_zip, recolor):
     try:
         with zipfile.ZipFile(wan_zip, 'r') as zip:
             name_list = zip.namelist()
-            if ANIM_DATA_XML not in name_list:
-                raise SpriteVerifyError("No {0} found.".format(ANIM_DATA_XML))
-            verifyZipFile(zip, ANIM_DATA_XML)
+            if MULTI_SHEET_XML not in name_list:
+                raise SpriteVerifyError("No {0} found.".format(MULTI_SHEET_XML))
+            verifyZipFile(zip, MULTI_SHEET_XML)
 
             file_data = BytesIO()
-            file_data.write(zip.read(ANIM_DATA_XML))
+            file_data.write(zip.read(MULTI_SHEET_XML))
             file_data.seek(0)
 
             sdw_size, anim_names, anim_stats = getStatsFromTree(file_data)
-            if os.path.exists(os.path.join(chosen_path, ANIM_DATA_XML)):
+            if os.path.exists(os.path.join(chosen_path, MULTI_SHEET_XML)):
                 sdw_size_cur, anim_names_cur, anim_stats_cur = getStatsFromTree(
-                    os.path.join(chosen_path, ANIM_DATA_XML))
+                    os.path.join(chosen_path, MULTI_SHEET_XML))
             else:
                 sdw_size_cur = 0
                 anim_names_cur = {}
@@ -1282,11 +1283,11 @@ def getFramesAndMappings(path, is_zip):
     anim_dims = {}
     if is_zip:
         file_data = BytesIO()
-        file_data.write(path.read(ANIM_DATA_XML))
+        file_data.write(path.read(MULTI_SHEET_XML))
         file_data.seek(0)
         tree = ET.parse(file_data)
     else:
-        tree = ET.parse(os.path.join(path, ANIM_DATA_XML))
+        tree = ET.parse(os.path.join(path, MULTI_SHEET_XML))
     root = tree.getroot()
     anims_node = root.find('Anims')
     for anim_node in anims_node.iter('Anim'):
@@ -1553,8 +1554,8 @@ def getCurrentCompletion(dict, prefix):
 def updateFiles(dict, species_path, prefix):
     file_list = []
     if prefix == "sprite":
-        if os.path.exists(os.path.join(species_path, ANIM_DATA_XML)):
-            tree = ET.parse(os.path.join(species_path, ANIM_DATA_XML))
+        if os.path.exists(os.path.join(species_path, MULTI_SHEET_XML)):
+            tree = ET.parse(os.path.join(species_path, MULTI_SHEET_XML))
             root = tree.getroot()
             anims_node = root.find('Anims')
             for anim_node in anims_node.iter('Anim'):

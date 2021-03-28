@@ -18,7 +18,7 @@ INFO_FILE_PATH = 'info.txt'
 CONFIG_FILE_PATH = 'config.json'
 TRACKER_FILE_PATH = 'tracker.json'
 
-SPRITE_WORTH = 2
+SPRITE_WORTH = 10
 PORTRAIT_WORTH = 1
 
 PHASES = [ "\u26AA incomplete", "\u2705 available", "\u2B50 fully featured" ]
