@@ -18,9 +18,8 @@ INFO_FILE_PATH = 'info.txt'
 CONFIG_FILE_PATH = 'config.json'
 TRACKER_FILE_PATH = 'tracker.json'
 
-PHASE_INCOMPLETE = 0
-PHASE_EXISTS = 1
-PHASE_FULL = 2
+SPRITE_WORTH = 2
+PORTRAIT_WORTH = 1
 
 PHASES = [ "\u26AA incomplete", "\u2705 available", "\u2B50 fully featured" ]
 
@@ -194,10 +193,10 @@ class SpriteBot:
         added = chosen_node.__dict__[asset_type + "_credit"] != ""
         complete = chosen_node.__dict__[asset_type+"_complete"]
         required = chosen_node.__dict__[asset_type+"_required"]
-        if complete > PHASE_EXISTS: # star
+        if complete > SpriteUtils.PHASE_EXISTS: # star
             return "\u2B50"
         elif len(pending) > 0:
-            if complete > PHASE_INCOMPLETE:  # interrobang
+            if complete > SpriteUtils.PHASE_INCOMPLETE:  # interrobang
                 return "\u2049"
             else:  # question
                 return "\u2754"
@@ -205,7 +204,7 @@ class SpriteBot:
             if len(pending) > 0:  # interrobang
                 return "\u2049"
             else:
-                if complete > PHASE_INCOMPLETE:  # checkmark
+                if complete > SpriteUtils.PHASE_INCOMPLETE:  # checkmark
                     return "\u2705"
                 else:  # white circle
                     return "\u26AA"
@@ -498,8 +497,6 @@ class SpriteBot:
         if orig_author != orig_sender:
             sender_info = "{0}/{1}".format(orig_sender, orig_author)
 
-        give_points = 1
-
         file_name = msg.attachments[0].filename
         file_valid, full_idx, asset_type, recolor = SpriteUtils.getStatsFromFilename(file_name)
         if not file_valid:
@@ -558,10 +555,13 @@ class SpriteBot:
                 portrait_img = SpriteUtils.removePalette(portrait_img)
             SpriteUtils.placePortraitToPath(portrait_img, gen_path)
 
+        prev_completion_file = SpriteUtils.getCurrentCompletion(chosen_node, asset_type)
+
+        new_credit = True
         cur_credits = SpriteUtils.getFileCredits(gen_path)
         for credit in cur_credits:
             if credit[1] == orig_author:
-                give_points -= 1
+                new_credit = False
                 break
 
         SpriteUtils.appendCredits(gen_path, orig_author)
@@ -577,6 +577,12 @@ class SpriteBot:
         chosen_node.__dict__[asset_type + "_credit"] = orig_author
         # update the file cache
         SpriteUtils.updateFiles(chosen_node, gen_path, asset_type)
+
+        current_completion_file = SpriteUtils.getCurrentCompletion(chosen_node, asset_type)
+
+        give_points = current_completion_file - prev_completion_file
+        if give_points < 1 and new_credit:
+            give_points = 1
 
         # remove from pending list
         pending_dict = chosen_node.__dict__[asset_type + "_pending"]
@@ -595,13 +601,18 @@ class SpriteBot:
         mentions = ["<@!"+str(ii)+">" for ii in approvals]
         approve_msg = "{0} {1} approved by {2}: #{3:03d}: {4}".format(new_revise, asset_type, str(mentions), int(full_idx[0]), new_name_str)
 
+        # update completion to correct value
+        chosen_node.__dict__[asset_type + "_complete"] = current_completion_file
+        if current_completion_file != prev_completion_file:
+            approve_msg += "\n{0} is now {1}.".format(asset_type.title(), PHASES[current_completion_file])
+
         # if this was non-shiny, set the complete flag to false for the shiny
         if not SpriteUtils.isShinyIdx(full_idx):
             shiny_idx = SpriteUtils.createShinyIdx(full_idx, True)
             shiny_node = SpriteUtils.getNodeFromIdx(self.tracker, shiny_idx, 0)
             if shiny_node.__dict__[asset_type+"_credit"] != "":
-                shiny_node.__dict__[asset_type+"_complete"] = 0
-                approve_msg += "\nNote: Shiny form now marked as incomplete due to this change."
+                shiny_node.__dict__[asset_type+"_complete"] = SpriteUtils.PHASE_INCOMPLETE
+                approve_msg += "\nNote: Shiny form now marked as {0} due to this change.".format(PHASES[SpriteUtils.PHASE_INCOMPLETE])
 
         # save the tracker
         self.saveTracker()
@@ -626,7 +637,9 @@ class SpriteBot:
         if give_points > 0 and self.config.points_ch != 0:
             orig_author_id = orig_author[3:-1]
             if asset_type == "sprite":
-                give_points *= 2
+                give_points *= SPRITE_WORTH
+            elif asset_type == "portrait":
+                give_points *= PORTRAIT_WORTH
             await self.client.get_channel(self.config.points_ch).send("!gr {0} {1} {2}".format(orig_author_id, give_points, self.config.servers[str(msg.guild.id)].chat))
 
         self.changed = True
@@ -915,7 +928,7 @@ class SpriteBot:
         phase_str = PHASES[phase]
 
         # if the node has no credit, fail
-        if chosen_node.__dict__[asset_type + "_credit"] == "" and phase > PHASE_INCOMPLETE:
+        if chosen_node.__dict__[asset_type + "_credit"] == "" and phase > SpriteUtils.PHASE_INCOMPLETE:
             status = self.getStatusEmoji(chosen_node, asset_type)
             await msg.channel.send(msg.author.mention +
                                    " {0} #{1:03d}: {2} has no data and cannot be marked {3}.".format(status, int(full_idx[0]), " ".join(name_seq), phase_str))
@@ -949,7 +962,7 @@ class SpriteBot:
         chosen_node = SpriteUtils.getNodeFromIdx(self.tracker, full_idx, 0)
 
         status = self.getStatusEmoji(chosen_node, asset_type)
-        if chosen_node.__dict__[asset_type + "_complete"] >= PHASE_FULL:
+        if chosen_node.__dict__[asset_type + "_complete"] >= SpriteUtils.PHASE_FULL:
             await msg.channel.send(msg.author.mention + " {0} #{1:03d} {2} is fully featured and cannot have a bounty.".format(status, int(full_idx[0]), " ".join(name_seq)))
             return
 
@@ -1689,17 +1702,17 @@ async def on_message(msg: discord.Message):
             elif args[0] == "unregister":
                 await sprite_bot.deleteProfile(msg, args[1:])
             elif args[0] == "spritewip" and authorized:
-                await sprite_bot.completeSlot(msg, args[1:], "sprite", PHASE_INCOMPLETE)
+                await sprite_bot.completeSlot(msg, args[1:], "sprite", SpriteUtils.PHASE_INCOMPLETE)
             elif args[0] == "portraitwip" and authorized:
-                await sprite_bot.completeSlot(msg, args[1:], "portrait", PHASE_INCOMPLETE)
+                await sprite_bot.completeSlot(msg, args[1:], "portrait", SpriteUtils.PHASE_INCOMPLETE)
             elif args[0] == "spriteexists" and authorized:
-                await sprite_bot.completeSlot(msg, args[1:], "sprite", PHASE_EXISTS)
+                await sprite_bot.completeSlot(msg, args[1:], "sprite", SpriteUtils.PHASE_EXISTS)
             elif args[0] == "portraitexists" and authorized:
-                await sprite_bot.completeSlot(msg, args[1:], "portrait", PHASE_EXISTS)
+                await sprite_bot.completeSlot(msg, args[1:], "portrait", SpriteUtils.PHASE_EXISTS)
             elif args[0] == "spritefilled" and authorized:
-                await sprite_bot.completeSlot(msg, args[1:], "sprite", PHASE_FULL)
+                await sprite_bot.completeSlot(msg, args[1:], "sprite", SpriteUtils.PHASE_FULL)
             elif args[0] == "portraitfilled" and authorized:
-                await sprite_bot.completeSlot(msg, args[1:], "portrait", PHASE_FULL)
+                await sprite_bot.completeSlot(msg, args[1:], "portrait", SpriteUtils.PHASE_FULL)
             elif args[0] == "clearcache" and authorized:
                 await sprite_bot.clearCache(msg, args[1:])
             elif args[0] == "rescan" and msg.author.id == sprite_bot.config.root:

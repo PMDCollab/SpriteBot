@@ -21,6 +21,13 @@ RETRIEVE_HEADERS = { 'User-Agent': 'Mozilla/5.0 (Windows; U; Windows NT 5.1; en-
 PORTRAIT_SIZE = 40
 PORTRAIT_TILE_X = 5
 PORTRAIT_TILE_Y = 8
+
+PHASE_INCOMPLETE = 0
+PHASE_EXISTS = 1
+PHASE_FULL = 2
+
+COMPLETION_EMOTIONS = [[0], [0], [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 16, 17]]
+
 EMOTIONS = [ "Normal",
             "Happy",
             "Pain",
@@ -51,6 +58,7 @@ DIRECTIONS = [ "Down",
                "Left",
                "DownLeft"]
 
+
 ACTION_MAP = { 0: "Walk",
                1: "Attack",
                5: "Sleep",
@@ -62,6 +70,10 @@ ACTION_MAP = { 0: "Walk",
                11: "Charge",
                12: "Rotate"
                }
+
+COMPLETION_ACTIONS = [[0, 1], [0, 1, 2, 3, 4, 5, 39, 40, 41, 42],
+                      [0, 1, 2, 3, 4, 5, 39, 40, 41, 42, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59,
+                       60, 61, 62, 63, 64, 65, 66]]
 
 ACTIONS = [ "Idle",
             "Walk",
@@ -665,7 +677,7 @@ def verifySprite(msg_args, wan_zip):
 
             # verify internal indices 1-13 exist?
             missing_anims = []
-            for idx in range(2):
+            for idx in COMPLETION_ACTIONS[0]:
                 if ACTIONS[idx].lower() not in anim_names:
                     missing_anims.append(ACTIONS[idx])
             if len(missing_anims) > 0:
@@ -1497,6 +1509,45 @@ def initSubNode(name):
     sub_dict["sprite_required"] = False
     sub_dict["subgroups"] = {}
     return TrackerNode(sub_dict)
+
+def getCurrentCompletion(dict, prefix):
+    if prefix == "sprite":
+        completion = PHASE_FULL
+        while completion > PHASE_INCOMPLETE:
+            has_all = True
+            for idx in COMPLETION_ACTIONS[completion]:
+                file = ACTIONS[idx]
+                if file not in dict.__dict__[prefix + "_files"]:
+                    has_all = False
+                    break
+            if has_all:
+                break
+            completion -= 1
+        return completion
+    else:
+        completion = PHASE_FULL
+        search_flip = False
+        for file in dict.__dict__[prefix + "_files"]:
+            if file.endswith("^"):
+                search_flip = True
+                break
+        while completion > PHASE_INCOMPLETE:
+            has_all = True
+            for idx in COMPLETION_EMOTIONS[completion]:
+                file = EMOTIONS[idx]
+                if file not in dict.__dict__[prefix + "_files"]:
+                    has_all = False
+                    break
+                if search_flip:
+                    file_flip = file + "^"
+                    if file_flip not in dict.__dict__[prefix + "_files"]:
+                        has_all = False
+                        break
+            if has_all:
+                break
+            completion -= 1
+        return completion
+
 
 
 def updateFiles(dict, species_path, prefix):
