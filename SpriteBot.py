@@ -20,6 +20,8 @@ TRACKER_FILE_PATH = 'tracker.json'
 
 SPRITE_WORTH = 10
 PORTRAIT_WORTH = 1
+SPRITE_SHINY_WORTH = 2
+PORTRAIT_SHINY_WORTH = 1
 
 PHASES = [ "\u26AA incomplete", "\u2705 available", "\u2B50 fully featured" ]
 
@@ -636,10 +638,16 @@ class SpriteBot:
 
         if give_points > 0 and self.config.points_ch != 0:
             orig_author_id = orig_author[3:-1]
-            if asset_type == "sprite":
-                give_points *= SPRITE_WORTH
-            elif asset_type == "portrait":
-                give_points *= PORTRAIT_WORTH
+            if SpriteUtils.isShinyIdx(full_idx):
+                if asset_type == "sprite":
+                    give_points *= SPRITE_SHINY_WORTH
+                elif asset_type == "portrait":
+                    give_points *= PORTRAIT_SHINY_WORTH
+            else:
+                if asset_type == "sprite":
+                    give_points *= SPRITE_WORTH
+                elif asset_type == "portrait":
+                    give_points *= PORTRAIT_WORTH
             await self.client.get_channel(self.config.points_ch).send("!gr {0} {1} {2}".format(orig_author_id, give_points, self.config.servers[str(msg.guild.id)].chat))
 
         self.changed = True
