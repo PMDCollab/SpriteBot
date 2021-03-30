@@ -492,7 +492,7 @@ class SpriteBot:
 
         pending_dict = chosen_node.__dict__[asset_type+"_pending"]
         change_status = len(pending_dict) == 0
-        pending_dict[str(new_msg.id)] = True
+        pending_dict[str(new_msg.id)] = new_msg.channel.id
 
         # react to the message
         await new_msg.add_reaction('\U00002705')
@@ -658,6 +658,27 @@ class SpriteBot:
 
         self.changed = True
 
+        if not SpriteUtils.isShinyIdx(full_idx):
+            shiny_idx = SpriteUtils.createShinyIdx(full_idx, True)
+            shiny_node = SpriteUtils.getNodeFromIdx(self.tracker, shiny_idx, 0)
+            pending = {}
+            for pending_id in shiny_node.__dict__[asset_type+"_pending"]:
+                pending[pending_id] = shiny_node.__dict__[asset_type+"_pending"][pending_id]
+
+            for pending_id in pending:
+                try:
+                    shiny_ch = self.client.get_channel(pending[pending_id])
+                    shiny_msg = await shiny_ch.fetch_message(pending_id)
+                    shiny_lines = msg.content.split()
+                    shiny_data = shiny_lines[0].split()
+                    shiny_sender_data = shiny_data[0].split("/")
+                    shiny_sender = shiny_sender_data[0]
+                    await self.submissionDeclined(shiny_msg, shiny_sender, [])
+                except Exception as e:
+                    trace = traceback.format_exc()
+                    user = await self.client.fetch_user(sprite_bot.config.root)
+                    await user.send("```" + trace + "```")
+
     async def submissionDeclined(self, msg, orig_sender, declines):
 
         file_name = msg.attachments[0].filename
@@ -674,8 +695,13 @@ class SpriteBot:
         if str(msg.id) in pending_dict:
             del pending_dict[str(msg.id)]
 
-        mentions = ["<@!" + str(ii) + ">" for ii in declines]
-        await self.returnMsgFile(msg, orig_sender + " " + "{0} declined by {1}:".format(asset_type, ', '.join(mentions)), asset_type)
+        if len(declines) > 0:
+            mentions = ["<@!" + str(ii) + ">" for ii in declines]
+            await self.returnMsgFile(msg, orig_sender + " " + "{0} declined by {1}:".format(asset_type, ', '.join(mentions)), asset_type)
+        else:
+            await self.returnMsgFile(msg,
+                                     orig_sender + " " + "{0} declined due to another change."
+                                                         "  Please resubmit.".format(asset_type), asset_type)
         self.changed |= change_status
 
     async def checkAllSubmissions(self):
@@ -763,7 +789,7 @@ class SpriteBot:
             else:
                 chosen_node = SpriteUtils.getNodeFromIdx(self.tracker, full_idx, 0)
                 pending_dict = chosen_node.__dict__[asset_type + "_pending"]
-                pending_dict[str(msg.id)] = True
+                pending_dict[str(msg.id)] = msg.channel.id
 
                 for reaction, user in remove_users:
                     await reaction.remove(user)
