@@ -341,7 +341,10 @@ class SpriteBot:
         if asset_type == "sprite":
             # get the sprite zip and verify its contents
             try:
-                wan_zip = SpriteUtils.getLinkZipGroup(msg.attachments[0].url)
+                if recolor:
+                    wan_zip = SpriteUtils.getLinkImg(msg.attachments[0].url)
+                else:
+                    wan_zip = SpriteUtils.getLinkZipGroup(msg.attachments[0].url)
             except SpriteUtils.SpriteVerifyError as e:
                 await self.returnMsgFile(msg, msg.author.mention + " Submission was in the wrong format.\n{0}".format(str(e)), asset_type)
             except Exception as e:
@@ -361,7 +364,10 @@ class SpriteBot:
 
                 orig_link = await self.retrieveLinkMsg(orig_idx, orig_node, asset_type, recolor)
                 try:
-                    orig_zip = SpriteUtils.getLinkZipGroup(orig_link)
+                    if recolor:
+                        orig_zip = SpriteUtils.getLinkImg(orig_link)
+                    else:
+                        orig_zip = SpriteUtils.getLinkZipGroup(orig_link)
                 except SpriteUtils.SpriteVerifyError as e:
                     await self.returnMsgFile(msg, msg.author.mention + " A problem occurred reading original sprite.", asset_type)
                 except Exception as e:
