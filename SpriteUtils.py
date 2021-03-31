@@ -267,43 +267,6 @@ def comparePixels(img1, img2):
 
     return diffs
 
-def combineImgs(imgDict):
-    max_width = 0
-    max_height = 0
-    for imgName in ACTIONS:
-        if imgName in imgDict:
-            img = imgDict[imgName]
-            max_width = max_width + img.size[0] + 1
-            max_height = max(max_height, img.size[1])
-        else:
-            max_width = max_width + 1
-    max_width = max_width - 1
-
-    outImg = Image.new('RGBA', (max_width, max_height), (0, 0, 0, 255))
-
-    current_width = 0
-    for imgName in ACTIONS:
-        if imgName in imgDict:
-            img = imgDict[imgName]
-            outImg.paste(img, (current_width, 0))
-            current_width = current_width + img.size[0] + 1
-        else:
-            current_width = current_width + 1
-
-    return outImg
-
-def combineImgsInDir(path):
-    imgDict = {}
-    for file in os.listdir(path):
-        filename, ext = os.path.splitext(file)
-        if ext == '.png':
-            inImg = Image.open(os.path.join(path, file)).convert("RGBA")
-            imgDict[filename] = inImg
-
-    combinedImg = combineImgs(imgDict)
-    outImg = insertPalette(combinedImg)
-    outImg.save(os.path.join(path, "Total.png"))
-
 def getPalette(inImg):
     inData = inImg.getdata()
     palette = {}
@@ -316,7 +279,6 @@ def getPalette(inImg):
 
 def insertPalette(inImg):
     outImg = Image.new('RGBA', (inImg.size[0], inImg.size[1]+1), (0,0,0,0))
-    inData = outImg.getdata()
     datas = [(0,0,0,0)] * (outImg.size[0] * outImg.size[1])
     palette = getPalette(inImg)
     paletteNum = 0
@@ -531,12 +493,12 @@ def verifySpriteRecolor(msg_args, orig_zip, wan_zip, recolor):
             "\n".join(px_strings)[:1900]))
 
     if len(orig_palette) != len(shiny_palette):
-        paletteDiff = len(shiny_palette) - len(orig_palette)
-        if paletteDiff != 0:
-            if paletteDiff > 0:
-                diff_str = "+" + str(paletteDiff)
+        palette_diff = len(shiny_palette) - len(orig_palette)
+        if palette_diff != 0:
+            if palette_diff > 0:
+                diff_str = "+" + str(palette_diff)
             else:
-                diff_str = str(paletteDiff)
+                diff_str = str(palette_diff)
             if len(msg_args) == 0 or not msg_args[0] == diff_str:
                 base_str = "Recolor has `{0}` colors compared to the original.\nIf this was intended, resubmit and specify `{0}` in the message."
                 raise SpriteVerifyError(base_str.format(diff_str))
@@ -550,12 +512,11 @@ def verifySpriteRecolor(msg_args, orig_zip, wan_zip, recolor):
             msg_args.pop(0)
         else:
             with zipfile.ZipFile(wan_zip, 'r') as shiny_zip:
-                combinedImg = getCombinedImg(shiny_zip, True)
+                combinedImg, _ = getCombinedImg(shiny_zip, True)
                 reduced_img = simple_quant(combinedImg)
             raise SpriteVerifyError("The sprite has {0} non-transparent colors with only 15 allowed.\n"
                                     "If this is acceptable, include `={0}` in the message."
                                     "  Otherwise reduce colors for the sprite.".format(len(shiny_palette)), reduced_img)
-
 
 def verifyPortraitRecolor(msg_args, orig_img, img, recolor):
     if orig_img.size != img.size:
@@ -574,17 +535,53 @@ def verifyPortraitRecolor(msg_args, orig_img, img, recolor):
         if len(correctedDiff) > 0:
             raise SpriteVerifyError("Recolor has differing pixel opacity at:\n {0}".format(str(correctedDiff)[:1000]))
         else:
-            paletteDiff = comparePalette(orig_img, img)
-            if paletteDiff != 0:
-                if paletteDiff > 0:
-                    diff_str = "+" + str(paletteDiff)
+            palette_diff = comparePalette(orig_img, img)
+            if palette_diff != 0:
+                if palette_diff > 0:
+                    diff_str = "+" + str(palette_diff)
                 else:
-                    diff_str = str(paletteDiff)
+                    diff_str = str(palette_diff)
                 if len(msg_args) == 0 or not msg_args[0] == diff_str:
                     base_str = "Recolor has `{0}` colors compared to the original.\nIf this was intended, resubmit and specify `{0}` in the message."
                     raise SpriteVerifyError(base_str.format(diff_str))
                 else:
                     msg_args.pop(0)
+
+        palette_counts = {}
+        in_data = img.getdata()
+        img_tile_size = (img.size[0] // PORTRAIT_SIZE, img.size[1] // PORTRAIT_SIZE)
+        for xx in range(PORTRAIT_TILE_X):
+            for yy in range(PORTRAIT_TILE_Y):
+                if xx >= img_tile_size[0] or yy >= img_tile_size[1]:
+                    continue
+                first_pos = (xx * PORTRAIT_SIZE, yy * PORTRAIT_SIZE)
+                first_pixel = in_data[first_pos[1] * img.size[0] + first_pos[0]]
+                if first_pixel[3] == 0:
+                    continue
+
+                palette = {}
+                for mx in range(PORTRAIT_SIZE):
+                    for my in range(PORTRAIT_SIZE):
+                        cur_pos = (first_pos[0] + mx, first_pos[1] + my)
+                        cur_pixel = in_data[cur_pos[1] * img.size[0] + cur_pos[0]]
+                        palette[cur_pixel] = True
+                palette_counts[(xx, yy)] = len(palette)
+
+        overpalette = { }
+        for emote_loc in palette_counts:
+            if palette_counts[emote_loc] > 15:
+                overpalette[emote_loc] = palette_counts[emote_loc]
+
+        if len(overpalette) > 0:
+            escape_clause = len(msg_args) > 0 and msg_args[0] == "overcolor"
+            if escape_clause:
+                msg_args.pop(0)
+            else:
+                reduced_img = simple_quant_portraits(img)
+                rogue_emotes = [getEmotionFromTilePos(a) for a in overpalette]
+                raise SpriteVerifyError("Some emotions have over 15 colors.\n" \
+                       "If this is acceptable, include `overcolor` in the message.  Otherwise reduce colors for emotes:\n" \
+                       "{0}".format(str(rogue_emotes)[:1900]), reduced_img)
 
 def getEmotionFromTilePos(tile_pos):
     rogue_idx = tile_pos[1] * PORTRAIT_TILE_X + tile_pos[0]
@@ -1218,25 +1215,24 @@ def placeSpriteZipToPath(wan_file, dest_path):
     except zipfile.BadZipfile as e:
         raise SpriteVerifyError(str(e))
 
-def placeSpriteRecolorToPath(origImg, orig_path, outImg, dest_path):
+def placeSpriteRecolorToPath(orig_path, outImg, dest_path):
     # remove palette bar of both images
-    origImg = origImg.crop((0, 1, origImg.size[0], origImg.size[1]))
     outImg = outImg.crop((0, 1, outImg.size[0], outImg.size[1]))
+
+    frames, frame_mapping = getFramesAndMappings(orig_path, False)
+    frame_size = getFrameSizeFromFrames(frames)
+
     # obtain a mapping from the color image of the shiny path
     shiny_frames = []
-    total_tile_width = 8
-    max_size = outImg.size[0] // total_tile_width
-    for yy in range(0, outImg.size[1], max_size):
-        for xx in range(0, outImg.size[0], max_size):
-            tile_bounds = (xx, yy, xx + max_size, yy + max_size)
+    for yy in range(0, outImg.size[1], frame_size[1]):
+        for xx in range(0, outImg.size[0], frame_size[0]):
+            tile_bounds = (xx, yy, xx + frame_size[0], yy + frame_size[1])
             bounds = exUtils.getCoveredBounds(outImg, tile_bounds)
             if bounds[0] >= bounds[2]:
                 continue
             abs_bounds = exUtils.addToBounds(bounds, (xx, yy))
             frame_tex = outImg.crop(abs_bounds)
             shiny_frames.append(frame_tex)
-
-    frames, frame_mapping = getFramesAndMappings(orig_path, False)
 
     shutil.copyfile(os.path.join(orig_path, MULTI_SHEET_XML), os.path.join(dest_path, MULTI_SHEET_XML))
 
@@ -1379,11 +1375,10 @@ def getFramesAndMappings(path, is_zip):
         frame_mapping[anim_name] = anim_map
     return frames, frame_mapping
 
-def getCombinedImg(path, is_zip):
+def getFrameSizeFromFrames(frames):
 
     max_width = 0
     max_height = 0
-    frames, frame_mapping = getFramesAndMappings(path, is_zip)
     for frame_tex, frame_offset in frames:
         max_width = max(max_width, frame_tex.size[0])
         max_height = max(max_height, frame_tex.size[1])
@@ -1395,24 +1390,209 @@ def getCombinedImg(path, is_zip):
     max_width = exUtils.roundUpToMult(max_width, 2)
     max_height = exUtils.roundUpToMult(max_height, 2)
 
-    max_size = int(math.ceil(math.sqrt(len(frames))))
+    return max_width, max_height
 
-    combinedImg = Image.new('RGBA', (max_width * max_size, max_height * max_size), (0, 0, 0, 0))
+def getCombinedImg(path, is_zip):
+
+    frames, frame_mapping = getFramesAndMappings(path, is_zip)
+    frame_size = getFrameSizeFromFrames(frames)
+
+    max_size = int(math.ceil(math.sqrt(len(frames))))
+    combinedImg = Image.new('RGBA', (frame_size[0] * max_size, frame_size[1] * max_size), (0, 0, 0, 0))
 
     for idx, frame_pair in enumerate(frames):
         frame = frame_pair[0]
-        diffPos = (max_width // 2 - frame.size[0] // 2, max_height // 2 - frame.size[1] // 2)
+        diffPos = (frame_size[0] // 2 - frame.size[0] // 2, frame_size[1] // 2 - frame.size[1] // 2)
         xx = idx % max_size
         yy = idx // max_size
-        tilePos = (xx * max_width, yy * max_height)
+        tilePos = (xx * frame_size[0], yy * frame_size[1])
         combinedImg.paste(frame, (tilePos[0] + diffPos[0], tilePos[1] + diffPos[1]), frame)
 
-    return combinedImg
+    return combinedImg, frame_size
 
 def prepareSpriteRecolor(path):
-    combinedImg = getCombinedImg(path, False)
+    combinedImg, _ = getCombinedImg(path, False)
     return insertPalette(combinedImg)
 
+def getRecolorMap(img, shinyImg, frame_size):
+    color_tbl = {}
+    img_tbl = []
+
+    if img.size != shinyImg.size:
+        newShiny = Image.new('RGBA', img.size, (0, 0, 0, 0))
+        newShiny.paste(shinyImg, (0,0), shinyImg)
+        shinyImg = newShiny
+
+    for yy in range(0, img.size[1], frame_size[1]):
+        for xx in range(0, img.size[0], frame_size[0]):
+            tile_bounds = (xx, yy, xx + frame_size[0], yy + frame_size[1])
+            bounds = exUtils.getCoveredBounds(img, tile_bounds)
+            if bounds[0] >= bounds[2]:
+                continue
+            shiny_bounds = exUtils.getCoveredBounds(shinyImg, tile_bounds)
+            if shiny_bounds[0] >= shiny_bounds[2]:
+                continue
+            abs_bounds = exUtils.addToBounds(bounds, (xx, yy))
+            frame_tex = img.crop(abs_bounds)
+            shiny_tex = shinyImg.crop(abs_bounds)
+            img_tbl.append((frame_tex, shiny_tex))
+
+    color_lookup = {}
+    datas = img.getdata()
+    shinyDatas = shinyImg.getdata()
+    for idx in range(len(datas)):
+        color = datas[idx]
+        shinyColor = shinyDatas[idx]
+        if color[3] != 255 or shinyColor[3] != 255:
+            continue
+        if color not in color_lookup:
+            color_lookup[color] = {}
+        if shinyColor not in color_lookup[color]:
+            color_lookup[color][shinyColor] = 0
+        color_lookup[color][shinyColor] += 1
+    # sort by most common mapping
+    for color in color_lookup:
+        map_to = []
+        for shinyColor in color_lookup[color]:
+            map_to.append((shinyColor, color_lookup[color][shinyColor]))
+        map_to = sorted(map_to, key=lambda stat: stat[1], reverse=True)
+        color_tbl[color] = map_to
+
+    return color_tbl, img_tbl
+
+def getRecoloredTex(color_tbl, img_tbl, frame_tex):
+    # attempt to find an image in img_tbl that corresponds with this one
+    for frame, shiny_frame in img_tbl:
+        if exUtils.imgsEqual(frame, frame_tex):
+            return shiny_frame, { }
+        if exUtils.imgsEqual(frame, frame_tex, True):
+            return shiny_frame.transpose(Image.FLIP_LEFT_RIGHT), { }
+    # attempt to recolor the image
+    datas = frame_tex.getdata()
+    shiny_datas = [(0,0,0,0)] * len(datas)
+    off_color_tbl = { }
+    for idx in range(len(datas)):
+        color = datas[idx]
+        if color[3] != 255:
+            continue
+        # no color mapping at all?  we can't recolor it.  serious issue.
+        if color not in color_tbl:
+            off_color_tbl[color] = []
+            shiny_colors = [(color, 0)]
+        else:
+            shiny_colors = color_tbl[color]
+        if len(shiny_colors) > 1:
+            off_color_tbl[color] = shiny_colors
+        shiny_datas[idx] = shiny_colors[0][0]
+
+    shiny_tex = Image.new('RGBA', frame_tex.size, (0, 0, 0, 0))
+    shiny_tex.putdata(shiny_datas)
+    return shiny_tex, off_color_tbl
+
+def autoRecolor(prev_base_img, cur_base_img, shiny_path, asset_type):
+    prev_base_img = removePalette(prev_base_img)
+    cur_base_img = removePalette(cur_base_img)
+    prev_shiny_img = None
+    frame_size = (0,0)
+    if asset_type == "sprite":
+        prev_shiny_img, frame_size = getCombinedImg(shiny_path, False)
+
+    elif asset_type == "portrait":
+        prev_shiny_img = preparePortraitImage(shiny_path)
+        frame_size = (PORTRAIT_SIZE, PORTRAIT_SIZE)
+
+    color_tbl, img_tbl = getRecolorMap(prev_base_img, prev_shiny_img, frame_size)
+
+    cur_shiny_img = Image.new('RGBA', cur_base_img.size, (0, 0, 0, 0))
+    total_off_color = {}
+    for yy in range(0, cur_base_img.size[1], frame_size[1]):
+        for xx in range(0, cur_base_img.size[0], frame_size[0]):
+            tile_bounds = (xx, yy, xx + frame_size[0], yy + frame_size[1])
+            bounds = exUtils.getCoveredBounds(cur_base_img, tile_bounds)
+            if bounds[0] >= bounds[2]:
+                continue
+            abs_bounds = exUtils.addToBounds(bounds, (xx, yy))
+            frame_tex = cur_base_img.crop(abs_bounds)
+            shiny_tex, off_color_tbl = getRecoloredTex(color_tbl, img_tbl, frame_tex)
+            cur_shiny_img.paste(shiny_tex, (abs_bounds[0], abs_bounds[1]), shiny_tex)
+
+            for color in off_color_tbl:
+                if color not in total_off_color:
+                    total_off_color[color] = {}
+                sub_color = total_off_color[color]
+                colors_to = off_color_tbl[color]
+                for color_to, count in colors_to:
+                    if color_to not in sub_color:
+                        sub_color[color_to] = 0
+                    sub_color[color_to] += count
+
+    # check the shiny against needed tags
+    # check against colors compared to original
+    # check against total colors over 15
+    args = []
+
+    base_palette = getPalette(cur_base_img)
+    shiny_palette = getPalette(cur_shiny_img)
+    palette_diff = len(shiny_palette) - len(base_palette)
+    if palette_diff != 0:
+        if palette_diff > 0:
+            args.append("+" + str(palette_diff))
+        else:
+            args.append(str(palette_diff))
+
+    if asset_type == "portrait":
+        palette_counts = {}
+        in_data = cur_shiny_img.getdata()
+        img_tile_size = (cur_shiny_img.size[0] // PORTRAIT_SIZE, cur_shiny_img.size[1] // PORTRAIT_SIZE)
+        for xx in range(PORTRAIT_TILE_X):
+            for yy in range(PORTRAIT_TILE_Y):
+                if xx >= img_tile_size[0] or yy >= img_tile_size[1]:
+                    continue
+                first_pos = (xx * PORTRAIT_SIZE, yy * PORTRAIT_SIZE)
+                first_pixel = in_data[first_pos[1] * cur_shiny_img.size[0] + first_pos[0]]
+                if first_pixel[3] == 0:
+                    continue
+
+                palette = {}
+                for mx in range(PORTRAIT_SIZE):
+                    for my in range(PORTRAIT_SIZE):
+                        cur_pos = (first_pos[0] + mx, first_pos[1] + my)
+                        cur_pixel = in_data[cur_pos[1] * cur_shiny_img.size[0] + cur_pos[0]]
+                        palette[cur_pixel] = True
+                palette_counts[(xx, yy)] = len(palette)
+
+        overpalette = False
+        for emote_loc in palette_counts:
+            if palette_counts[emote_loc] > 15:
+                overpalette = True
+
+        if overpalette:
+            args.append("overcolor")
+    elif asset_type == "sprite":
+        if len(shiny_palette) > 15:
+            args.append("=" + str(len(shiny_palette)))
+
+    content = " ".join(args)
+
+    # also add information about off-colors
+    color_content = ""
+    for idx, color in enumerate(total_off_color):
+        if len(color_content) > 1000:
+            color_content += "\n+{0} More".format(len(total_off_color) - idx)
+        sub_color = total_off_color[color]
+        result_array = []
+        for color_to in sub_color:
+            result_array.append(colorToHex(color_to) + ":" + str(sub_color[color_to]))
+        color_content += "\n{0}-> {1}".format(colorToHex(color), ", ".join(result_array))
+    if len(color_content) > 0:
+        content += "\n__This auto-generated recolor has ambiguous mappings below:__"
+        content += color_content
+    else:
+        content += "\n__This is an auto-generated recolor.__"
+
+    cur_shiny_img = insertPalette(cur_shiny_img)
+
+    return cur_shiny_img, content
 
 """
 Returns Image
@@ -1924,6 +2104,24 @@ def sanitizeName(str):
 
 def sanitizeCredit(str):
     return re.sub("\t\n", "", str)
+
+def colorToHex(color):
+    return ('#%02x%02x%02x' % color[:3]).upper()
+
+def simple_quant_portraits(img):
+    reduced_img = Image.new('RGBA', img.size, (0, 0, 0, 0))
+    img_tile_size = (img.size[0] // PORTRAIT_SIZE, img.size[1] // PORTRAIT_SIZE)
+    for xx in range(PORTRAIT_TILE_X):
+        for yy in range(PORTRAIT_TILE_Y):
+            if xx >= img_tile_size[0] or yy >= img_tile_size[1]:
+                continue
+            crop_pos = (xx * PORTRAIT_SIZE, yy * PORTRAIT_SIZE,
+                        (xx + 1) * PORTRAIT_SIZE, (yy + 1) * PORTRAIT_SIZE)
+            portrait_img = img.crop(crop_pos)
+
+            reduced_portrait = simple_quant(portrait_img)
+            reduced_img.paste(reduced_portrait, crop_pos)
+    return reduced_img
 
 def simple_quant(img: Image.Image) -> Image.Image:
     """
