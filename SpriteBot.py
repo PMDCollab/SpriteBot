@@ -376,7 +376,7 @@ class SpriteBot:
 
             # if the file needs to be compared to an original, verify it as a recolor. Otherwise, by itself.
             try:
-                SpriteUtils.verifySpriteLock(chosen_node, chosen_path, wan_zip, recolor)
+                diffs = SpriteUtils.verifySpriteLock(chosen_node, chosen_path, wan_zip, recolor)
                 if SpriteUtils.isShinyIdx(full_idx):
                     SpriteUtils.verifySpriteRecolor(msg_args, orig_zip, wan_zip, recolor)
                 else:
@@ -421,7 +421,7 @@ class SpriteBot:
 
             # if the file needs to be compared to an original, verify it as a recolor. Otherwise, by itself.
             try:
-                SpriteUtils.verifyPortraitLock(chosen_node, chosen_path, img, recolor)
+                diffs = SpriteUtils.verifyPortraitLock(chosen_node, chosen_path, img, recolor)
                 if SpriteUtils.isShinyIdx(full_idx):
                     SpriteUtils.verifyPortraitRecolor(msg_args, orig_img, img, recolor)
                 else:
@@ -434,7 +434,7 @@ class SpriteBot:
             await self.returnMsgFile(msg, msg.author.mention + " " + decline_msg, asset_type, quant_img)
             return False
 
-        return True
+        return True, diffs
 
     async def returnMsgFile(self, msg, msg_body, asset_type, quant_img=None):
         try:
@@ -458,7 +458,7 @@ class SpriteBot:
 
 
 
-    async def stageSubmission(self, msg, full_idx, chosen_node, asset_type, author, recolor, overcolor):
+    async def stageSubmission(self, msg, full_idx, chosen_node, asset_type, author, recolor, diffs, overcolor):
 
         try:
             return_file, return_name = SpriteUtils.getLinkFile(msg.attachments[0].url, asset_type)
@@ -478,12 +478,12 @@ class SpriteBot:
                 overcolor_img = SpriteUtils.removePalette(overcolor_img)
 
         await self.postStagedSubmission(msg.channel, msg.content, full_idx, chosen_node, asset_type, author, recolor,
-                                        return_file, return_name, overcolor_img)
+                                        diffs, return_file, return_name, overcolor_img)
 
         await msg.delete()
 
     async def postStagedSubmission(self, channel, content, full_idx, chosen_node, asset_type, author, recolor,
-                                   return_file, return_name, overcolor_img):
+                                   diffs, return_file, return_name, overcolor_img):
 
         title = SpriteUtils.getIdxName(self.tracker, full_idx)
 
@@ -501,8 +501,14 @@ class SpriteBot:
             send_files.append(discord.File(reduced_file, return_name.replace('.png', '_reduced.png')))
             add_msg += "\nReduced Color Preview included."
         if chosen_node.__dict__[asset_type + "_credit"] != "":
-            orig_link = await self.retrieveLinkMsg(full_idx, chosen_node, asset_type, recolor)
-            add_msg += "\nCurrent Version: {0}".format(orig_link)
+            if not recolor:
+                if diffs is not None and len(diffs) > 0:
+                    add_msg += "\nChanges: {0}".format(", ".join(diffs))
+                else:
+                    add_msg += "\nNo Changes."
+            if recolor or asset_type == "portrait":
+                orig_link = await self.retrieveLinkMsg(full_idx, chosen_node, asset_type, recolor)
+                add_msg += "\nCurrent Version: {0}".format(orig_link)
         new_msg = await channel.send("{0} {1}\n{2}".format(author, " ".join(title), content + add_msg),
                                      files=send_files)
 
@@ -719,7 +725,7 @@ class SpriteBot:
                     overcolor_img = SpriteUtils.removePalette(auto_recolor_img)
 
                 await self.postStagedSubmission(msg.channel, content, shiny_idx, shiny_node, asset_type, orig_sender,
-                                                True, auto_recolor_file, return_name, overcolor_img)
+                                                True, None, auto_recolor_file, return_name, overcolor_img)
 
 
 
@@ -863,7 +869,7 @@ class SpriteBot:
             msg_args = msg.content.split()
             overcolor = ('overcolor' in msg_args)
             # at this point, we confirm the file name is valid, now check the contents
-            verified = await self.verifySubmission(msg, full_idx, asset_type, recolor, msg_args)
+            verified, diffs = await self.verifySubmission(msg, full_idx, asset_type, recolor, msg_args)
             if not verified:
                 return False
 
@@ -880,7 +886,7 @@ class SpriteBot:
 
                 author = "{0}/{1}".format(author, msg_args[0])
 
-            await self.stageSubmission(msg, full_idx, chosen_node, asset_type, author, recolor, overcolor)
+            await self.stageSubmission(msg, full_idx, chosen_node, asset_type, author, recolor, diffs, overcolor)
             return True
 
 
@@ -1260,7 +1266,7 @@ class SpriteBot:
         chat_id = self.config.servers[str(msg.guild.id)].submit
         submit_channel = self.client.get_channel(chat_id)
         await self.postStagedSubmission(submit_channel, content, shiny_idx, shiny_node, asset_type, author,
-                                        True, auto_recolor_file, return_name, overcolor_img)
+                                        True, None, auto_recolor_file, return_name, overcolor_img)
 
 
     async def queryStatus(self, msg, name_args, asset_type, recolor):

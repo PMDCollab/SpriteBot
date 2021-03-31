@@ -902,6 +902,7 @@ def getStatsFromTree(file_data):
 
 def verifySpriteLock(dict, chosen_path, wan_zip, recolor):
     # make sure all locked sprites are the same as their original counterparts
+    changed_files = None
     if recolor:
         wan_zip = wan_zip.crop((0, 1, wan_zip.size[0], wan_zip.size[1]))
 
@@ -941,7 +942,7 @@ def verifySpriteLock(dict, chosen_path, wan_zip, recolor):
             raise SpriteVerifyError(
                 "The following sprites are used in a locked anim and cannot be changed: {0}".format(str(violated_str)[:1900]))
     else:
-        violated_files = []
+        changed_files = []
 
         try:
             with zipfile.ZipFile(wan_zip, 'r') as zip:
@@ -967,69 +968,77 @@ def verifySpriteLock(dict, chosen_path, wan_zip, recolor):
                 for anim_name in ACTIONS:
                     if anim_name in dict.sprite_files and dict.sprite_files[anim_name]:
                         has_lock = True
-                        if anim_name.lower() not in anim_names:
-                            violated_files.append(anim_name)
-                            continue
 
-                        # check to ensure the indices are the same
-                        anim_idx = anim_names[anim_name.lower()]
-                        anim_idx_cur = anim_names_cur[anim_name.lower()]
-                        if anim_idx != anim_idx_cur:
-                            violated_files.append(anim_name)
-                            continue
+                    exists_old = anim_name.lower() in anim_names_cur
+                    exists_new = anim_name.lower() in anim_names
+                    # anim has been added or removed
+                    if exists_old != exists_new:
+                        changed_files.append(anim_name)
+                        continue
 
-                        # check to make sure the stats are the same
-                        anim_stat = anim_stats[anim_idx]
-                        anim_stat_cur = anim_stats_cur[anim_idx_cur]
+                    # anim does not exist in either
+                    if not exists_old:
+                        continue
 
-                        stat_violated = False
-                        stat_violated |= anim_stat.index != anim_stat_cur.index
-                        stat_violated |= anim_stat.name != anim_stat_cur.name
-                        stat_violated |= anim_stat.size != anim_stat_cur.size
-                        stat_violated |= anim_stat.backref != anim_stat_cur.backref
-                        stat_violated |= anim_stat.rushFrame != anim_stat_cur.rushFrame
-                        stat_violated |= anim_stat.hitFrame != anim_stat_cur.hitFrame
-                        stat_violated |= anim_stat.returnFrame != anim_stat_cur.returnFrame
-                        stat_violated |= len(anim_stat.durations) != len(anim_stat_cur.durations)
-                        if not stat_violated:
-                            for idx, dur in enumerate(anim_stat.durations):
-                                stat_violated |= dur != anim_stat_cur.durations[idx]
+                    # check to ensure the indices are the same
+                    anim_idx = anim_names[anim_name.lower()]
+                    anim_idx_cur = anim_names_cur[anim_name.lower()]
+                    if anim_idx != anim_idx_cur:
+                        changed_files.append(anim_name)
+                        continue
 
-                        if stat_violated:
-                            violated_files.append(anim_name)
-                            continue
+                    # check to make sure the stats are the same
+                    anim_stat = anim_stats[anim_idx]
+                    anim_stat_cur = anim_stats_cur[anim_idx_cur]
 
-                        if anim_stat.backref is not None:
-                            continue
+                    stat_violated = False
+                    stat_violated |= anim_stat.index != anim_stat_cur.index
+                    stat_violated |= anim_stat.name != anim_stat_cur.name
+                    stat_violated |= anim_stat.size != anim_stat_cur.size
+                    stat_violated |= anim_stat.backref != anim_stat_cur.backref
+                    stat_violated |= anim_stat.rushFrame != anim_stat_cur.rushFrame
+                    stat_violated |= anim_stat.hitFrame != anim_stat_cur.hitFrame
+                    stat_violated |= anim_stat.returnFrame != anim_stat_cur.returnFrame
+                    stat_violated |= len(anim_stat.durations) != len(anim_stat_cur.durations)
+                    if not stat_violated:
+                        for idx, dur in enumerate(anim_stat.durations):
+                            stat_violated |= dur != anim_stat_cur.durations[idx]
 
-                        # check to make sure the images are the same
-                        anim_png_name = anim_name + "-Anim.png"
-                        offset_png_name = anim_name + "-Offsets.png"
-                        shadow_png_name = anim_name + "-Shadow.png"
-                        if anim_png_name not in name_list:
-                            raise SpriteVerifyError("Anim specified in XML has no Anim.png: {0}".format(anim_name))
-                        if offset_png_name not in name_list:
-                            raise SpriteVerifyError("Anim specified in XML has no Offsets.png: {0}".format(anim_name))
-                        if shadow_png_name not in name_list:
-                            raise SpriteVerifyError("Anim specified in XML has no Shadow.png: {0}".format(anim_name))
+                    if stat_violated:
+                        changed_files.append(anim_name)
+                        continue
 
-                        anim_img = readZipImg(zip, anim_png_name)
-                        anim_img_cur = Image.open(os.path.join(chosen_path, anim_png_name)).convert("RGBA")
-                        if not exUtils.imgsEqual(anim_img, anim_img_cur):
-                            violated_files.append(anim_name)
-                            continue
+                    if anim_stat.backref is not None:
+                        continue
 
-                        offset_img = readZipImg(zip, offset_png_name)
-                        offset_img_cur = Image.open(os.path.join(chosen_path, offset_png_name)).convert("RGBA")
-                        if not exUtils.imgsEqual(offset_img, offset_img_cur):
-                            violated_files.append(anim_name)
-                            continue
+                    # check to make sure the images are the same
+                    anim_png_name = anim_name + "-Anim.png"
+                    offset_png_name = anim_name + "-Offsets.png"
+                    shadow_png_name = anim_name + "-Shadow.png"
+                    if anim_png_name not in name_list:
+                        raise SpriteVerifyError("Anim specified in XML has no Anim.png: {0}".format(anim_name))
+                    if offset_png_name not in name_list:
+                        raise SpriteVerifyError("Anim specified in XML has no Offsets.png: {0}".format(anim_name))
+                    if shadow_png_name not in name_list:
+                        raise SpriteVerifyError("Anim specified in XML has no Shadow.png: {0}".format(anim_name))
 
-                        shadow_img = readZipImg(zip, shadow_png_name)
-                        shadow_img_cur = Image.open(os.path.join(chosen_path, shadow_png_name)).convert("RGBA")
-                        if not exUtils.imgsEqual(shadow_img, shadow_img_cur):
-                            violated_files.append(anim_name)
-                            continue
+                    anim_img = readZipImg(zip, anim_png_name)
+                    anim_img_cur = Image.open(os.path.join(chosen_path, anim_png_name)).convert("RGBA")
+                    if not exUtils.imgsEqual(anim_img, anim_img_cur):
+                        changed_files.append(anim_name)
+                        continue
+
+                    offset_img = readZipImg(zip, offset_png_name)
+                    offset_img_cur = Image.open(os.path.join(chosen_path, offset_png_name)).convert("RGBA")
+                    if not exUtils.imgsEqual(offset_img, offset_img_cur):
+                        changed_files.append(anim_name)
+                        continue
+
+                    shadow_img = readZipImg(zip, shadow_png_name)
+                    shadow_img_cur = Image.open(os.path.join(chosen_path, shadow_png_name)).convert("RGBA")
+                    if not exUtils.imgsEqual(shadow_img, shadow_img_cur):
+                        changed_files.append(anim_name)
+                        continue
 
                 if has_lock and sdw_size != sdw_size_cur:
                     raise SpriteVerifyError("The shadow size for this sprite is locked and cannot be changed.")
@@ -1037,10 +1046,16 @@ def verifySpriteLock(dict, chosen_path, wan_zip, recolor):
         except zipfile.BadZipfile as e:
             raise SpriteVerifyError(str(e))
 
+        violated_files = []
+        for change in changed_files:
+            if anim_name in dict.sprite_files and dict.sprite_files[anim_name]:
+                violated_files.append(change)
 
         if len(violated_files) > 0:
             raise SpriteVerifyError(
                 "The following actions are locked and cannot be changed: {0}".format(str(violated_files)[:1900]))
+
+    return changed_files
 
 def verifyPortrait(msg_args, img):
     # make sure the dimensions are sound
@@ -1152,37 +1167,51 @@ def verifyPortraitLock(dict, chosen_path, img, recolor):
         img = removePalette(img)
 
     in_data = img.getdata()
-    violated_files = []
+    changed_files = []
     for xx in range(PORTRAIT_TILE_X):
         for yy in range(PORTRAIT_TILE_Y):
             emote_name = getEmotionFromTilePos((xx, yy))
-            if emote_name in dict.portrait_files and dict.portrait_files[emote_name]:
-                # check the current file against the new file
-                first_pos = (xx * PORTRAIT_SIZE, yy * PORTRAIT_SIZE)
-                png_name = os.path.join(chosen_path, emote_name + ".png")
 
-                if not (first_pos[0] < img.size[0] and first_pos[1] < img.size[1]):
-                    violated = True
-                else:
-                    chosen_img = Image.open(png_name).convert("RGBA")
-                    chosen_data = chosen_img.getdata()
-                    violated = False
-                    for mx in range(PORTRAIT_SIZE):
-                        for my in range(PORTRAIT_SIZE):
-                            cur_pos = (first_pos[0] + mx, first_pos[1] + my)
-                            cur_pixel = in_data[cur_pos[1] * img.size[0] + cur_pos[0]]
-                            chosen_pixel = chosen_data[my * chosen_img.size[0] + mx]
-                            if cur_pixel != chosen_pixel:
-                                violated = True
-                                break
-                        if violated:
+            # check the current file against the new file
+            first_pos = (xx * PORTRAIT_SIZE, yy * PORTRAIT_SIZE)
+            png_name = os.path.join(chosen_path, emote_name + ".png")
+
+            exists_old = os.path.exists(png_name)
+            exists_new = (first_pos[0] < img.size[0] and first_pos[1] < img.size[1])
+            if exists_old != exists_new:
+                violated = True
+            elif not exists_old:
+                violated = False
+            else:
+                chosen_img = Image.open(png_name).convert("RGBA")
+                chosen_data = chosen_img.getdata()
+                violated = False
+                for mx in range(PORTRAIT_SIZE):
+                    for my in range(PORTRAIT_SIZE):
+                        cur_pos = (first_pos[0] + mx, first_pos[1] + my)
+                        cur_pixel = in_data[cur_pos[1] * img.size[0] + cur_pos[0]]
+                        chosen_pixel = chosen_data[my * chosen_img.size[0] + mx]
+                        if cur_pixel != chosen_pixel:
+                            violated = True
                             break
-                if violated:
-                    violated_files.append((xx, yy))
+                    if violated:
+                        break
+            if violated:
+                changed_files.append((xx, yy))
+
+    violated_files = []
+    for idx, change in enumerate(changed_files):
+        emote_name = getEmotionFromTilePos(change)
+        if emote_name in dict.portrait_files and dict.portrait_files[emote_name]:
+            violated_files.append(change)
+        changed_files[idx] = emote_name
+
 
     if len(violated_files) > 0:
         violated_names = [getEmotionFromTilePos(a) for a in violated_files]
         raise SpriteVerifyError("The following emotions are locked and cannot be changed: {0}".format(str(violated_names)[:1900]))
+
+    return changed_files
 
 def verifyPortraitFilled(species_path):
     for name in EMOTIONS:
@@ -1579,6 +1608,7 @@ def autoRecolor(prev_base_img, cur_base_img, shiny_path, asset_type):
     for idx, color in enumerate(total_off_color):
         if len(color_content) > 1000:
             color_content += "\n+{0} More".format(len(total_off_color) - idx)
+            break
         sub_color = total_off_color[color]
         result_array = []
         for color_to in sub_color:
