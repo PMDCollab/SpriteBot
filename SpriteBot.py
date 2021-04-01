@@ -332,6 +332,7 @@ class SpriteBot:
     async def verifySubmission(self, msg, full_idx, asset_type, recolor, msg_args):
         decline_msg = None
         quant_img = None
+        diffs = None
 
         chosen_node = SpriteUtils.getNodeFromIdx(self.tracker, full_idx, 0)
 
@@ -360,7 +361,7 @@ class SpriteBot:
                 if orig_node.__dict__[asset_type + "_credit"] == "":
                     # this means there's no original portrait to base the recolor off of
                     await self.returnMsgFile(msg, msg.author.mention + " Cannot submit a shiny when the original isn't finished.", asset_type)
-                    return False
+                    return False, None
 
                 orig_link = await self.retrieveLinkMsg(orig_idx, orig_node, asset_type, recolor)
                 try:
@@ -390,7 +391,7 @@ class SpriteBot:
                 img = SpriteUtils.getLinkImg(msg.attachments[0].url)
             except SpriteUtils.SpriteVerifyError as e:
                 await self.returnMsgFile(msg, msg.author.mention + " Submission was in the wrong format.\n{0}".format(str(e)), asset_type)
-                return False
+                return False, None
             except Exception as e:
                 await self.returnMsgFile(msg, msg.author.mention + " Submission was in the wrong format.\n{0}".format(str(e)), asset_type)
                 raise e
@@ -404,7 +405,7 @@ class SpriteBot:
                 if orig_node.__dict__[asset_type + "_credit"] == "":
                     # this means there's no original portrait to base the recolor off of
                     await self.returnMsgFile(msg, msg.author.mention + " Cannot submit a shiny when the original isn't finished.", asset_type)
-                    return False
+                    return False, None
 
                 orig_link = await self.retrieveLinkMsg(orig_idx, orig_node, asset_type, recolor)
 
@@ -413,7 +414,7 @@ class SpriteBot:
                 except SpriteUtils.SpriteVerifyError as e:
                     await self.returnMsgFile(msg, msg.author.mention + " A problem occurred reading original portrait.",
                                              asset_type)
-                    return False
+                    return False, None
                 except Exception as e:
                     await self.returnMsgFile(msg, msg.author.mention + " A problem occurred reading original portrait.",
                                              asset_type)
@@ -432,7 +433,7 @@ class SpriteBot:
 
         if decline_msg is not None:
             await self.returnMsgFile(msg, msg.author.mention + " " + decline_msg, asset_type, quant_img)
-            return False
+            return False, None
 
         return True, diffs
 
@@ -1253,20 +1254,11 @@ class SpriteBot:
         auto_recolor_img.save(auto_recolor_file, format='PNG')
         auto_recolor_file.seek(0)
 
-        msg_args = content.split()
-        overcolor = ('overcolor' in msg_args)
-        overcolor_img = None
-        if overcolor:
-            overcolor_img = SpriteUtils.removePalette(auto_recolor_img)
+        title = SpriteUtils.getIdxName(self.tracker, full_idx)
 
-        orig_sender = "<@!{0}>".format(msg.author.id)
-        mention = chosen_node.__dict__[asset_type + "_credit"]
-        author = "{0}/{1}".format(orig_sender, mention)
-
-        chat_id = self.config.servers[str(msg.guild.id)].submit
-        submit_channel = self.client.get_channel(chat_id)
-        await self.postStagedSubmission(submit_channel, content, shiny_idx, shiny_node, asset_type, author,
-                                        True, None, auto_recolor_file, return_name, overcolor_img)
+        send_files = [discord.File(auto_recolor_file, return_name)]
+        await msg.channel.send("{0} {1}\n{2}".format(msg.author.mention, " ".join(title), content),
+                                     files=send_files)
 
 
     async def queryStatus(self, msg, name_args, asset_type, recolor):
@@ -1776,6 +1768,7 @@ class SpriteBot:
                   "`!portrait` - Get the Pokemon's portrait sheet\n" \
                   "`!recolorsprite` - Get the Pokemon's sprite sheet in a form for easy recoloring\n" \
                   "`!recolorportrait` - Get the Pokemon's portrait sheet in a form for easy recoloring\n" \
+                  "`!autocolor` - Generates an automatic recolor of the Pokemon's portrait sheet\n" \
                   "`!listsprite` - List all sprites related to a Pokemon\n" \
                   "`!listportrait` - List all portraits related to a Pokemon\n" \
                   "`!spritebounty` - Place a bounty on a sprite\n" \
@@ -1811,19 +1804,15 @@ class SpriteBot:
                              "`!sprite Shaymin Sky Shiny`"
             elif base_arg == "recolorsprite":
                 return_msg = "**Command Help**\n" \
-                             "`!recolorsprite <Pokemon Name> [Form Name] [Shiny] [Gender]`\n" \
+                             "`!recolorsprite <Pokemon Name> [Form Name] [Gender]`\n" \
                              "Gets the sprite sheet for a Pokemon in a form that is easy to recolor.\n" \
                              "`Pokemon Name` - Name of the Pokemon\n" \
                              "`Form Name` - [Optional] Form name of the Pokemon\n" \
-                             "`Shiny` - [Optional] Specifies if you want the shiny sprite or not\n" \
                              "`Gender` - [Optional] Specifies the gender of the Pokemon, for those with gender differences\n" \
                              "**Examples**\n" \
                              "`!recolorsprite Pikachu`\n" \
-                             "`!recolorsprite Pikachu Shiny`\n" \
                              "`!recolorsprite Pikachu Female`\n" \
-                             "`!recolorsprite Pikachu Shiny Female`\n" \
-                             "`!recolorsprite Shaymin Sky`\n" \
-                             "`!recolorsprite Shaymin Sky Shiny`"
+                             "`!recolorsprite Shaymin Sky`"
             elif base_arg == "listportrait":
                 return_msg = "**Command Help**\n" \
                              "`!listportrait <Pokemon Name>`\n" \
@@ -1848,19 +1837,28 @@ class SpriteBot:
                              "`!portrait Shaymin Sky Shiny`"
             elif base_arg == "recolorportrait":
                 return_msg = "**Command Help**\n" \
-                             "`!recolorportrait <Pokemon Name> [Form Name] [Shiny] [Gender]`\n" \
+                             "`!recolorportrait <Pokemon Name> [Form Name] [Gender]`\n" \
                              "Gets the portrait sheet for a Pokemon in a form that is easy to recolor.\n" \
                              "`Pokemon Name` - Name of the Pokemon\n" \
                              "`Form Name` - [Optional] Form name of the Pokemon\n" \
-                             "`Shiny` - [Optional] Specifies if you want the shiny portrait or not\n" \
                              "`Gender` - [Optional] Specifies the gender of the Pokemon, for those with gender differences\n" \
                              "**Examples**\n" \
                              "`!recolorportrait Pikachu`\n" \
-                             "`!recolorportrait Pikachu Shiny`\n" \
                              "`!recolorportrait Pikachu Female`\n" \
-                             "`!recolorportrait Pikachu Shiny Female`\n" \
-                             "`!recolorportrait Shaymin Sky`\n" \
-                             "`!recolorportrait Shaymin Sky Shiny`"
+                             "`!recolorportrait Shaymin Sky`"
+            elif base_arg == "autocolor":
+                return_msg = "**Command Help**\n" \
+                             "`!autocolor <Pokemon Name> [Form Name] [Gender]`\n" \
+                             "Generates an automatic shiny of a Pokemon's portrait sheet, in recolor form. " \
+                             "Meant to be used as a starting point to assist in manual recoloring. " \
+                             "Works best on portraits with multiple emotions, where the shiny has only one.\n" \
+                             "`Pokemon Name` - Name of the Pokemon\n" \
+                             "`Form Name` - [Optional] Form name of the Pokemon\n" \
+                             "`Gender` - [Optional] Specifies the gender of the Pokemon, for those with gender differences\n" \
+                             "**Examples**\n" \
+                             "`!recolorportrait Pikachu`\n" \
+                             "`!recolorportrait Pikachu Female`\n" \
+                             "`!recolorportrait Shaymin Sky`"
             elif base_arg == "spritecredit":
                 return_msg = "**Command Help**\n" \
                              "`!spritecredit <Pokemon Name> [Form Name] [Shiny] [Gender]`\n" \
@@ -2023,7 +2021,7 @@ async def on_message(msg: discord.Message):
             elif base_arg == "unregister":
                 await sprite_bot.deleteProfile(msg, args[1:])
                 # authorized commands
-            elif base_arg == "autocolor" and authorized:
+            elif base_arg == "autocolor":
                 await sprite_bot.tryAutoRecolor(msg, args[1:], "portrait")
             elif base_arg == "add" and authorized:
                 await sprite_bot.addSpeciesForm(msg, args[1:])
