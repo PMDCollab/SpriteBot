@@ -1087,7 +1087,7 @@ class SpriteBot:
 
             try:
                 wait_msg = await client.wait_for('message', check=check, timeout=10.0)
-                result_json = json.load(wait_msg.content)
+                result_json = json.loads(wait_msg.content)
                 if result_json["status"] != "success":
                     raise Exception() # TODO: what exception is this?
             except Exception as e:
