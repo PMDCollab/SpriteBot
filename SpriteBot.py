@@ -821,7 +821,7 @@ class SpriteBot:
             async for user in cks.users():
                 if await self.isAuthorized(user, msg.guild):
                     approve.append(user.id)
-                else:
+                elif user.id != self.client.user.id:
                     remove_users.append((cks, user))
 
             async for user in xs.users():
