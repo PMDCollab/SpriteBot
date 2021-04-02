@@ -821,6 +821,8 @@ class SpriteBot:
             async for user in cks.users():
                 if await self.isAuthorized(user, msg.guild):
                     approve.append(user.id)
+                else:
+                    remove_users.append((cks, user))
 
             async for user in xs.users():
                 if await self.isAuthorized(user, msg.guild) or user.id == orig_sender_id:
@@ -1062,8 +1064,8 @@ class SpriteBot:
                 await msg.channel.send(msg.author.mention + " Not authorized.")
                 return
         else:
-            user = await client.fetch_user(self.config.points)
-            resp = await user.send("!checkr {0}".format(msg.author.id))
+            channel = self.client.get_channel(self.config.points_ch)
+            resp = await channel.send("!checkr {0}".format(msg.author.id))
 
             # check for enough points
             def check(m):
@@ -1081,7 +1083,7 @@ class SpriteBot:
             if cur_amt < amt:
                 await msg.channel.send(msg.author.mention + " Not enough guild points! You currently have **{0}GP**.".format(cur_amt))
                 return
-            resp = await user.send("!tr {0} {1} {2}".format(msg.author.id, amt, msg.channel.id))
+            resp = await channel.send("!tr {0} {1} {2}".format(msg.author.id, amt, msg.channel.id))
 
             try:
                 wait_msg = await client.wait_for('message', check=check, timeout=10.0)
@@ -2006,9 +2008,9 @@ async def on_message(msg: discord.Message):
                 await sprite_bot.getCredit(msg, args[1:], "sprite")
             elif base_arg == "portraitcredit":
                 await sprite_bot.getCredit(msg, args[1:], "portrait")
-            elif base_arg == "spritebounty" and authorized:
+            elif base_arg == "spritebounty":
                 await sprite_bot.placeBounty(msg, args[1:], "sprite")
-            elif base_arg == "portraitbounty" and authorized:
+            elif base_arg == "portraitbounty":
                 await sprite_bot.placeBounty(msg, args[1:], "portrait")
             elif base_arg == "bounties":
                 await sprite_bot.listBounties(msg, args[1:])
