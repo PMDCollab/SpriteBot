@@ -666,21 +666,27 @@ class SpriteBot:
         # delete post
         await msg.delete()
 
-        if not orig_author.startswith("<@!"):
-            give_points = 0
+        if SpriteUtils.isShinyIdx(full_idx):
+            if asset_type == "sprite":
+                give_points *= SPRITE_SHINY_WORTH
+            elif asset_type == "portrait":
+                give_points *= PORTRAIT_SHINY_WORTH
+        else:
+            if asset_type == "sprite":
+                give_points *= SPRITE_WORTH
+            elif asset_type == "portrait":
+                give_points *= PORTRAIT_WORTH
 
-        if give_points > 0 and self.config.points_ch != 0:
+        # add bounty
+        result_phase = current_completion_file
+        while result_phase > 0:
+            if str(result_phase) in chosen_node.__dict__[asset_type + "_bounty"]:
+                give_points += chosen_node.__dict__[asset_type + "_bounty"][str(result_phase)]
+                del chosen_node.__dict__[asset_type + "_bounty"][str(result_phase)]
+            result_phase -= 1
+
+        if give_points > 0 and orig_author.startswith("<@!") and self.config.points_ch != 0:
             orig_author_id = orig_author[3:-1]
-            if SpriteUtils.isShinyIdx(full_idx):
-                if asset_type == "sprite":
-                    give_points *= SPRITE_SHINY_WORTH
-                elif asset_type == "portrait":
-                    give_points *= PORTRAIT_SHINY_WORTH
-            else:
-                if asset_type == "sprite":
-                    give_points *= SPRITE_WORTH
-                elif asset_type == "portrait":
-                    give_points *= PORTRAIT_WORTH
             await self.client.get_channel(self.config.points_ch).send("!gr {0} {1} {2}".format(orig_author_id, give_points, self.config.servers[str(msg.guild.id)].chat))
 
         self.changed = True
