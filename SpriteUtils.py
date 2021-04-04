@@ -1702,7 +1702,7 @@ class CreditEntry:
 
 class TrackerNode:
 
-    def __init__(self, node_dict):
+    def __init__(self, node_dict, canon):
         temp_list = [i for i in node_dict]
         temp_list = sorted(temp_list)
 
@@ -1712,9 +1712,21 @@ class TrackerNode:
 
         self.__dict__ = main_dict
 
+        if self.name.startswith("Alternate"):
+            canon = False
+        if self.name.startswith("Altcolor"):
+            canon = False
+        if self.name.startswith("Beta"):
+            canon = False
+        if self.name.startswith("Missingno_"):
+            canon = False
+        self.canon = canon
+
+        self.modreward = not canon
+
         sub_dict = { }
         for key in self.subgroups:
-            sub_dict[key] = TrackerNode(self.subgroups[key])
+            sub_dict[key] = TrackerNode(self.subgroups[key], canon)
         self.subgroups = sub_dict
 
     def getDict(self):
@@ -1741,6 +1753,8 @@ def loadNameFile(name_path):
 
 def initSubNode(name):
     sub_dict = { "name" : name }
+    sub_dict["canon"] = False
+    sub_dict["modreward"] = True
     sub_dict["portrait_complete"] = 0
     sub_dict["portrait_credit"] = ""
     sub_dict["portrait_link"] = ""
@@ -1760,7 +1774,7 @@ def initSubNode(name):
     sub_dict["sprite_recolor_link"] = ""
     sub_dict["sprite_required"] = False
     sub_dict["subgroups"] = {}
-    return TrackerNode(sub_dict)
+    return TrackerNode(sub_dict, False)
 
 def getCurrentCompletion(dict, prefix):
     if prefix == "sprite":

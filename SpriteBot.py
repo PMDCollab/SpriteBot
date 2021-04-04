@@ -100,7 +100,7 @@ class SpriteBot:
             new_tracker = json.load(f)
             self.tracker = { }
             for species_idx in new_tracker:
-                self.tracker[species_idx] = SpriteUtils.TrackerNode(new_tracker[species_idx])
+                self.tracker[species_idx] = SpriteUtils.TrackerNode(new_tracker[species_idx], True)
         self.names = SpriteUtils.loadNameFile(os.path.join(self.path, NAME_FILE_PATH))
         confirmed_names = SpriteUtils.loadNameFile(os.path.join(self.config.path, NAME_FILE_PATH))
         self.client = client
