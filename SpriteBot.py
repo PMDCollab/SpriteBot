@@ -100,14 +100,14 @@ class SpriteBot:
             new_tracker = json.load(f)
             self.tracker = { }
             for species_idx in new_tracker:
-                self.tracker[species_idx] = SpriteUtils.TrackerNode(new_tracker[species_idx], True)
+                self.tracker[species_idx] = SpriteUtils.TrackerNode(new_tracker[species_idx])
         self.names = SpriteUtils.loadNameFile(os.path.join(self.path, NAME_FILE_PATH))
         confirmed_names = SpriteUtils.loadNameFile(os.path.join(self.config.path, NAME_FILE_PATH))
         self.client = client
         self.changed = False
 
         # update tracker based on last-modify
-        over_dict = SpriteUtils.initSubNode("")
+        over_dict = SpriteUtils.initSubNode("", True)
         over_dict.subgroups = self.tracker
         SpriteUtils.fileSystemToJson(over_dict, os.path.join(self.config.path, "sprite"), "sprite", 0)
         SpriteUtils.fileSystemToJson(over_dict, os.path.join(self.config.path, "portrait"), "portrait", 0)
@@ -649,6 +649,22 @@ class SpriteBot:
                 shiny_node.__dict__[asset_type+"_complete"] = SpriteUtils.PHASE_INCOMPLETE
                 approve_msg += "\nNote: Shiny form now marked as {0} due to this change.".format(PHASES[SpriteUtils.PHASE_INCOMPLETE])
 
+
+        if SpriteUtils.isShinyIdx(full_idx):
+            if asset_type == "sprite":
+                give_points *= SPRITE_SHINY_WORTH
+            elif asset_type == "portrait":
+                give_points *= PORTRAIT_SHINY_WORTH
+        else:
+            if asset_type == "sprite":
+                give_points *= SPRITE_WORTH
+            elif asset_type == "portrait":
+                give_points *= PORTRAIT_WORTH
+
+        if chosen_node.modreward:
+            give_points = 0
+            approve_msg += "\nThe non-bounty GP Reward for this {0} will be handled by the approvers.".format(asset_type)
+
         # save the tracker
         self.saveTracker()
 
@@ -666,16 +682,6 @@ class SpriteBot:
         # delete post
         await msg.delete()
 
-        if SpriteUtils.isShinyIdx(full_idx):
-            if asset_type == "sprite":
-                give_points *= SPRITE_SHINY_WORTH
-            elif asset_type == "portrait":
-                give_points *= PORTRAIT_SHINY_WORTH
-        else:
-            if asset_type == "sprite":
-                give_points *= SPRITE_WORTH
-            elif asset_type == "portrait":
-                give_points *= PORTRAIT_WORTH
 
         # add bounty
         result_phase = current_completion_file
@@ -945,7 +951,7 @@ class SpriteBot:
         channel = self.client.get_channel(int(server.info))
 
         posts = []
-        over_dict = SpriteUtils.initSubNode("")
+        over_dict = SpriteUtils.initSubNode("", True)
         over_dict.subgroups = self.tracker
         self.getPostsFromDict(True, True, True, over_dict, posts, [])
 
@@ -1159,7 +1165,7 @@ class SpriteBot:
                 return
 
         entries = []
-        over_dict = SpriteUtils.initSubNode("")
+        over_dict = SpriteUtils.initSubNode("", True)
         over_dict.subgroups = self.tracker
 
         if include_sprite:
@@ -1215,7 +1221,7 @@ class SpriteBot:
         chosen_node = SpriteUtils.getNodeFromIdx(self.tracker, full_idx, 0)
 
         posts = []
-        over_dict = SpriteUtils.initSubNode("")
+        over_dict = SpriteUtils.initSubNode("", True)
         over_dict.subgroups = { full_idx[0] : chosen_node }
         self.getPostsFromDict(asset_type == 'sprite', asset_type == 'portrait', False, over_dict, posts, [])
         msgs_used, changed = await self.sendInfoPosts(msg.channel, posts, [], 0)
@@ -1314,6 +1320,8 @@ class SpriteBot:
                 bounty = chosen_node.__dict__[asset_type + "_bounty"][str(next_phase)]
                 if bounty > 0:
                     response += "\n This {0} has a bounty of **{1}GP**, paid out when it becomes {2}".format(asset_type, bounty, PHASES[next_phase].title())
+            if chosen_node.modreward and chosen_node.__dict__[asset_type + "_complete"] == SpriteUtils.PHASE_INCOMPLETE:
+                response += "\n The reward for this {0} will be decided by approvers.".format(asset_type)
         else:
             response += " does not need a {0}.".format(asset_type)
 
@@ -1554,9 +1562,19 @@ class SpriteBot:
                                        " {2} already exists within #{0:03d}: {1}!".format(int(species_idx), species_name, form_name))
                 return
 
+            canon = True
+            if form_name.startswith("Alternate"):
+                canon = False
+            if form_name.startswith("Altcolor"):
+                canon = False
+            if form_name.startswith("Beta"):
+                canon = False
+            if species_name == "Missingno_":
+                canon = False
+
             count = len(species_dict.subgroups)
             new_count = "{:04d}".format(count)
-            species_dict.subgroups[new_count] = SpriteUtils.createFormNode(form_name)
+            species_dict.subgroups[new_count] = SpriteUtils.createFormNode(form_name, canon)
 
             await msg.channel.send(msg.author.mention +
                                    " Added #{0:03d}: {1} {2}!".format(int(species_idx), species_name, form_name))
@@ -1606,6 +1624,47 @@ class SpriteBot:
 
         self.saveTracker()
         self.changed = True
+
+
+    async def modSpeciesForm(self, msg, args):
+        if len(args) < 1 or len(args) > 2:
+            await msg.channel.send(msg.author.mention + " Invalid number of args!")
+            return
+
+        species_name = SpriteUtils.sanitizeName(args[0])
+        species_idx = SpriteUtils.findSlotIdx(self.tracker, species_name)
+        if species_idx is None:
+            await msg.channel.send(msg.author.mention + " {0} does not exist!".format(species_name))
+            return
+
+        species_dict = self.tracker[species_idx]
+
+        if len(args) == 1:
+            species_dict.modreward = not species_dict.modreward
+
+            if species_dict.modreward:
+                await msg.channel.send(msg.author.mention + " #{0:03d}: {1}'s rewards will be decided by approvers.".format(int(species_idx), species_name))
+            else:
+                await msg.channel.send(msg.author.mention + " #{0:03d}: {1}'s rewards will be given automatically.".format(int(species_idx), species_name))
+        else:
+
+            form_name = SpriteUtils.sanitizeName(args[1])
+            form_idx = SpriteUtils.findSlotIdx(species_dict.subgroups, form_name)
+            if form_idx is None:
+                await msg.channel.send(msg.author.mention + " {2} doesn't exist within #{0:03d}: {1}!".format(int(species_idx), species_name, form_name))
+                return
+
+            form_dict = species_dict.subgroups[form_idx]
+            form_dict.modreward = not form_dict.modreward
+
+            if form_dict.modreward:
+                await msg.channel.send(msg.author.mention + " #{0:03d}: {1} {2}'s rewards will be decided by approvers.".format(int(species_idx), species_name, form_name))
+            else:
+                await msg.channel.send(msg.author.mention + " #{0:03d}: {1} {2}'s rewards will be given automatically.".format(int(species_idx), species_name, form_name))
+
+        self.saveTracker()
+        self.changed = True
+
 
     async def removeSpeciesForm(self, msg, args):
         if len(args) < 1 or len(args) > 2:
@@ -2033,6 +2092,8 @@ async def on_message(msg: discord.Message):
                 await sprite_bot.tryAutoRecolor(msg, args[1:], "portrait")
             elif base_arg == "add" and authorized:
                 await sprite_bot.addSpeciesForm(msg, args[1:])
+            elif base_arg == "modreward" and authorized:
+                await sprite_bot.modSpeciesForm(msg, args[1:])
             elif base_arg == "rename" and authorized:
                 await sprite_bot.renameSpeciesForm(msg, args[1:])
             elif base_arg == "delete" and authorized:

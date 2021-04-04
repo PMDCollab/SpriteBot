@@ -1702,7 +1702,7 @@ class CreditEntry:
 
 class TrackerNode:
 
-    def __init__(self, node_dict, canon):
+    def __init__(self, node_dict):
         temp_list = [i for i in node_dict]
         temp_list = sorted(temp_list)
 
@@ -1712,21 +1712,9 @@ class TrackerNode:
 
         self.__dict__ = main_dict
 
-        if self.name.startswith("Alternate"):
-            canon = False
-        if self.name.startswith("Altcolor"):
-            canon = False
-        if self.name.startswith("Beta"):
-            canon = False
-        if self.name.startswith("Missingno_"):
-            canon = False
-        self.canon = canon
-
-        self.modreward = not canon
-
         sub_dict = { }
         for key in self.subgroups:
-            sub_dict[key] = TrackerNode(self.subgroups[key], canon)
+            sub_dict[key] = TrackerNode(self.subgroups[key])
         self.subgroups = sub_dict
 
     def getDict(self):
@@ -1751,10 +1739,10 @@ def loadNameFile(name_path):
             name_dict[cols[1]] = CreditEntry(cols[0], cols[2])
     return name_dict
 
-def initSubNode(name):
+def initSubNode(name, canon):
     sub_dict = { "name" : name }
-    sub_dict["canon"] = False
-    sub_dict["modreward"] = True
+    sub_dict["canon"] = canon
+    sub_dict["modreward"] = not canon
     sub_dict["portrait_complete"] = 0
     sub_dict["portrait_credit"] = ""
     sub_dict["portrait_link"] = ""
@@ -1774,7 +1762,7 @@ def initSubNode(name):
     sub_dict["sprite_recolor_link"] = ""
     sub_dict["sprite_required"] = False
     sub_dict["subgroups"] = {}
-    return TrackerNode(sub_dict, False)
+    return TrackerNode(sub_dict)
 
 def getCurrentCompletion(dict, prefix):
     if prefix == "sprite":
@@ -1847,21 +1835,21 @@ def fileSystemToJson(dict, species_path, prefix, tier):
                 # init name if applicable
                 if tier == 1:
                     if inFile == "0000":
-                        dict.subgroups[inFile] = initSubNode("")
+                        dict.subgroups[inFile] = initSubNode("", dict.canon)
                     else:
-                        dict.subgroups[inFile] = initSubNode("Form" + inFile)
+                        dict.subgroups[inFile] = initSubNode("Form" + inFile, dict.canon)
                 elif tier == 2:
                     if inFile == "0001":
-                        dict.subgroups[inFile] = initSubNode("Shiny")
+                        dict.subgroups[inFile] = initSubNode("Shiny", dict.canon)
                     else:
-                        dict.subgroups[inFile] = initSubNode("")
+                        dict.subgroups[inFile] = initSubNode("", dict.canon)
                 elif tier == 3:
                     if inFile == "0001":
-                        dict.subgroups[inFile] = initSubNode("Male")
+                        dict.subgroups[inFile] = initSubNode("Male", dict.canon)
                     elif inFile == "0002":
-                        dict.subgroups[inFile] = initSubNode("Female")
+                        dict.subgroups[inFile] = initSubNode("Female", dict.canon)
                     else:
-                        dict.subgroups[inFile] = initSubNode("")
+                        dict.subgroups[inFile] = initSubNode("", dict.canon)
 
             fileSystemToJson(dict.subgroups[inFile], fullPath, prefix, tier + 1)
         elif inFile == "credits.txt":
@@ -2039,17 +2027,17 @@ def genderDiffPopulated(form_dict, asset_type):
 
 def createGenderDiff(form_dict, asset_type):
     if "0000" not in form_dict.subgroups:
-        form_dict.subgroups["0000"] = initSubNode("")
+        form_dict.subgroups["0000"] = initSubNode("", form_dict.canon)
     normal_dict = form_dict.subgroups["0000"].subgroups
-    createColorGenderDiff(normal_dict, asset_type)
+    createShinyGenderDiff(normal_dict, asset_type)
 
     shiny_dict = form_dict.subgroups["0001"].subgroups
-    createColorGenderDiff(shiny_dict, asset_type)
+    createShinyGenderDiff(shiny_dict, asset_type)
 
-def createColorGenderDiff(color_dict, asset_type):
+def createShinyGenderDiff(color_dict, asset_type):
     female_idx = findSlotIdx(color_dict, "Female")
     if female_idx is None:
-        female_dict = initSubNode("Female")
+        female_dict = initSubNode("Female", color_dict.canon)
         color_dict["0002"] = female_dict
     else:
         female_dict = color_dict[female_idx]
@@ -2079,11 +2067,11 @@ def removeColorGenderDiff(color_dict, asset_type):
 
     return False
 
-def createFormNode(name):
-    forme_dict = initSubNode(name)
+def createFormNode(name, canon):
+    forme_dict = initSubNode(name, canon)
     forme_dict.sprite_required = True
     forme_dict.portrait_required = True
-    shiny_dict = initSubNode("Shiny")
+    shiny_dict = initSubNode("Shiny", canon)
     forme_dict.subgroups["0001"] = shiny_dict
     shiny_dict.sprite_required = True
     shiny_dict.portrait_required = True
@@ -2091,12 +2079,12 @@ def createFormNode(name):
 
 def createSpeciesNode(name):
 
-    sub_dict = initSubNode(name)
+    sub_dict = initSubNode(name, True)
     sub_dict.sprite_required = True
     sub_dict.portrait_required = True
-    forme_dict = initSubNode("")
+    forme_dict = initSubNode("", True)
     sub_dict.subgroups["0000"] = forme_dict
-    shiny_dict = initSubNode("Shiny")
+    shiny_dict = initSubNode("Shiny", True)
     forme_dict.subgroups["0001"] = shiny_dict
     shiny_dict.sprite_required = True
     shiny_dict.portrait_required = True
