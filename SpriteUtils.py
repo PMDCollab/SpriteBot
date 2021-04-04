@@ -422,9 +422,12 @@ def verifySpriteRecolor(msg_args, orig_zip, wan_zip, recolor):
     black_diff = {}
 
     if recolor:
-        if recolor:
-            orig_zip = removePalette(orig_zip)
-            wan_zip = removePalette(wan_zip)
+        if orig_zip.size != wan_zip.size:
+            raise SpriteVerifyError(
+                "Recolor has dimensions {0} instead of {1}.".format(str(wan_zip.size), str(orig_zip.size)))
+
+        orig_zip = removePalette(orig_zip)
+        wan_zip = removePalette(wan_zip)
         compareSpriteRecolorDiff(orig_zip, wan_zip, "sheet",
                                  trans_diff, black_diff, orig_palette, shiny_palette)
     else:
@@ -521,67 +524,67 @@ def verifySpriteRecolor(msg_args, orig_zip, wan_zip, recolor):
 def verifyPortraitRecolor(msg_args, orig_img, img, recolor):
     if orig_img.size != img.size:
         raise SpriteVerifyError("Recolor has dimensions {0} instead of {1}.".format(str(img.size), str(orig_img.size)))
+
+    if recolor:
+        orig_img = removePalette(orig_img)
+        img = removePalette(img)
+
+    pixDiff = comparePixels(orig_img, img)
+    if recolor:
+        correctedDiff = [xyPlusOne(x) for x in pixDiff]
     else:
-        if recolor:
-            orig_img = removePalette(orig_img)
-            img = removePalette(img)
+        correctedDiff = pixDiff
 
-        pixDiff = comparePixels(orig_img, img)
-        if recolor:
-            correctedDiff = [xyPlusOne(x) for x in pixDiff]
-        else:
-            correctedDiff = pixDiff
-
-        if len(correctedDiff) > 0:
-            raise SpriteVerifyError("Recolor has differing pixel opacity at:\n {0}".format(str(correctedDiff)[:1000]))
-        else:
-            palette_diff = comparePalette(orig_img, img)
-            if palette_diff != 0:
-                if palette_diff > 0:
-                    diff_str = "+" + str(palette_diff)
-                else:
-                    diff_str = str(palette_diff)
-                if len(msg_args) == 0 or not msg_args[0] == diff_str:
-                    base_str = "Recolor has `{0}` colors compared to the original.\nIf this was intended, resubmit and specify `{0}` in the message."
-                    raise SpriteVerifyError(base_str.format(diff_str))
-                else:
-                    msg_args.pop(0)
-
-        palette_counts = {}
-        in_data = img.getdata()
-        img_tile_size = (img.size[0] // PORTRAIT_SIZE, img.size[1] // PORTRAIT_SIZE)
-        for xx in range(PORTRAIT_TILE_X):
-            for yy in range(PORTRAIT_TILE_Y):
-                if xx >= img_tile_size[0] or yy >= img_tile_size[1]:
-                    continue
-                first_pos = (xx * PORTRAIT_SIZE, yy * PORTRAIT_SIZE)
-                first_pixel = in_data[first_pos[1] * img.size[0] + first_pos[0]]
-                if first_pixel[3] == 0:
-                    continue
-
-                palette = {}
-                for mx in range(PORTRAIT_SIZE):
-                    for my in range(PORTRAIT_SIZE):
-                        cur_pos = (first_pos[0] + mx, first_pos[1] + my)
-                        cur_pixel = in_data[cur_pos[1] * img.size[0] + cur_pos[0]]
-                        palette[cur_pixel] = True
-                palette_counts[(xx, yy)] = len(palette)
-
-        overpalette = { }
-        for emote_loc in palette_counts:
-            if palette_counts[emote_loc] > 15:
-                overpalette[emote_loc] = palette_counts[emote_loc]
-
-        if len(overpalette) > 0:
-            escape_clause = len(msg_args) > 0 and msg_args[0] == "overcolor"
-            if escape_clause:
-                msg_args.pop(0)
+    if len(correctedDiff) > 0:
+        raise SpriteVerifyError("Recolor has differing pixel opacity at:\n {0}".format(str(correctedDiff)[:1000]))
+    else:
+        palette_diff = comparePalette(orig_img, img)
+        if palette_diff != 0:
+            if palette_diff > 0:
+                diff_str = "+" + str(palette_diff)
             else:
-                reduced_img = simple_quant_portraits(img)
-                rogue_emotes = [getEmotionFromTilePos(a) for a in overpalette]
-                raise SpriteVerifyError("Some emotions have over 15 colors.\n" \
-                       "If this is acceptable, include `overcolor` in the message.  Otherwise reduce colors for emotes:\n" \
-                       "{0}".format(str(rogue_emotes)[:1900]), reduced_img)
+                diff_str = str(palette_diff)
+            if len(msg_args) == 0 or not msg_args[0] == diff_str:
+                base_str = "Recolor has `{0}` colors compared to the original.\nIf this was intended, resubmit and specify `{0}` in the message."
+                raise SpriteVerifyError(base_str.format(diff_str))
+            else:
+                msg_args.pop(0)
+
+    palette_counts = {}
+    in_data = img.getdata()
+    img_tile_size = (img.size[0] // PORTRAIT_SIZE, img.size[1] // PORTRAIT_SIZE)
+    for xx in range(PORTRAIT_TILE_X):
+        for yy in range(PORTRAIT_TILE_Y):
+            if xx >= img_tile_size[0] or yy >= img_tile_size[1]:
+                continue
+            first_pos = (xx * PORTRAIT_SIZE, yy * PORTRAIT_SIZE)
+            first_pixel = in_data[first_pos[1] * img.size[0] + first_pos[0]]
+            if first_pixel[3] == 0:
+                continue
+
+            palette = {}
+            for mx in range(PORTRAIT_SIZE):
+                for my in range(PORTRAIT_SIZE):
+                    cur_pos = (first_pos[0] + mx, first_pos[1] + my)
+                    cur_pixel = in_data[cur_pos[1] * img.size[0] + cur_pos[0]]
+                    palette[cur_pixel] = True
+            palette_counts[(xx, yy)] = len(palette)
+
+    overpalette = { }
+    for emote_loc in palette_counts:
+        if palette_counts[emote_loc] > 15:
+            overpalette[emote_loc] = palette_counts[emote_loc]
+
+    if len(overpalette) > 0:
+        escape_clause = len(msg_args) > 0 and msg_args[0] == "overcolor"
+        if escape_clause:
+            msg_args.pop(0)
+        else:
+            reduced_img = simple_quant_portraits(img)
+            rogue_emotes = [getEmotionFromTilePos(a) for a in overpalette]
+            raise SpriteVerifyError("Some emotions have over 15 colors.\n" \
+                   "If this is acceptable, include `overcolor` in the message.  Otherwise reduce colors for emotes:\n" \
+                   "{0}".format(str(rogue_emotes)[:1900]), reduced_img)
 
 def getEmotionFromTilePos(tile_pos):
     rogue_idx = tile_pos[1] * PORTRAIT_TILE_X + tile_pos[0]
@@ -884,6 +887,7 @@ def verifySpriteLock(dict, chosen_path, wan_zip, recolor):
     # make sure all locked sprites are the same as their original counterparts
     changed_files = None
     if recolor:
+        palette_size = wan_zip.size
         wan_zip = removePalette(wan_zip)
 
         if not os.path.exists(os.path.join(chosen_path, MULTI_SHEET_XML)):
@@ -892,6 +896,12 @@ def verifySpriteLock(dict, chosen_path, wan_zip, recolor):
         # map the locked animations to the frames in the single-sheet
         frames, frame_mapping = getFramesAndMappings(chosen_path, False)
         frame_size = getFrameSizeFromFrames(frames)
+
+        max_size = int(math.ceil(math.sqrt(len(frames))))
+        needed_size = (frame_size[0] * max_size, frame_size[1] * max_size + 1)
+        if palette_size != needed_size:
+            raise SpriteVerifyError(
+                "Recolor has dimensions {0} instead of {1}.".format(str(palette_size), str(needed_size)))
 
         shiny_frames = []
         total_tile_width = wan_zip.size[1] // frame_size[1]
