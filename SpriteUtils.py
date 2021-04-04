@@ -814,27 +814,7 @@ def verifySprite(msg_args, wan_zip):
             if escape_clause:
                 msg_args.pop(0)
             else:
-                max_size = 0
-                for frame_info in final_frames:
-                    frame_tex = frame_info[0]
-                    max_size = max(max_size, frame_tex.size[0])
-                    max_size = max(max_size, frame_tex.size[1])
-
-                max_size = exUtils.roundUpToMult(max_size, 2)
-
-                total_tile_width = 8
-                total_tile_height = (len(final_frames) - 1) // 8 + 1
-
-                combinedImg = Image.new('RGBA', (max_size * total_tile_width, max_size * total_tile_height), (0, 0, 0, 0))
-
-                for idx, frame_info in enumerate(final_frames):
-                    frame = frame_info[0]
-                    xx = idx % total_tile_width
-                    yy = idx // total_tile_width
-                    tilePos = (xx * max_size, yy * max_size)
-                    centerPos = ((max_size - frame.size[0]) // 2, (max_size - frame.size[1]) // 2)
-                    combinedImg.paste(frame, (tilePos[0] + centerPos[0], tilePos[1] + centerPos[1]), frame)
-
+                combinedImg, _ = getCombinedImg(wan_zip, True)
                 reduced_img = simple_quant(combinedImg)
                 raise SpriteVerifyError("The sprite has {0} non-transparent colors with only 15 allowed.\n"
                                         "If this is acceptable, include `={0}` in the message."
@@ -904,24 +884,26 @@ def verifySpriteLock(dict, chosen_path, wan_zip, recolor):
     # make sure all locked sprites are the same as their original counterparts
     changed_files = None
     if recolor:
-        wan_zip = wan_zip.crop((0, 1, wan_zip.size[0], wan_zip.size[1]))
+        wan_zip = removePalette(wan_zip)
+
+        if not os.path.exists(os.path.join(chosen_path, MULTI_SHEET_XML)):
+            return
+        # create a single-sheet out of the original multi-sheet
+        # map the locked animations to the frames in the single-sheet
+        frames, frame_mapping = getFramesAndMappings(chosen_path, False)
+        frame_size = getFrameSizeFromFrames(frames)
 
         shiny_frames = []
-        total_tile_width = 8
-        max_size = wan_zip.size[0] // total_tile_width
-        for yy in range(0, wan_zip.size[1], max_size):
-            for xx in range(0, wan_zip.size[0], max_size):
-                tile_bounds = (xx, yy, xx + max_size, yy + max_size)
+        total_tile_width = wan_zip.size[1] // frame_size[1]
+        for yy in range(0, wan_zip.size[1], frame_size[1]):
+            for xx in range(0, wan_zip.size[0], frame_size[0]):
+                tile_bounds = (xx, yy, xx + frame_size[0], yy + frame_size[1])
                 bounds = exUtils.getCoveredBounds(wan_zip, tile_bounds)
                 if bounds[0] >= bounds[2]:
                     continue
                 abs_bounds = exUtils.addToBounds(bounds, (xx, yy))
                 frame_tex = wan_zip.crop(abs_bounds)
                 shiny_frames.append(frame_tex)
-
-        # create a single-sheet out of the original multi-sheet
-        # map the locked animations to the frames in the single-sheet
-        frames, frame_mapping = getFramesAndMappings(chosen_path, False)
 
         violated_sprites = {}
         for anim_name in frame_mapping:
@@ -1228,14 +1210,7 @@ File data writeback
 """
 
 def placeSpriteZipToPath(wan_file, dest_path):
-    if not os.path.exists(dest_path):
-        os.makedirs(dest_path, exist_ok=True)
-    else:
-        # delete existing files
-        existing_files = os.listdir(dest_path)
-        for file in existing_files:
-            if file.endswith(".png") or file.endswith(".xml"):
-                os.remove(os.path.join(dest_path, file))
+    preparePlacement(dest_path)
 
     # extract all
     try:
@@ -1245,6 +1220,8 @@ def placeSpriteZipToPath(wan_file, dest_path):
         raise SpriteVerifyError(str(e))
 
 def placeSpriteRecolorToPath(orig_path, outImg, dest_path):
+    preparePlacement(dest_path)
+
     # remove palette bar of both images
     outImg = outImg.crop((0, 1, outImg.size[0], outImg.size[1]))
 
@@ -1281,16 +1258,8 @@ def placeSpriteRecolorToPath(orig_path, outImg, dest_path):
         shutil.copyfile(os.path.join(orig_path, anim_name + '-Offsets.png'), os.path.join(dest_path, anim_name + '-Offsets.png'))
         shutil.copyfile(os.path.join(orig_path, anim_name + '-Shadow.png'), os.path.join(dest_path, anim_name + '-Shadow.png'))
 
-
 def placePortraitToPath(outImg, dest_path):
-    if not os.path.exists(dest_path):
-        os.makedirs(dest_path, exist_ok=True)
-    else:
-        # delete existing files
-        existing_files = os.listdir(dest_path)
-        for file in existing_files:
-            if file.endswith(".png"):
-                os.remove(os.path.join(dest_path, file))
+    preparePlacement(dest_path)
 
     # add new ones
     for idx in range(len(EMOTIONS)):
@@ -1306,6 +1275,16 @@ def placePortraitToPath(outImg, dest_path):
             imgCrop = outImg.crop((placeX,placeY,placeX+PORTRAIT_SIZE,placeY+PORTRAIT_SIZE))
             if not isBlank(imgCrop):
                 imgCrop.save(os.path.join(dest_path, EMOTIONS[idx]+"^.png"))
+
+def preparePlacement(dest_path):
+    if not os.path.exists(dest_path):
+        os.makedirs(dest_path, exist_ok=True)
+    else:
+        # delete existing files
+        existing_files = os.listdir(dest_path)
+        for file in existing_files:
+            if file.endswith(".png") or file.endswith(".xml"):
+                os.remove(os.path.join(dest_path, file))
 
 """
 File data generation
