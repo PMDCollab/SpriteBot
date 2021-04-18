@@ -817,8 +817,9 @@ def verifySprite(msg_args, wan_zip):
             if escape_clause:
                 msg_args.pop(0)
             else:
-                combinedImg, _ = getCombinedImg(wan_zip, True)
-                reduced_img = simple_quant(combinedImg)
+                with zipfile.ZipFile(wan_zip, 'r') as zip:
+                    combinedImg, _ = getCombinedImg(zip, True)
+                    reduced_img = simple_quant(combinedImg)
                 raise SpriteVerifyError("The sprite has {0} non-transparent colors with only 15 allowed.\n"
                                         "If this is acceptable, include `={0}` in the message."
                                         "  Otherwise reduce colors for the sprite.".format(len(palette)), reduced_img)
@@ -1411,7 +1412,6 @@ def getFrameSizeFromFrames(frames):
     return max_width, max_height
 
 def getCombinedImg(path, is_zip):
-
     frames, frame_mapping = getFramesAndMappings(path, is_zip)
     frame_size = getFrameSizeFromFrames(frames)
 

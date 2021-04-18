@@ -56,6 +56,7 @@ class BotConfig:
             self.root = 0
             self.push = False
             self.points = 0
+            self.error_ch = 0
             self.points_ch = 0
             self.update_ch = 0
             self.update_msg = 0
@@ -185,6 +186,14 @@ class SpriteBot:
             self.config.update_ch = 0
             self.config.update_msg = 0
             self.saveConfig()
+
+    async def sendError(self, trace):
+        print(trace)
+        to_send = await self.client.fetch_user(self.config.root)
+        if self.config.error_ch != 0:
+            to_send = self.client.get_channel(self.config.error_ch)
+
+        await to_send.send("```" + trace[:1950] + "```")
 
     def getChatChannel(self, guild_id):
         chat_id = self.config.servers[str(guild_id)].chat
@@ -452,11 +461,8 @@ class SpriteBot:
             await self.getChatChannel(msg.guild.id).send(msg_body + "\n(An error occurred with the file)")
         except Exception as e:
             await self.getChatChannel(msg.guild.id).send(msg_body + "\n(An error occurred with the file)")
-            trace = traceback.format_exc()
-            user = await self.client.fetch_user(self.config.root)
-            await user.send("```" + trace[:1950] + "```")
+            await self.sendError(traceback.format_exc())
         await msg.delete()
-
 
 
     async def stageSubmission(self, msg, full_idx, chosen_node, asset_type, author, recolor, diffs, overcolor):
@@ -617,10 +623,6 @@ class SpriteBot:
 
         current_completion_file = SpriteUtils.getCurrentCompletion(chosen_node, asset_type)
 
-        give_points = current_completion_file - prev_completion_file
-        if give_points < 1 and new_credit:
-            give_points = 1
-
         # remove from pending list
         pending_dict = chosen_node.__dict__[asset_type + "_pending"]
         if str(msg.id) in pending_dict:
@@ -650,7 +652,13 @@ class SpriteBot:
                 approve_msg += "\nNote: Shiny form now marked as {0} due to this change.".format(PHASES[SpriteUtils.PHASE_INCOMPLETE])
 
 
+        give_points = current_completion_file - prev_completion_file
+
         if SpriteUtils.isShinyIdx(full_idx):
+            give_points = 1
+            if current_completion_file < SpriteUtils.PHASE_FULL:
+                give_points = 0
+
             if asset_type == "sprite":
                 give_points *= SPRITE_SHINY_WORTH
             elif asset_type == "portrait":
@@ -660,6 +668,9 @@ class SpriteBot:
                 give_points *= SPRITE_WORTH
             elif asset_type == "portrait":
                 give_points *= PORTRAIT_WORTH
+
+        if give_points < 1 and new_credit:
+            give_points = 1
 
         if chosen_node.modreward:
             give_points = 0
@@ -712,9 +723,7 @@ class SpriteBot:
                     shiny_sender = shiny_sender_data[0]
                     await self.submissionDeclined(shiny_msg, shiny_sender, [])
                 except Exception as e:
-                    trace = traceback.format_exc()
-                    user = await self.client.fetch_user(sprite_bot.config.root)
-                    await user.send("```" + trace + "```")
+                    await self.sendError(traceback.format_exc())
 
             if base_recolor_img is not None:
                 # auto-generate recolor link
@@ -783,9 +792,7 @@ class SpriteBot:
                 try:
                     await self.pollSubmission(msg)
                 except Exception as e:
-                    trace = traceback.format_exc()
-                    user = await self.client.fetch_user(self.config.root)
-                    await user.send("```" + trace + "```")
+                    await self.sendError(traceback.format_exc())
             self.saveTracker()
             self.changed = True
 
@@ -2133,7 +2140,7 @@ async def on_message(msg: discord.Message):
                 await sprite_bot.gitCommit("Tracker update from forced push.")
                 await sprite_bot.gitPush()
                 msg.channel.send(msg.author.mention + " Changes pushed.")
-            elif base_arg in ["gr", "tr"]:
+            elif base_arg in ["gr", "tr", "checkr"]:
                 pass
             else:
                 await msg.channel.send(msg.author.mention + " Unknown Command.")
@@ -2144,9 +2151,7 @@ async def on_message(msg: discord.Message):
                 sprite_bot.saveTracker()
 
     except Exception as e:
-        trace = traceback.format_exc()
-        user = await client.fetch_user(sprite_bot.config.root)
-        await user.send("```"+trace+"```")
+        await sprite_bot.sendError(traceback.format_exc())
 
 @client.event
 async def on_raw_reaction_add(payload):
@@ -2162,10 +2167,7 @@ async def on_raw_reaction_add(payload):
                 sprite_bot.saveTracker()
 
     except Exception as e:
-        trace = traceback.format_exc()
-        user = await client.fetch_user(sprite_bot.config.root)
-        await user.send("```"+trace+"```")
-
+        await sprite_bot.sendError(traceback.format_exc())
 
 async def periodic_update_status():
     await client.wait_until_ready()
@@ -2187,10 +2189,7 @@ async def periodic_update_status():
                 await sprite_bot.gitPush()
                 last_date = cur_date
         except Exception as e:
-            trace = traceback.format_exc()
-            user = await client.fetch_user(sprite_bot.config.root)
-            print(trace)
-            await user.send("```"+trace+"```")
+            await sprite_bot.sendError(traceback.format_exc())
         await asyncio.sleep(10)
 
 sprite_bot = SpriteBot(scdir, client)
