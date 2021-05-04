@@ -805,6 +805,7 @@ class SpriteBot:
         if msg.author.id == self.client.user.id:
             cks = None
             xs = None
+            ws = None
             ss = None
             remove_users = []
             for reaction in msg.reactions:
@@ -812,6 +813,8 @@ class SpriteBot:
                     cks = reaction
                 elif reaction.emoji == '\u274C':
                     xs = reaction
+                elif reaction.emoji == '\u26A0\uFE0F':
+                    ws = reaction
                 elif reaction.emoji == '\u2B50':
                     ss = reaction
                 else:
@@ -826,6 +829,7 @@ class SpriteBot:
             orig_sender_id = int(orig_sender[3:-1])
 
             auto = False
+            warn = False
             approve = []
             decline = []
 
@@ -837,17 +841,26 @@ class SpriteBot:
                     else:
                         remove_users.append((ss, user))
 
-            async for user in cks.users():
-                if await self.isAuthorized(user, msg.guild):
-                    approve.append(user.id)
-                elif user.id != self.client.user.id:
-                    remove_users.append((cks, user))
+            if cks:
+                async for user in cks.users():
+                    if await self.isAuthorized(user, msg.guild):
+                        approve.append(user.id)
+                    elif user.id != self.client.user.id:
+                        remove_users.append((cks, user))
 
-            async for user in xs.users():
-                if await self.isAuthorized(user, msg.guild) or user.id == orig_sender_id:
-                    decline.append(user.id)
-                elif user.id != self.client.user.id:
-                    remove_users.append((xs, user))
+            if ws:
+                async for user in ws.users():
+                    if await self.isAuthorized(user, msg.guild):
+                        warn = True
+                    else:
+                        remove_users.append((ws, user))
+
+            if xs:
+                async for user in xs.users():
+                    if await self.isAuthorized(user, msg.guild) or user.id == orig_sender_id:
+                        decline.append(user.id)
+                    elif user.id != self.client.user.id:
+                        remove_users.append((xs, user))
 
             file_name = msg.attachments[0].filename
             name_valid, full_idx, asset_type, recolor = SpriteUtils.getStatsFromFilename(file_name)
@@ -855,7 +868,8 @@ class SpriteBot:
             if len(decline) > 0:
                 await self.submissionDeclined(msg, orig_sender, decline)
                 return True
-            elif auto or (asset_type == "sprite" and len(approve) >= 3) or (asset_type == "portrait" and len(approve) >= 2):
+            elif auto or (asset_type == "sprite" and len(approve) >= 3 and not warn) \
+                    or (asset_type == "portrait" and len(approve) >= 2 and not warn):
                 await self.submissionApproved(msg, orig_sender, orig_author, approve)
                 return False
             else:
