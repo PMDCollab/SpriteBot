@@ -1820,8 +1820,9 @@ def updateFiles(dict, species_path, prefix):
                 file, _ = os.path.splitext(inFile)
                 file_list.append(file)
 
+    species_parts = species_path.split('\\')
     for file in file_list:
-        if file not in dict.__dict__[prefix + "_files"]:
+        if file not in dict.__dict__[prefix + "_files"] or dict.name == 'Shiny' and species_parts[2] != '0251':
             dict.__dict__[prefix + "_files"][file] = False
 
 
