@@ -884,169 +884,147 @@ def getStatsFromTree(file_data):
 
     return sdw_size, anim_names, anim_stats
 
-def verifySpriteLock(dict, chosen_path, wan_zip, recolor):
+def verifySpriteLock(dict, chosen_path, orig_zip, wan_zip, recolor):
     # make sure all locked sprites are the same as their original counterparts
-    changed_files = None
-    if recolor:
-        palette_size = wan_zip.size
-        wan_zip = removePalette(wan_zip)
+    changed_files = []
 
-        if not os.path.exists(os.path.join(chosen_path, MULTI_SHEET_XML)):
-            return
-        # create a single-sheet out of the original multi-sheet
-        # map the locked animations to the frames in the single-sheet
-        frames, frame_mapping = getFramesAndMappings(chosen_path, False)
-        frame_size = getFrameSizeFromFrames(frames)
+    try:
+        cmp_zip = wan_zip
+        shiny_frames = None
+        frame_mapping = None
+        if recolor:
+            cmp_zip = orig_zip
+            wan_zip = removePalette(wan_zip)
 
-        max_size = int(math.ceil(math.sqrt(len(frames))))
-        needed_size = (frame_size[0] * max_size, frame_size[1] * max_size + 1)
-        if palette_size != needed_size:
-            raise SpriteVerifyError(
-                "Recolor has dimensions {0} instead of {1}.".format(str(palette_size), str(needed_size)))
+            with zipfile.ZipFile(orig_zip, 'r') as opened_zip:
+                frames, frame_mapping = getFramesAndMappings(opened_zip, True)
+            frame_size = getFrameSizeFromFrames(frames)
 
-        shiny_frames = []
-        total_tile_width = wan_zip.size[1] // frame_size[1]
-        for yy in range(0, wan_zip.size[1], frame_size[1]):
-            for xx in range(0, wan_zip.size[0], frame_size[0]):
-                tile_bounds = (xx, yy, xx + frame_size[0], yy + frame_size[1])
-                bounds = exUtils.getCoveredBounds(wan_zip, tile_bounds)
-                if bounds[0] >= bounds[2]:
+            # obtain a mapping from the color image of the shiny path
+            shiny_frames = []
+            for yy in range(0, wan_zip.size[1], frame_size[1]):
+                for xx in range(0, wan_zip.size[0], frame_size[0]):
+                    tile_bounds = (xx, yy, xx + frame_size[0], yy + frame_size[1])
+                    bounds = exUtils.getCoveredBounds(wan_zip, tile_bounds)
+                    if bounds[0] >= bounds[2]:
+                        continue
+                    abs_bounds = exUtils.addToBounds(bounds, (xx, yy))
+                    frame_tex = wan_zip.crop(abs_bounds)
+                    shiny_frames.append(frame_tex)
+
+        with zipfile.ZipFile(cmp_zip, 'r') as zip:
+            name_list = zip.namelist()
+            if MULTI_SHEET_XML not in name_list:
+                raise SpriteVerifyError("No {0} found.".format(MULTI_SHEET_XML))
+            verifyZipFile(zip, MULTI_SHEET_XML)
+
+            file_data = BytesIO()
+            file_data.write(zip.read(MULTI_SHEET_XML))
+            file_data.seek(0)
+
+            sdw_size, anim_names, anim_stats = getStatsFromTree(file_data)
+            if os.path.exists(os.path.join(chosen_path, MULTI_SHEET_XML)):
+                sdw_size_cur, anim_names_cur, anim_stats_cur = getStatsFromTree(
+                    os.path.join(chosen_path, MULTI_SHEET_XML))
+            else:
+                sdw_size_cur = 0
+                anim_names_cur = {}
+                anim_stats_cur = {}
+
+            has_lock = False
+            for anim_name in ACTIONS:
+                if anim_name in dict.sprite_files and dict.sprite_files[anim_name]:
+                    has_lock = True
+
+                exists_old = anim_name.lower() in anim_names_cur
+                exists_new = anim_name.lower() in anim_names
+                # anim has been added or removed
+                if exists_old != exists_new:
+                    changed_files.append(anim_name)
                     continue
-                abs_bounds = exUtils.addToBounds(bounds, (xx, yy))
-                frame_tex = wan_zip.crop(abs_bounds)
-                shiny_frames.append(frame_tex)
 
-        violated_sprites = {}
-        for anim_name in frame_mapping:
-            # make sure they are not touched
-            if anim_name in dict.sprite_files and dict.sprite_files[anim_name]:
-                img_path = os.path.join(chosen_path, anim_name + '-Anim.png')
-                prev_img = Image.open(img_path).convert("RGBA")
-                for abs_bounds in frame_mapping[anim_name]:
-                    frame_idx, flip = frame_mapping[anim_name][abs_bounds]
-                    imgPiece = shiny_frames[frame_idx]
-                    cmpPiece = prev_img.crop(abs_bounds)
-                    if not exUtils.imgsEqual(imgPiece, cmpPiece, flip):
-                        coords = (frame_idx % total_tile_width, frame_idx // total_tile_width)
-                        violated_sprites[coords] = True
+                # anim does not exist in either
+                if not exists_old:
+                    continue
 
-        if len(violated_sprites) > 0:
-            violated_str = [str(ii) for ii in violated_sprites]
-            raise SpriteVerifyError(
-                "The following sprites are used in a locked anim and cannot be changed: {0}".format(str(violated_str)[:1900]))
-    else:
-        changed_files = []
+                # check to ensure the indices are the same
+                anim_idx = anim_names[anim_name.lower()]
+                anim_idx_cur = anim_names_cur[anim_name.lower()]
+                if anim_idx != anim_idx_cur:
+                    changed_files.append(anim_name)
+                    continue
 
-        try:
-            with zipfile.ZipFile(wan_zip, 'r') as zip:
-                name_list = zip.namelist()
-                if MULTI_SHEET_XML not in name_list:
-                    raise SpriteVerifyError("No {0} found.".format(MULTI_SHEET_XML))
-                verifyZipFile(zip, MULTI_SHEET_XML)
+                # check to make sure the stats are the same
+                anim_stat = anim_stats[anim_idx]
+                anim_stat_cur = anim_stats_cur[anim_idx_cur]
 
-                file_data = BytesIO()
-                file_data.write(zip.read(MULTI_SHEET_XML))
-                file_data.seek(0)
+                stat_violated = False
+                stat_violated |= anim_stat.index != anim_stat_cur.index
+                stat_violated |= anim_stat.name != anim_stat_cur.name
+                stat_violated |= anim_stat.size != anim_stat_cur.size
+                stat_violated |= anim_stat.backref != anim_stat_cur.backref
+                stat_violated |= anim_stat.rushFrame != anim_stat_cur.rushFrame
+                stat_violated |= anim_stat.hitFrame != anim_stat_cur.hitFrame
+                stat_violated |= anim_stat.returnFrame != anim_stat_cur.returnFrame
+                stat_violated |= len(anim_stat.durations) != len(anim_stat_cur.durations)
+                if not stat_violated:
+                    for idx, dur in enumerate(anim_stat.durations):
+                        stat_violated |= dur != anim_stat_cur.durations[idx]
 
-                sdw_size, anim_names, anim_stats = getStatsFromTree(file_data)
-                if os.path.exists(os.path.join(chosen_path, MULTI_SHEET_XML)):
-                    sdw_size_cur, anim_names_cur, anim_stats_cur = getStatsFromTree(
-                        os.path.join(chosen_path, MULTI_SHEET_XML))
+                if stat_violated:
+                    changed_files.append(anim_name)
+                    continue
+
+                if anim_stat.backref is not None:
+                    continue
+
+                # check to make sure the images are the same
+                anim_png_name = anim_name + "-Anim.png"
+                offset_png_name = anim_name + "-Offsets.png"
+                shadow_png_name = anim_name + "-Shadow.png"
+                if anim_png_name not in name_list:
+                    raise SpriteVerifyError("Anim specified in XML has no Anim.png: {0}".format(anim_name))
+                if offset_png_name not in name_list:
+                    raise SpriteVerifyError("Anim specified in XML has no Offsets.png: {0}".format(anim_name))
+                if shadow_png_name not in name_list:
+                    raise SpriteVerifyError("Anim specified in XML has no Shadow.png: {0}".format(anim_name))
+
+                if recolor:
+                    prev_img = readZipImg(zip, anim_png_name)
+                    anim_img = createRecolorAnim(prev_img, frame_mapping[anim_name], shiny_frames)
                 else:
-                    sdw_size_cur = 0
-                    anim_names_cur = {}
-                    anim_stats_cur = {}
-
-                has_lock = False
-                for anim_name in ACTIONS:
-                    if anim_name in dict.sprite_files and dict.sprite_files[anim_name]:
-                        has_lock = True
-
-                    exists_old = anim_name.lower() in anim_names_cur
-                    exists_new = anim_name.lower() in anim_names
-                    # anim has been added or removed
-                    if exists_old != exists_new:
-                        changed_files.append(anim_name)
-                        continue
-
-                    # anim does not exist in either
-                    if not exists_old:
-                        continue
-
-                    # check to ensure the indices are the same
-                    anim_idx = anim_names[anim_name.lower()]
-                    anim_idx_cur = anim_names_cur[anim_name.lower()]
-                    if anim_idx != anim_idx_cur:
-                        changed_files.append(anim_name)
-                        continue
-
-                    # check to make sure the stats are the same
-                    anim_stat = anim_stats[anim_idx]
-                    anim_stat_cur = anim_stats_cur[anim_idx_cur]
-
-                    stat_violated = False
-                    stat_violated |= anim_stat.index != anim_stat_cur.index
-                    stat_violated |= anim_stat.name != anim_stat_cur.name
-                    stat_violated |= anim_stat.size != anim_stat_cur.size
-                    stat_violated |= anim_stat.backref != anim_stat_cur.backref
-                    stat_violated |= anim_stat.rushFrame != anim_stat_cur.rushFrame
-                    stat_violated |= anim_stat.hitFrame != anim_stat_cur.hitFrame
-                    stat_violated |= anim_stat.returnFrame != anim_stat_cur.returnFrame
-                    stat_violated |= len(anim_stat.durations) != len(anim_stat_cur.durations)
-                    if not stat_violated:
-                        for idx, dur in enumerate(anim_stat.durations):
-                            stat_violated |= dur != anim_stat_cur.durations[idx]
-
-                    if stat_violated:
-                        changed_files.append(anim_name)
-                        continue
-
-                    if anim_stat.backref is not None:
-                        continue
-
-                    # check to make sure the images are the same
-                    anim_png_name = anim_name + "-Anim.png"
-                    offset_png_name = anim_name + "-Offsets.png"
-                    shadow_png_name = anim_name + "-Shadow.png"
-                    if anim_png_name not in name_list:
-                        raise SpriteVerifyError("Anim specified in XML has no Anim.png: {0}".format(anim_name))
-                    if offset_png_name not in name_list:
-                        raise SpriteVerifyError("Anim specified in XML has no Offsets.png: {0}".format(anim_name))
-                    if shadow_png_name not in name_list:
-                        raise SpriteVerifyError("Anim specified in XML has no Shadow.png: {0}".format(anim_name))
-
                     anim_img = readZipImg(zip, anim_png_name)
-                    anim_img_cur = Image.open(os.path.join(chosen_path, anim_png_name)).convert("RGBA")
-                    if not exUtils.imgsEqual(anim_img, anim_img_cur):
-                        changed_files.append(anim_name)
-                        continue
+                anim_img_cur = Image.open(os.path.join(chosen_path, anim_png_name)).convert("RGBA")
+                if not exUtils.imgsEqual(anim_img, anim_img_cur):
+                    changed_files.append(anim_name)
+                    continue
 
-                    offset_img = readZipImg(zip, offset_png_name)
-                    offset_img_cur = Image.open(os.path.join(chosen_path, offset_png_name)).convert("RGBA")
-                    if not exUtils.imgsEqual(offset_img, offset_img_cur):
-                        changed_files.append(anim_name)
-                        continue
+                offset_img = readZipImg(zip, offset_png_name)
+                offset_img_cur = Image.open(os.path.join(chosen_path, offset_png_name)).convert("RGBA")
+                if not exUtils.imgsEqual(offset_img, offset_img_cur):
+                    changed_files.append(anim_name)
+                    continue
 
-                    shadow_img = readZipImg(zip, shadow_png_name)
-                    shadow_img_cur = Image.open(os.path.join(chosen_path, shadow_png_name)).convert("RGBA")
-                    if not exUtils.imgsEqual(shadow_img, shadow_img_cur):
-                        changed_files.append(anim_name)
-                        continue
+                shadow_img = readZipImg(zip, shadow_png_name)
+                shadow_img_cur = Image.open(os.path.join(chosen_path, shadow_png_name)).convert("RGBA")
+                if not exUtils.imgsEqual(shadow_img, shadow_img_cur):
+                    changed_files.append(anim_name)
+                    continue
 
-                if has_lock and sdw_size != sdw_size_cur:
-                    raise SpriteVerifyError("The shadow size for this sprite is locked and cannot be changed.")
+            if has_lock and sdw_size != sdw_size_cur:
+                raise SpriteVerifyError("The shadow size for this sprite is locked and cannot be changed.")
 
-        except zipfile.BadZipfile as e:
-            raise SpriteVerifyError(str(e))
+    except zipfile.BadZipfile as e:
+        raise SpriteVerifyError(str(e))
 
-        violated_files = []
-        for change in changed_files:
-            if anim_name in dict.sprite_files and dict.sprite_files[anim_name]:
-                violated_files.append(change)
+    violated_files = []
+    for change in changed_files:
+        if anim_name in dict.sprite_files and dict.sprite_files[anim_name]:
+            violated_files.append(change)
 
-        if len(violated_files) > 0:
-            raise SpriteVerifyError(
-                "The following actions are locked and cannot be changed: {0}".format(str(violated_files)[:1900]))
+    if len(violated_files) > 0:
+        raise SpriteVerifyError(
+            "The following actions are locked and cannot be changed: {0}".format(str(violated_files)[:1900]))
 
     return changed_files
 
@@ -1234,7 +1212,7 @@ def placeSpriteRecolorToPath(orig_path, outImg, dest_path):
     preparePlacement(dest_path)
 
     # remove palette bar of both images
-    outImg = outImg.crop((0, 1, outImg.size[0], outImg.size[1]))
+    outImg = removePalette(outImg)
 
     frames, frame_mapping = getFramesAndMappings(orig_path, False)
     frame_size = getFrameSizeFromFrames(frames)
@@ -1257,17 +1235,21 @@ def placeSpriteRecolorToPath(orig_path, outImg, dest_path):
         img_path = os.path.join(orig_path, anim_name + '-Anim.png')
         img_dest_path = os.path.join(dest_path, anim_name + '-Anim.png')
         prev_img = Image.open(img_path).convert("RGBA")
-        img = Image.new('RGBA', prev_img.size, (0, 0, 0, 0))
-        for abs_bounds in frame_mapping[anim_name]:
-            frame_idx, flip = frame_mapping[anim_name][abs_bounds]
-            imgPiece = shiny_frames[frame_idx]
-            if flip:
-                imgPiece = imgPiece.transpose(Image.FLIP_LEFT_RIGHT)
-            img.paste(imgPiece, (abs_bounds[0], abs_bounds[1]), imgPiece)
+        img = createRecolorAnim(prev_img, frame_mapping[anim_name], shiny_frames)
         img.save(img_dest_path)
 
         shutil.copyfile(os.path.join(orig_path, anim_name + '-Offsets.png'), os.path.join(dest_path, anim_name + '-Offsets.png'))
         shutil.copyfile(os.path.join(orig_path, anim_name + '-Shadow.png'), os.path.join(dest_path, anim_name + '-Shadow.png'))
+
+def createRecolorAnim(template_img, anim_map, shiny_frames):
+    anim_img = Image.new('RGBA', template_img.size, (0, 0, 0, 0))
+    for abs_bounds in anim_map:
+        frame_idx, flip = anim_map[abs_bounds]
+        imgPiece = shiny_frames[frame_idx]
+        if flip:
+            imgPiece = imgPiece.transpose(Image.FLIP_LEFT_RIGHT)
+        anim_img.paste(imgPiece, (abs_bounds[0], abs_bounds[1]), imgPiece)
+    return anim_img
 
 def placePortraitToPath(outImg, dest_path):
     preparePlacement(dest_path)

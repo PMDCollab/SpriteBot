@@ -153,10 +153,7 @@ class SpriteBot:
                     self.repo.git.add(".")
                     self.repo.git.commit(m=msg)
                 except Exception as e:
-                    user = await client.fetch_user(self.config.root)
-                    trace = traceback.format_exc()
-                    print(trace)
-                    await user.send("```" + trace + "```")
+                    await self.sendError(traceback.format_exc())
             self.commits += 1
 
 
@@ -333,8 +330,11 @@ class SpriteBot:
     async def generateLink(self, file_data, filename):
         # file_data is a file-like object to post with
         # post the file to the admin under a specific filename
-        user = await client.fetch_user(self.config.root)
-        resp = await user.send("", file=discord.File(file_data, filename))
+        to_send = await self.client.fetch_user(self.config.root)
+        if self.config.error_ch != 0:
+            to_send = self.client.get_channel(self.config.error_ch)
+
+        resp = await to_send.send("", file=discord.File(file_data, filename))
         result_url = resp.attachments[0].url
         return result_url
 
@@ -376,8 +376,11 @@ class SpriteBot:
                 try:
                     if recolor:
                         orig_zip = SpriteUtils.getLinkImg(orig_link)
+                        orig_group_link = await self.retrieveLinkMsg(orig_idx, orig_node, asset_type, False)
+                        orig_zip_group = SpriteUtils.getLinkZipGroup(orig_group_link)
                     else:
                         orig_zip = SpriteUtils.getLinkZipGroup(orig_link)
+                        orig_zip_group = None
                 except SpriteUtils.SpriteVerifyError as e:
                     await self.returnMsgFile(msg, msg.author.mention + " A problem occurred reading original sprite.", asset_type)
                 except Exception as e:
@@ -386,7 +389,7 @@ class SpriteBot:
 
             # if the file needs to be compared to an original, verify it as a recolor. Otherwise, by itself.
             try:
-                diffs = SpriteUtils.verifySpriteLock(chosen_node, chosen_path, wan_zip, recolor)
+                diffs = SpriteUtils.verifySpriteLock(chosen_node, chosen_path, orig_zip_group, wan_zip, recolor)
                 if SpriteUtils.isShinyIdx(full_idx):
                     SpriteUtils.verifySpriteRecolor(msg_args, orig_zip, wan_zip, recolor)
                 else:
