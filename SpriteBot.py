@@ -362,6 +362,7 @@ class SpriteBot:
                 raise e
 
             orig_zip = None
+            orig_zip_group = None
             # if it's a shiny, get the original image
             if SpriteUtils.isShinyIdx(full_idx):
                 orig_idx = SpriteUtils.createShinyIdx(full_idx, False)
@@ -380,7 +381,6 @@ class SpriteBot:
                         orig_zip_group = SpriteUtils.getLinkZipGroup(orig_group_link)
                     else:
                         orig_zip = SpriteUtils.getLinkZipGroup(orig_link)
-                        orig_zip_group = None
                 except SpriteUtils.SpriteVerifyError as e:
                     await self.returnMsgFile(msg, msg.author.mention + " A problem occurred reading original sprite.", asset_type)
                 except Exception as e:
@@ -2140,6 +2140,8 @@ async def on_message(msg: discord.Message):
                 await sprite_bot.completeSlot(msg, args[1:], "portrait", SpriteUtils.PHASE_FULL)
             elif base_arg == "clearcache" and authorized:
                 await sprite_bot.clearCache(msg, args[1:])
+            elif base_arg == "error" and authorized:
+                raise Exception()
                 # root commands
             elif base_arg == "rescan" and msg.author.id == sprite_bot.config.root:
                 await sprite_bot.rescan(msg)
