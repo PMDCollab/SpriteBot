@@ -954,6 +954,10 @@ def verifySpriteLock(dict, chosen_path, orig_zip, wan_zip, recolor):
                     changed_files.append(anim_name)
                     continue
 
+                # anim is a backreference in both situations
+                if anim_idx == -1:
+                    continue
+
                 # check to make sure the stats are the same
                 anim_stat = anim_stats[anim_idx]
                 anim_stat_cur = anim_stats_cur[anim_idx_cur]
@@ -1019,7 +1023,7 @@ def verifySpriteLock(dict, chosen_path, orig_zip, wan_zip, recolor):
 
     violated_files = []
     for change in changed_files:
-        if anim_name in dict.sprite_files and dict.sprite_files[anim_name]:
+        if change in dict.sprite_files and dict.sprite_files[change]:
             violated_files.append(change)
 
     if len(violated_files) > 0:
