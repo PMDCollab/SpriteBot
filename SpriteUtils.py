@@ -2094,9 +2094,13 @@ def updateNameFile(name_path, name_dict, include_all):
                 txt.write("{0}\t{1}\t{2}\n".format(name_dict[handle].name, handle, name_dict[handle].contact))
 
 def updateNameStats(name_dict, dict):
-    if dict.sprite_credit != "" and dict.sprite_credit in name_dict:
+    if dict.sprite_credit != "":
+        if dict.sprite_credit not in name_dict:
+            name_dict[dict.sprite_credit] = CreditEntry("", "")
         name_dict[dict.sprite_credit].sprites = True
-    if dict.portrait_credit != "" and dict.portrait_credit in name_dict:
+    if dict.portrait_credit != "":
+        if dict.portrait_credit not in name_dict:
+            name_dict[dict.portrait_credit] = CreditEntry("", "")
         name_dict[dict.portrait_credit].portraits = True
 
     for sub_dict in dict.subgroups:
