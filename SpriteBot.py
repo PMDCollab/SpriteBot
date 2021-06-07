@@ -198,7 +198,7 @@ class SpriteBot:
 
     def getStatusEmoji(self, chosen_node, asset_type):
         pending = chosen_node.__dict__[asset_type+"_pending"]
-        added = chosen_node.__dict__[asset_type + "_credit"] != ""
+        added = len(chosen_node.__dict__[asset_type + "_credit"]) > 0
         complete = chosen_node.__dict__[asset_type+"_complete"]
         required = chosen_node.__dict__[asset_type+"_required"]
         if complete > SpriteUtils.PHASE_EXISTS: # star
@@ -271,11 +271,11 @@ class SpriteBot:
             # credits
             if include_credit:
                 if include_sprite:
-                    post += self.getPostCredit(tracker_dict.sprite_credit)
+                    post += self.getPostCredit(tracker_dict.sprite_credit + )
                     if include_portrait:
                         post += "/"
                 if include_portrait:
-                    post += self.getPostCredit(tracker_dict.portrait_credit)
+                    post += self.getPostCredit(tracker_dict.portrait_credit + )
             posts.append(post)
 
         for sub_dict in tracker_dict.subgroups:
@@ -368,7 +368,7 @@ class SpriteBot:
                 orig_idx = SpriteUtils.createShinyIdx(full_idx, False)
                 orig_node = SpriteUtils.getNodeFromIdx(self.tracker, orig_idx, 0)
 
-                if orig_node.__dict__[asset_type + "_credit"] == "":
+                if len(orig_node.__dict__[asset_type + "_credit"]) == 0:
                     # this means there's no original portrait to base the recolor off of
                     await self.returnMsgFile(msg, msg.author.mention + " Cannot submit a shiny when the original isn't finished.", asset_type)
                     return False, None
@@ -414,7 +414,7 @@ class SpriteBot:
                 orig_idx = SpriteUtils.createShinyIdx(full_idx, False)
                 orig_node = SpriteUtils.getNodeFromIdx(self.tracker, orig_idx, 0)
 
-                if orig_node.__dict__[asset_type + "_credit"] == "":
+                if len(orig_node.__dict__[asset_type + "_credit"]) == 0:
                     # this means there's no original portrait to base the recolor off of
                     await self.returnMsgFile(msg, msg.author.mention + " Cannot submit a shiny when the original isn't finished.", asset_type)
                     return False, None
@@ -510,7 +510,7 @@ class SpriteBot:
             reduced_file.seek(0)
             send_files.append(discord.File(reduced_file, return_name.replace('.png', '_reduced.png')))
             add_msg += "\nReduced Color Preview included."
-        if chosen_node.__dict__[asset_type + "_credit"] != "":
+        if len(chosen_node.__dict__[asset_type + "_credit"]) > 0:
             if not recolor:
                 if diffs is not None and len(diffs) > 0:
                     add_msg += "\nChanges: {0}".format(", ".join(diffs))
@@ -565,7 +565,7 @@ class SpriteBot:
 
         # change the status of the sprite
         new_revise = "New"
-        if chosen_node.__dict__[asset_type+"_credit"] != "":
+        if len(chosen_node.__dict__[asset_type+"_credit"]) > 0:
             new_revise = "Revised"
 
         # save and set the new sprite or portrait
@@ -606,11 +606,12 @@ class SpriteBot:
         new_credit = True
         cur_credits = SpriteUtils.getFileCredits(gen_path)
         for credit in cur_credits:
-            if credit[1] == orig_author:
+            if credit == orig_author:
                 new_credit = False
                 break
 
-        SpriteUtils.appendCredits(gen_path, orig_author)
+        time_now = str(datetime.datetime.utcnow())
+        SpriteUtils.appendCredits(gen_path, orig_author, time_now)
         # add to universal names list and save if changed
         if orig_author not in self.names:
             self.names[orig_author] = SpriteUtils.CreditEntry("", "")
@@ -619,8 +620,8 @@ class SpriteBot:
         self.saveNames()
 
         # update the credits and timestamp in the chosen node
-        chosen_node.__dict__[asset_type + "_modified"] = str(datetime.datetime.utcnow())
-        chosen_node.__dict__[asset_type + "_credit"] = orig_author
+        chosen_node.__dict__[asset_type + "_modified"] = time_now
+        chosen_node.__dict__[asset_type + "_credit"][orig_author] = time_now
         # update the file cache
         SpriteUtils.updateFiles(chosen_node, gen_path, asset_type)
 
@@ -650,7 +651,7 @@ class SpriteBot:
 
         # if this was non-shiny, set the complete flag to false for the shiny
         if is_base:
-            if shiny_node.__dict__[asset_type+"_credit"] != "":
+            if len(shiny_node.__dict__[asset_type+"_credit"]) > 0:
                 shiny_node.__dict__[asset_type+"_complete"] = SpriteUtils.PHASE_INCOMPLETE
                 approve_msg += "\nNote: Shiny form now marked as {0} due to this change.".format(PHASES[SpriteUtils.PHASE_INCOMPLETE])
 
@@ -1010,7 +1011,7 @@ class SpriteBot:
         # create a dummy template using missingno
         gen_path = os.path.join(self.config.path, asset_type, "0000")
         # otherwise, use the provided path
-        if chosen_node.__dict__[asset_type + "_credit"] != "":
+        if len(chosen_node.__dict__[asset_type + "_credit"]) > 0:
             full_arr = [self.config.path, asset_type] + full_idx
             gen_path = os.path.join(*full_arr)
 
@@ -1029,7 +1030,7 @@ class SpriteBot:
 
     def retrieveCreditFile(self, full_idx, chosen_node, asset_type):
         # otherwise, use the provided path
-        if chosen_node.__dict__[asset_type + "_credit"] == "":
+        if chosen_node.__dict__[asset_type + "_credit"] == {}:
             return None
         full_arr = [self.config.path, asset_type] + full_idx
         gen_path = os.path.join(*full_arr)
@@ -1038,7 +1039,7 @@ class SpriteBot:
 
         credit_strings = []
         for credit in credits:
-            credit_id = credit[1]
+            credit_id = credit
             entry = self.names[credit_id]
             if entry.name != '':
                 credit_id = entry.name
@@ -1057,7 +1058,7 @@ class SpriteBot:
         phase_str = PHASES[phase]
 
         # if the node has no credit, fail
-        if chosen_node.__dict__[asset_type + "_credit"] == "" and phase > SpriteUtils.PHASE_INCOMPLETE:
+        if len(chosen_node.__dict__[asset_type + "_credit"]) == 0 and phase > SpriteUtils.PHASE_INCOMPLETE:
             status = self.getStatusEmoji(chosen_node, asset_type)
             await msg.channel.send(msg.author.mention +
                                    " {0} #{1:03d}: {2} has no data and cannot be marked {3}.".format(status, int(full_idx[0]), " ".join(name_seq), phase_str))
@@ -1268,14 +1269,14 @@ class SpriteBot:
 
         chosen_node = SpriteUtils.getNodeFromIdx(self.tracker, full_idx, 0)
 
-        if chosen_node.__dict__[asset_type + "_credit"] == "":
+        if len(chosen_node.__dict__[asset_type + "_credit"]) == 0:
             await msg.channel.send(msg.author.mention + " Can't recolor a Pokemon that doesn't have a {0}.".format(asset_type))
             return
 
         shiny_idx = SpriteUtils.createShinyIdx(full_idx, True)
         shiny_node = SpriteUtils.getNodeFromIdx(self.tracker, shiny_idx, 0)
 
-        if shiny_node.__dict__[asset_type + "_credit"] == "":
+        if len(shiny_node.__dict__[asset_type + "_credit"]) == 0:
             await msg.channel.send(msg.author.mention + " Can't recolor a Pokemon that doesn't have a shiny {0}.".format(asset_type))
             return
 
@@ -1322,14 +1323,14 @@ class SpriteBot:
         response += "{0} #{1:03d}: {2}".format(status, int(full_idx[0]), " ".join(name_seq))
 
         if chosen_node.__dict__[asset_type + "_required"]:
-            file_exists = chosen_node.__dict__[asset_type + "_credit"] != ""
+            file_exists = len(chosen_node.__dict__[asset_type + "_credit"]) > 0
             if not file_exists and recolor:
                 response += " doesn't have a {0} to recolor. Submit the original first.".format(asset_type)
             else:
                 if not file_exists:
                     response += "\n [This {0} is missing. If you want to submit, use this file as a template!]".format(asset_type)
                 elif not recolor:
-                    mention = chosen_node.__dict__[asset_type + "_credit"]
+                    mention = chosen_node.__dict__[asset_type + ]
                     if mention in self.names:
                         response += "\nLatest Author: {0} `{1}` `{2}`".format(self.names[mention].name, mention, self.names[mention].contact)
                     else:
@@ -1480,12 +1481,14 @@ class SpriteBot:
                 total_portraits += 1
             if status.portrait_recolor_link != "":
                 portraits += 1
-            if status.portrait_credit not in users:
-                users[status.portrait_credit] = 0
-            users[status.portrait_credit] = users[status.portrait_credit]+1
-            if status.sprite_credit not in users:
-                users[status.sprite_credit] = 0
-            users[status.sprite_credit] = users[status.sprite_credit] + 1
+            for credit in status.portrait_credit:
+                if credit not in users:
+                    users[credit] = 0
+                users[credit] = users[credit]+1
+            for credit in status.sprite_credit:
+                if credit not in users:
+                    users[credit] = 0
+                users[credit] = users[credit] + 1
 
         await msg.channel.send(str(sprites)+"/"+ str(total_sprites)+ " Sprites.\n"+ \
                                              str(portraits)+"/"+str(total_portraits) + " Portraits.")

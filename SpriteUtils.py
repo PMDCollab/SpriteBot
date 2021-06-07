@@ -1665,16 +1665,18 @@ def generateFileData(path, asset_type, recolor):
 
 
 def getFileCredits(path):
-    id_list = []
+    id_list = {}
     if os.path.exists(os.path.join(path, "credits.txt")):
         with open(os.path.join(path, "credits.txt"), 'r', encoding='utf-8') as txt:
             for line in txt:
-                id_list.append(line.strip().split('\t'))
+                credit_rows = line.strip().split('\t')
+                credit_id = credit_rows[1]
+                id_list[credit_id] = credit_rows[0]
     return id_list
 
-def appendCredits(path, id):
+def appendCredits(path, id, time_now):
     with open(os.path.join(path, "credits.txt"), 'a+', encoding='utf-8') as txt:
-        txt.write(str(datetime.datetime.utcnow()) + "\t" + id + "\n")
+        txt.write(time_now + "\t" + id + "\n")
 
 class CreditEntry:
     """
@@ -1730,7 +1732,7 @@ def initSubNode(name, canon):
     sub_dict["canon"] = canon
     sub_dict["modreward"] = not canon
     sub_dict["portrait_complete"] = 0
-    sub_dict["portrait_credit"] = ""
+    sub_dict["portrait_credit"] = {}
     sub_dict["portrait_link"] = ""
     sub_dict["portrait_files"] = {}
     sub_dict["portrait_bounty"] = {}
@@ -1739,7 +1741,7 @@ def initSubNode(name, canon):
     sub_dict["portrait_recolor_link"] = ""
     sub_dict["portrait_required"] = False
     sub_dict["sprite_complete"] = 0
-    sub_dict["sprite_credit"] = ""
+    sub_dict["sprite_credit"] = {}
     sub_dict["sprite_files"] = {}
     sub_dict["sprite_bounty"] = {}
     sub_dict["sprite_link"] = ""
@@ -1814,6 +1816,7 @@ def updateFiles(dict, species_path, prefix):
 def fileSystemToJson(dict, species_path, prefix, tier):
     # get last modify date of everything that isn't credits.txt or dirs
     last_modify = ""
+    dict.__dict__[prefix + "_credit"] = {}
     for inFile in os.listdir(species_path):
         fullPath = os.path.join(species_path, inFile)
         if os.path.isdir(fullPath):
@@ -1839,12 +1842,8 @@ def fileSystemToJson(dict, species_path, prefix, tier):
 
             fileSystemToJson(dict.subgroups[inFile], fullPath, prefix, tier + 1)
         elif inFile == "credits.txt":
-            last_line = ""
-            with open(fullPath, encoding='utf-8') as txt:
-                for line in txt:
-                    last_line = line
-            last_credit = last_line[:-1].split('\t')
-            dict.__dict__[prefix + "_credit"] = last_credit[1]
+            credit_dict = getFileCredits(species_path)
+            dict.__dict__[prefix + "_credit"] = credit_dict
         else:
             modify_datetime = datetime.datetime.utcfromtimestamp(os.path.getmtime(fullPath))
             if str(modify_datetime) > last_modify:
@@ -1862,9 +1861,9 @@ def fileSystemToJson(dict, species_path, prefix, tier):
         dict.__dict__[prefix + "_link"] = ""
 
 def isDataPopulated(sub_dict):
-    if sub_dict.sprite_credit != "":
+    if len(sub_dict.sprite_credit) > 0:
         return True
-    if sub_dict.portrait_credit != "":
+    if len(sub_dict.portrait_credit) > 0:
         return True
 
     for sub_idx in sub_dict.subgroups:
@@ -2009,7 +2008,7 @@ def genderDiffPopulated(form_dict, asset_type):
         return False
     female_dict = normal_dict[female_idx]
 
-    return female_dict.__dict__[asset_type + "_credit"] != ""
+    return female_dict.__dict__[asset_type + "_credit"] != {}
 
 def createGenderDiff(form_dict, asset_type):
     if "0000" not in form_dict.subgroups:
@@ -2094,14 +2093,14 @@ def updateNameFile(name_path, name_dict, include_all):
                 txt.write("{0}\t{1}\t{2}\n".format(name_dict[handle].name, handle, name_dict[handle].contact))
 
 def updateNameStats(name_dict, dict):
-    if dict.sprite_credit != "":
-        if dict.sprite_credit not in name_dict:
-            name_dict[dict.sprite_credit] = CreditEntry("", "")
-        name_dict[dict.sprite_credit].sprites = True
-    if dict.portrait_credit != "":
-        if dict.portrait_credit not in name_dict:
-            name_dict[dict.portrait_credit] = CreditEntry("", "")
-        name_dict[dict.portrait_credit].portraits = True
+    for credit in dict.sprite_credit:
+        if credit not in name_dict:
+            name_dict[credit] = CreditEntry("", "")
+        name_dict[credit].sprites = True
+    for credit in dict.portrait_credit:
+        if credit not in name_dict:
+            name_dict[credit] = CreditEntry("", "")
+        name_dict[credit].portraits = True
 
     for sub_dict in dict.subgroups:
         updateNameStats(name_dict, dict.subgroups[sub_dict])
