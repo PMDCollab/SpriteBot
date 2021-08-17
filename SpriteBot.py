@@ -1409,7 +1409,9 @@ class SpriteBot:
     async def setProfile(self, msg, args):
         msg_mention = "<@!{0}>".format(msg.author.id)
 
-        if len(args) == 1:
+        if len(args) == 0:
+            new_credit = SpriteUtils.CreditEntry("", "")
+        elif len(args) == 1:
             new_credit = SpriteUtils.CreditEntry(args[0], "")
         elif len(args) == 2:
             new_credit = SpriteUtils.CreditEntry(args[0], args[1])
@@ -1431,16 +1433,61 @@ class SpriteBot:
 
         await msg.channel.send(msg_mention + " registered profile:\nName: \"{0}\"    Contact: \"{1}\"".format(self.names[msg_mention].name, self.names[msg_mention].contact))
 
+    async def transferProfile(self, msg, args):
+        if len(args) != 2:
+            await msg.channel.send(msg.author.mention + " Invalid args")
+            return
+
+        from_name = args[0]
+        to_name = args[1]
+        if from_name.startswith("<@!") or from_name == "CHUNSOFT":
+            await msg.channel.send(msg.author.mention + " Only transfers from absent registrations are allowed.")
+            return
+        if from_name not in self.names:
+            await msg.channel.send(msg.author.mention + " Entry {0} doesn't exist!".format(from_name))
+            return
+        if to_name not in self.names:
+            await msg.channel.send(msg.author.mention + " Entry {0} doesn't exist!".format(to_name))
+            return
+
+        new_credit = SpriteUtils.CreditEntry(self.names[to_name].name, self.names[to_name].contact)
+        new_credit.sprites = self.names[from_name].sprites or self.names[to_name].sprites
+        new_credit.portraits = self.names[from_name].portraits or self.names[to_name].portraits
+        del self.names[from_name]
+        self.names[to_name] = new_credit
+
+        # update tracker based on last-modify
+        over_dict = SpriteUtils.initSubNode("", True)
+        over_dict.subgroups = self.tracker
+
+        SpriteUtils.renameFileCredits(os.path.join(self.config.path, "sprite"), from_name, to_name)
+        SpriteUtils.renameFileCredits(os.path.join(self.config.path, "portrait"), from_name, to_name)
+        SpriteUtils.renameJsonCredits(over_dict, from_name, to_name)
+
+        await msg.channel.send(msg.author.mention + " account {0} deleted and credits moved to {1}.".format(from_name, to_name))
+
+        self.saveTracker()
+        self.saveNames()
+        self.changed = True
+
     async def deleteProfile(self, msg, args):
         msg_mention = "<@!{0}>".format(msg.author.id)
 
         if len(args) == 0:
-            pass
+            await msg.channel.send(msg.author.mention + " WARNING: This command will move your credits into an anonymous profile and be separated from your account. This cannot be undone.\n" \
+                                                        "If you wish to proceed, rerun the command with your discord ID and username (with discriminator) as arguments.")
+            return
         elif len(args) == 1:
             if not await self.isAuthorized(msg.author, msg.guild):
-                await msg.channel.send(msg.author.mention + " Not authorized to delete absent registration.")
+                await msg.channel.send(msg.author.mention + " Not authorized to delete registration.")
                 return
             msg_mention = args[0].upper()
+        elif len(args) == 2:
+            did = str(msg.author.id)
+            dname = msg.author.name + "#" + msg.author.discriminator
+            if args[0] != did or args[1] != dname:
+                await msg.channel.send(msg.author.mention + " Discord ID/Username did not match.")
+                return
         else:
             await msg.channel.send(msg.author.mention + " Invalid args")
             return
@@ -1452,15 +1499,52 @@ class SpriteBot:
 
 
         if self.names[msg_mention].sprites or self.names[msg_mention].portraits:
-            await msg.channel.send(msg.author.mention + " {0} was not deleted because it was credited. Details have been wiped instead.".format(msg_mention))
-            new_credit = SpriteUtils.CreditEntry("", "")
-            new_credit.sprites = self.names[msg_mention].sprites
-            new_credit.portraits = self.names[msg_mention].portraits
-            self.names[msg_mention] = new_credit
+            if msg_mention == "<@!{0}>".format(msg.author.id):
+                # find a proper anonymous name to transfer to
+                anon_num = 0
+                new_name = None
+                while True:
+                    new_name = "ANONYMOUS_{:04d}".format(anon_num)
+                    found_name = False
+                    for name_credit in self.names:
+                        if name_credit.lower() == new_name.lower():
+                            found_name = True
+                            break
+                    if not found_name:
+                        break
+                    anon_num = anon_num + 1
+
+                if not new_name:
+                    raise Exception() # TODO: what is this exception?
+
+                new_credit = SpriteUtils.CreditEntry("", "")
+                new_credit.sprites = self.names[msg_mention].sprites
+                new_credit.portraits = self.names[msg_mention].portraits
+                del self.names[msg_mention]
+                self.names[new_name] = new_credit
+
+                # update tracker based on last-modify
+                over_dict = SpriteUtils.initSubNode("", True)
+                over_dict.subgroups = self.tracker
+
+                SpriteUtils.renameFileCredits(os.path.join(self.config.path, "sprite"), msg_mention, new_name)
+                SpriteUtils.renameFileCredits(os.path.join(self.config.path, "portrait"), msg_mention, new_name)
+                SpriteUtils.renameJsonCredits(over_dict, msg_mention, new_name)
+
+                await msg.channel.send(msg.author.mention + " account deleted and credits moved to anonymous.")
+            else:
+                await msg.channel.send(msg.author.mention + " {0} was not deleted because it was credited. Details have been wiped instead.".format(msg_mention))
+                new_credit = SpriteUtils.CreditEntry("", "")
+                new_credit.sprites = self.names[msg_mention].sprites
+                new_credit.portraits = self.names[msg_mention].portraits
+                self.names[msg_mention] = new_credit
         else:
             del self.names[msg_mention]
             await msg.channel.send(msg.author.mention + " {0} was deleted.".format(msg_mention))
+
+        self.saveTracker()
         self.saveNames()
+        self.changed = True
 
 
     async def printStatus(self, msg):
@@ -2111,9 +2195,11 @@ async def on_message(msg: discord.Message):
                 await sprite_bot.getAbsentProfiles(msg)
             elif base_arg == "unregister":
                 await sprite_bot.deleteProfile(msg, args[1:])
-                # authorized commands
             elif base_arg == "autocolor":
                 await sprite_bot.tryAutoRecolor(msg, args[1:], "portrait")
+                # authorized commands
+            elif base_arg == "transferprofile" and authorized:
+                await sprite_bot.transferProfile(msg, args[1:])
             elif base_arg == "add" and authorized:
                 await sprite_bot.addSpeciesForm(msg, args[1:])
             elif base_arg == "modreward" and authorized:

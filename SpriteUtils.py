@@ -2106,6 +2106,33 @@ def updateNameStats(name_dict, dict):
     for sub_dict in dict.subgroups:
         updateNameStats(name_dict, dict.subgroups[sub_dict])
 
+def renameJsonCredits(dict, old_name, new_name):
+    if dict.sprite_credit == old_name:
+        dict.sprite_credit = new_name
+    if dict.portrait_credit == old_name:
+        dict.portrait_credit = new_name
+
+    for sub_dict in dict.subgroups:
+        renameJsonCredits(dict.subgroups[sub_dict], old_name, new_name)
+
+
+def renameFileCredits(species_path, old_name, new_name):
+    # renames all mentions of an author to a different author
+    for inFile in os.listdir(species_path):
+        fullPath = os.path.join(species_path, inFile)
+        if os.path.isdir(fullPath):
+            renameFileCredits(fullPath, old_name, new_name)
+        elif inFile == "credits.txt":
+            id_list = []
+            with open(fullPath, 'r', encoding='utf-8') as txt:
+                for line in txt:
+                    id_list.append(line.strip().split('\t'))
+            for entry in id_list:
+                if entry[1] == old_name:
+                    entry[1] = new_name
+            with open(fullPath, 'w', encoding='utf-8') as txt:
+                for entry in id_list:
+                    txt.write(entry[0] + "\t" + entry[1] + "\n")
 
 """
 String operations
