@@ -14,7 +14,7 @@ import sys
 # Housekeeping for login information
 TOKEN_FILE_PATH = 'token.txt'
 NAME_FILE_PATH = 'credit_names.txt'
-INFO_FILE_PATH = 'info.txt'
+INFO_FILE_PATH = 'README.md'
 CONFIG_FILE_PATH = 'config.json'
 TRACKER_FILE_PATH = 'tracker.json'
 
@@ -88,10 +88,10 @@ class SpriteBot:
         # init data
         self.path = in_path
         self.need_restart = False
-        with open(os.path.join(self.path, INFO_FILE_PATH)) as f:
-            self.info_post = f.read().split("\n\n\n")
         with open(os.path.join(self.path, CONFIG_FILE_PATH)) as f:
             self.config = BotConfig(json.load(f))
+        with open(os.path.join(self.config.path, INFO_FILE_PATH)) as f:
+            self.info_post = f.read().split("\n\n\n")
 
         # init repo
         self.repo = git.Repo(self.config.path)
