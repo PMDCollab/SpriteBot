@@ -1346,13 +1346,18 @@ def getFramesAndMappings(path, is_zip):
                 tile_bounds = (xx, yy, xx + frame_size[0], yy + frame_size[1])
                 bounds = exUtils.getCoveredBounds(img, tile_bounds)
 
+                missing_tex = False
                 if bounds[0] >= bounds[2]:
+                    missing_tex = True
                     bounds = (frame_size[0] // 2, frame_size[1] // 2, frame_size[0] // 2 + 1, frame_size[1] // 2 + 1)
 
                 frame_offset = exUtils.getOffsetFromRGB(offset_img, tile_bounds, True, True, True, True, False)
                 offsets = FrameOffset(None, None, None, None)
                 offsets.center = frame_offset[2]
                 if frame_offset[0] is None:
+                    # no texture OR offset means this frame is missing.  do not map it.  skip.
+                    if missing_tex:
+                        continue
                     offsets.head = frame_offset[2]
                 else:
                     offsets.head = frame_offset[0]
