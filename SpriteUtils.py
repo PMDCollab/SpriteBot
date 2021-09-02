@@ -17,6 +17,8 @@ import xml.etree.ElementTree as ET
 import xml.dom.minidom as minidom
 import utils as exUtils
 
+MAX_SECONDARY_CREDIT = 2
+
 RETRIEVE_HEADERS = { 'User-Agent': 'Mozilla/5.0 (Windows; U; Windows NT 5.1; en-US; rv:1.9.0.7) Gecko/2009021910 Firefox/3.0.7'}
 PORTRAIT_SIZE = 40
 PORTRAIT_TILE_X = 5
@@ -1668,6 +1670,17 @@ def generateFileData(path, asset_type, recolor):
             spriteZip = prepareSpriteZip(path)
             return spriteZip, ".zip"
 
+def getCreditEntries(path):
+    credits = getFileCredits(path)
+
+    found_names = {}
+    credit_strings = []
+    for credit in credits:
+        credit_id = credit[1]
+        if credit_id not in found_names:
+            credit_strings.append(credit_id)
+            found_names[credit_id] = True
+    return credit_strings
 
 def getFileCredits(path):
     id_list = []
@@ -1703,6 +1716,9 @@ class TrackerNode:
 
         self.__dict__ = main_dict
 
+        self.sprite_credit = CreditNode(node_dict["sprite_credit"])
+        self.portrait_credit = CreditNode(node_dict["portrait_credit"])
+
         sub_dict = { }
         for key in self.subgroups:
             sub_dict[key] = TrackerNode(self.subgroups[key])
@@ -1712,10 +1728,32 @@ class TrackerNode:
         node_dict = { }
         for k in self.__dict__:
             node_dict[k] = self.__dict__[k]
+
+        node_dict["sprite_credit"] = self.sprite_credit.getDict()
+        node_dict["portrait_credit"] = self.portrait_credit.getDict()
+
         sub_dict = { }
         for sub_idx in self.subgroups:
             sub_dict[sub_idx] = self.subgroups[sub_idx].getDict()
         node_dict["subgroups"] = sub_dict
+        return node_dict
+
+class CreditNode:
+
+    def __init__(self, node_dict):
+        temp_list = [i for i in node_dict]
+        temp_list = sorted(temp_list)
+
+        main_dict = { }
+        for key in temp_list:
+            main_dict[key] = node_dict[key]
+
+        self.__dict__ = main_dict
+
+    def getDict(self):
+        node_dict = { }
+        for k in self.__dict__:
+            node_dict[k] = self.__dict__[k]
         return node_dict
 
 def loadNameFile(name_path):
@@ -1730,12 +1768,20 @@ def loadNameFile(name_path):
             name_dict[cols[1]] = CreditEntry(cols[0], cols[2])
     return name_dict
 
+def initCreditDict():
+    credit_dict = { }
+    credit_dict["primary"] = ""
+    credit_dict["secondary"] = []
+    credit_dict["total"] = 0
+    return credit_dict
+
 def initSubNode(name, canon):
-    sub_dict = { "name" : name }
+    sub_dict = { }
+    sub_dict["name"] = name
     sub_dict["canon"] = canon
     sub_dict["modreward"] = not canon
     sub_dict["portrait_complete"] = 0
-    sub_dict["portrait_credit"] = ""
+    sub_dict["portrait_credit"] = initCreditDict()
     sub_dict["portrait_link"] = ""
     sub_dict["portrait_files"] = {}
     sub_dict["portrait_bounty"] = {}
@@ -1744,7 +1790,7 @@ def initSubNode(name, canon):
     sub_dict["portrait_recolor_link"] = ""
     sub_dict["portrait_required"] = False
     sub_dict["sprite_complete"] = 0
-    sub_dict["sprite_credit"] = ""
+    sub_dict["sprite_credit"] = initCreditDict()
     sub_dict["sprite_files"] = {}
     sub_dict["sprite_bounty"] = {}
     sub_dict["sprite_link"] = ""
@@ -1815,6 +1861,17 @@ def updateFiles(dict, species_path, prefix):
         if file not in dict.__dict__[prefix + "_files"]:
             dict.__dict__[prefix + "_files"][file] = False
 
+def updateCreditFromEntries(credit_data, credit_entries):
+    # updates just the total count and the secondary
+    # the primary author is user-defined
+    credit_data.total = len(credit_entries)
+    credit_data.secondary.clear()
+
+    for credit_entry in reversed(credit_entries):
+        if credit_entry != credit_data.primary:
+            credit_data.secondary.insert(0, credit_entry)
+            if len(credit_data.secondary) >= MAX_SECONDARY_CREDIT:
+                break
 
 def fileSystemToJson(dict, species_path, prefix, tier):
     # get last modify date of everything that isn't credits.txt or dirs
@@ -1844,12 +1901,9 @@ def fileSystemToJson(dict, species_path, prefix, tier):
 
             fileSystemToJson(dict.subgroups[inFile], fullPath, prefix, tier + 1)
         elif inFile == "credits.txt":
-            last_line = ""
-            with open(fullPath, encoding='utf-8') as txt:
-                for line in txt:
-                    last_line = line
-            last_credit = last_line[:-1].split('\t')
-            dict.__dict__[prefix + "_credit"] = last_credit[1]
+            credit_entries = getCreditEntries(species_path)
+            credit_data = dict.__dict__[prefix + "_credit"]
+            updateCreditFromEntries(credit_data, credit_entries)
         else:
             modify_datetime = datetime.datetime.utcfromtimestamp(os.path.getmtime(fullPath))
             if str(modify_datetime) > last_modify:
@@ -2014,7 +2068,7 @@ def genderDiffPopulated(form_dict, asset_type):
         return False
     female_dict = normal_dict[female_idx]
 
-    return female_dict.__dict__[asset_type + "_credit"] != ""
+    return female_dict.__dict__[asset_type + "_credit"].primary != ""
 
 def createGenderDiff(form_dict, asset_type):
     if "0000" not in form_dict.subgroups:
