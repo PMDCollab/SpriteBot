@@ -1288,20 +1288,25 @@ class SpriteBot:
 
 
     def createCreditAttribution(self, mention):
+        base_name = "`{0}`".format(mention)
         if mention in self.names:
-            return "{0} `{1}`".format(self.names[mention].name, self.names[mention].contact)
-        else:
-            return "`{0}`".format(mention)
+            if self.names[mention].name != "":
+                base_name = self.names[mention].name
+            if self.names[mention].contact != "":
+                return "{0} `{1}`".format(base_name, self.names[mention].contact)
+
+        return base_name
 
     def createCreditBlock(self, credit):
         author_arr = []
         author_arr.append(self.createCreditAttribution(credit.primary))
         for author in credit.secondary:
-            author_arr.append(self.createCreditAttribution(author, True))
+            author_arr.append(self.createCreditAttribution(author))
 
         block = "Authors: {0}".format(", ".join(author_arr))
-        if len(author_arr) < credit.total:
-            block += " +{0} more"
+        credit_diff = credit.total - len(author_arr)
+        if credit_diff > 0:
+            block += " +{0} more".format(credit_diff)
         return block
 
 
@@ -1426,7 +1431,7 @@ class SpriteBot:
 
         # make the credit array into the most current author by itself
         credit_data = chosen_node.__dict__[asset_type + "_credit"]
-        if credit_data[0] == "CHUNSOFT":
+        if credit_data.primary == "CHUNSOFT":
             await msg.channel.send(msg.author.mention + " Cannot reset credit for a CHUNSOFT {0}.".format(asset_type))
             return
 
