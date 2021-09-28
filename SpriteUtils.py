@@ -1707,10 +1707,6 @@ class CreditEntry:
 class TrackerNode:
 
     def __init__(self, node_dict):
-
-        node_dict["sprite_credit"] = initCreditDict()
-        node_dict["portrait_credit"] = initCreditDict()
-
         temp_list = [i for i in node_dict]
         temp_list = sorted(temp_list)
 
@@ -1907,8 +1903,6 @@ def fileSystemToJson(dict, species_path, prefix, tier):
         elif inFile == "credits.txt":
             credit_entries = getCreditEntries(species_path)
             credit_data = dict.__dict__[prefix + "_credit"]
-            if len(credit_entries) > 0:
-                credit_data.primary = credit_entries[0]
             updateCreditFromEntries(credit_data, credit_entries)
         else:
             modify_datetime = datetime.datetime.utcfromtimestamp(os.path.getmtime(fullPath))
