@@ -625,7 +625,12 @@ class SpriteBot:
         if credit_data.primary != orig_author:
             # only update credit name if the new author is different from the primary
             credit_entries = SpriteUtils.getCreditEntries(gen_path)
-            SpriteUtils.updateCreditFromEntries(credit_data, credit_entries)
+            if credit_data.primary == "":
+                credit_data.total = len(credit_entries)
+                credit_data.primary = credit_entries[0]
+                credit_data.secondary.clear()
+            else:
+                SpriteUtils.updateCreditFromEntries(credit_data, credit_entries)
 
         # update the file cache
         SpriteUtils.updateFiles(chosen_node, gen_path, asset_type)
