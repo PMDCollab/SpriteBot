@@ -2173,10 +2173,17 @@ def updateNameStats(name_dict, dict):
         updateNameStats(name_dict, dict.subgroups[sub_dict])
 
 def renameJsonCredits(dict, old_name, new_name):
-    if dict.sprite_credit == old_name:
-        dict.sprite_credit = new_name
-    if dict.portrait_credit == old_name:
-        dict.portrait_credit = new_name
+    if dict.sprite_credit.primary == old_name:
+        dict.sprite_credit.primary = new_name
+    for idx in range(len(dict.sprite_credit.secondary)):
+        if dict.sprite_credit.secondary[idx] == old_name:
+            dict.sprite_credit.secondary[idx] = new_name
+
+    if dict.portrait_credit.primary == old_name:
+        dict.portrait_credit.primary = new_name
+    for idx in range(len(dict.portrait_credit.secondary)):
+        if dict.portrait_credit.secondary[idx] == old_name:
+            dict.portrait_credit.secondary[idx] = new_name
 
     for sub_dict in dict.subgroups:
         renameJsonCredits(dict.subgroups[sub_dict], old_name, new_name)
