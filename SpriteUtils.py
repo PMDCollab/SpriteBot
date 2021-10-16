@@ -2152,15 +2152,22 @@ def updateNameFile(name_path, name_dict, include_all):
             if include_all or name_dict[handle].sprites or name_dict[handle].portraits:
                 txt.write("{0}\t{1}\t{2}\n".format(name_dict[handle].name, handle, name_dict[handle].contact))
 
+def addNameStat(name_dict, name, portrait):
+    if name != "":
+        if name not in name_dict:
+            name_dict[name] = CreditEntry("", "")
+        if not portrait:
+            name_dict[name].sprites = True
+        else:
+            name_dict[name].portraits = True
+
 def updateNameStats(name_dict, dict):
-    if dict.sprite_credit != "":
-        if dict.sprite_credit not in name_dict:
-            name_dict[dict.sprite_credit] = CreditEntry("", "")
-        name_dict[dict.sprite_credit].sprites = True
-    if dict.portrait_credit != "":
-        if dict.portrait_credit not in name_dict:
-            name_dict[dict.portrait_credit] = CreditEntry("", "")
-        name_dict[dict.portrait_credit].portraits = True
+    addNameStat(name_dict, dict.sprite_credit.primary, False)
+    for secondary in dict.sprite_credit.secondary:
+        addNameStat(name_dict, secondary, False)
+    addNameStat(name_dict, dict.portrait_credit.primary, True)
+    for secondary in dict.portrait_credit.secondary:
+        addNameStat(name_dict, secondary, True)
 
     for sub_dict in dict.subgroups:
         updateNameStats(name_dict, dict.subgroups[sub_dict])
