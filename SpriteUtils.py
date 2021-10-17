@@ -491,11 +491,14 @@ def verifySpriteRecolor(msg_args, orig_zip, wan_zip, recolor):
             "\n".join(px_strings)[:1900]))
 
     if len(black_diff) > 0:
-        px_strings = []
-        for anim_name in black_diff:
-            px_strings.append(anim_name + ": " + ", ".join([str(a) for a in black_diff[anim_name]]))
-        raise SpriteVerifyError("Some pixels were found to have changed from black to another color:\n{0}".format(
-            "\n".join(px_strings)[:1900]))
+        if len(msg_args) == 0 or not msg_args[0] == "blackchange":
+            px_strings = []
+            for anim_name in black_diff:
+                px_strings.append(anim_name + ": " + ", ".join([str(a) for a in black_diff[anim_name]]))
+            raise SpriteVerifyError("Some pixels were found to have changed from black to another color:\n{0}\nIf this was intended (very rare!), resubmit and include `blackchange` in the message.".format(
+                "\n".join(px_strings)[:1900]))
+        else:
+            msg_args.pop(0)
 
     if len(orig_palette) != len(shiny_palette):
         palette_diff = len(shiny_palette) - len(orig_palette)
@@ -516,9 +519,12 @@ def verifySpriteRecolor(msg_args, orig_zip, wan_zip, recolor):
         if escape_clause:
             msg_args.pop(0)
         else:
-            with zipfile.ZipFile(wan_zip, 'r') as shiny_zip:
-                combinedImg, _ = getCombinedImg(shiny_zip, True)
-                reduced_img = simple_quant(combinedImg)
+            if recolor:
+                combinedImg = wan_zip
+            else:
+                with zipfile.ZipFile(wan_zip, 'r') as shiny_zip:
+                    combinedImg, _ = getCombinedImg(shiny_zip, True)
+            reduced_img = simple_quant(combinedImg)
             raise SpriteVerifyError("The sprite has {0} non-transparent colors with only 15 allowed.\n"
                                     "If this is acceptable, include `={0}` in the message."
                                     "  Otherwise reduce colors for the sprite.".format(len(shiny_palette)), reduced_img)
@@ -810,7 +816,7 @@ def verifySprite(msg_args, wan_zip):
                     offset_diff_names.append(offset_group)
 
                 raise SpriteVerifyError("Some frames have identical sprites but different offsets.\n"
-                                        "If this is acceptable, include `multioffset` in the message."
+                                        "If this is acceptable, include `multioffset` in the message (very rare!)."
                                         "  Otherwise make these frame offsets consistent:\n{0}".format(str(offset_diff_names)[:1800]))
 
         # then, check the colors
