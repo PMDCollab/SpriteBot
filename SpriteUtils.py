@@ -909,7 +909,10 @@ def verifySpriteLock(dict, chosen_path, orig_zip, wan_zip, recolor):
                     tile_bounds = (xx, yy, xx + frame_size[0], yy + frame_size[1])
                     bounds = exUtils.getCoveredBounds(wan_zip, tile_bounds)
                     if bounds[0] >= bounds[2]:
-                        continue
+                        bounds = (frame_size[0] // 2, frame_size[1] // 2, frame_size[0] // 2 + 1, frame_size[1] // 2 + 1)
+                        # reached the end of actual frames
+                        if len(shiny_frames) >= len(frames):
+                            continue
                     abs_bounds = exUtils.addToBounds(bounds, (xx, yy))
                     frame_tex = wan_zip.crop(abs_bounds)
                     shiny_frames.append(frame_tex)
@@ -995,22 +998,41 @@ def verifySpriteLock(dict, chosen_path, orig_zip, wan_zip, recolor):
                 if shadow_png_name not in name_list:
                     raise SpriteVerifyError("Anim specified in XML has no Shadow.png: {0}".format(anim_name))
 
+                # absent file is counted as changed
+                if not os.path.exists(os.path.join(chosen_path, anim_png_name)):
+                    changed_files.append(anim_name)
+                    continue
+
+                # check for actual change
                 if recolor:
                     prev_img = readZipImg(zip, anim_png_name)
                     anim_img = createRecolorAnim(prev_img, frame_mapping[anim_name], shiny_frames)
                 else:
                     anim_img = readZipImg(zip, anim_png_name)
+
                 anim_img_cur = Image.open(os.path.join(chosen_path, anim_png_name)).convert("RGBA")
                 if not exUtils.imgsEqual(anim_img, anim_img_cur):
                     changed_files.append(anim_name)
                     continue
 
+                # absent file is counted as changed
+                if not os.path.exists(os.path.join(chosen_path, offset_png_name)):
+                    changed_files.append(anim_name)
+                    continue
+
+                # check for actual change
                 offset_img = readZipImg(zip, offset_png_name)
                 offset_img_cur = Image.open(os.path.join(chosen_path, offset_png_name)).convert("RGBA")
                 if not exUtils.imgsEqual(offset_img, offset_img_cur):
                     changed_files.append(anim_name)
                     continue
 
+                # absent file is counted as changed
+                if not os.path.exists(os.path.join(chosen_path, shadow_png_name)):
+                    changed_files.append(anim_name)
+                    continue
+
+                # check for actual change
                 shadow_img = readZipImg(zip, shadow_png_name)
                 shadow_img_cur = Image.open(os.path.join(chosen_path, shadow_png_name)).convert("RGBA")
                 if not exUtils.imgsEqual(shadow_img, shadow_img_cur):
@@ -1230,7 +1252,10 @@ def placeSpriteRecolorToPath(orig_path, outImg, dest_path):
             tile_bounds = (xx, yy, xx + frame_size[0], yy + frame_size[1])
             bounds = exUtils.getCoveredBounds(outImg, tile_bounds)
             if bounds[0] >= bounds[2]:
-                continue
+                bounds = (frame_size[0] // 2, frame_size[1] // 2, frame_size[0] // 2 + 1, frame_size[1] // 2 + 1)
+                # reached the end of actual frames
+                if len(shiny_frames) >= len(frames):
+                    continue
             abs_bounds = exUtils.addToBounds(bounds, (xx, yy))
             frame_tex = outImg.crop(abs_bounds)
             shiny_frames.append(frame_tex)
@@ -1348,27 +1373,31 @@ def getFramesAndMappings(path, is_zip):
                 tile_bounds = (xx, yy, xx + frame_size[0], yy + frame_size[1])
                 bounds = exUtils.getCoveredBounds(img, tile_bounds)
 
-                missing_tex = False
+                missing_tex = True
                 if bounds[0] >= bounds[2]:
-                    missing_tex = True
                     bounds = (frame_size[0] // 2, frame_size[1] // 2, frame_size[0] // 2 + 1, frame_size[1] // 2 + 1)
+                else:
+                    missing_tex = False
 
                 frame_offset = exUtils.getOffsetFromRGB(offset_img, tile_bounds, True, True, True, True, False)
                 offsets = FrameOffset(None, None, None, None)
                 offsets.center = frame_offset[2]
                 if frame_offset[0] is None:
-                    # no texture OR offset means this frame is missing.  do not map it.  skip.
-                    if missing_tex:
-                        continue
                     offsets.head = frame_offset[2]
                 else:
                     offsets.head = frame_offset[0]
+                    missing_tex = False
                 offsets.lhand = frame_offset[1]
                 offsets.rhand = frame_offset[3]
                 offsets.AddLoc((-bounds[0], -bounds[1]))
 
                 abs_bounds = exUtils.addToBounds(bounds, (xx, yy))
                 frame_tex = img.crop(abs_bounds)
+
+                # no texture OR offset means this frame is missing.  do not map it.  skip.
+                if missing_tex:
+                    continue
+
                 isDupe = False
                 for idx, frame_pair in enumerate(frames):
                     final_frame, final_offset = frame_pair
@@ -1405,7 +1434,7 @@ def getFrameSizeFromFrames(frames):
     return max_width, max_height
 
 def getCombinedImg(path, is_zip):
-    frames, frame_mapping = getFramesAndMappings(path, is_zip)
+    frames, _ = getFramesAndMappings(path, is_zip)
     frame_size = getFrameSizeFromFrames(frames)
 
     max_size = int(math.ceil(math.sqrt(len(frames))))
