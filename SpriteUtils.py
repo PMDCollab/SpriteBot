@@ -491,11 +491,11 @@ def verifySpriteRecolor(msg_args, orig_zip, wan_zip, recolor):
             "\n".join(px_strings)[:1900]))
 
     if len(black_diff) > 0:
-        if len(msg_args) == 0 or not msg_args[0] == "blackchange":
+        if len(msg_args) == 0 or not msg_args[0] == "lineart":
             px_strings = []
             for anim_name in black_diff:
                 px_strings.append(anim_name + ": " + ", ".join([str(a) for a in black_diff[anim_name]]))
-            raise SpriteVerifyError("Some pixels were found to have changed from black to another color:\n{0}\nIf this was intended (very rare!), resubmit and include `blackchange` in the message.".format(
+            raise SpriteVerifyError("Some pixels were found to have changed from black to another color:\n{0}\nIf this was intended (very rare!), resubmit and include `lineart` in the message.".format(
                 "\n".join(px_strings)[:1900]))
         else:
             msg_args.pop(0)
