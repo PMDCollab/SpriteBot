@@ -1393,16 +1393,17 @@ def getFramesAndMappings(path, is_zip):
                 else:
                     offsets.head = frame_offset[0]
                     missing_tex = False
+
+                # no texture OR offset means this frame is missing.  do not map it.  skip.
+                if missing_tex:
+                    continue
+                    
                 offsets.lhand = frame_offset[1]
                 offsets.rhand = frame_offset[3]
                 offsets.AddLoc((-bounds[0], -bounds[1]))
 
                 abs_bounds = exUtils.addToBounds(bounds, (xx, yy))
                 frame_tex = img.crop(abs_bounds)
-
-                # no texture OR offset means this frame is missing.  do not map it.  skip.
-                if missing_tex:
-                    continue
 
                 isDupe = False
                 for idx, frame_pair in enumerate(frames):
@@ -1956,9 +1957,9 @@ def fileSystemToJson(dict, species_path, prefix, tier):
         dict.__dict__[prefix + "_link"] = ""
 
 def isDataPopulated(sub_dict):
-    if sub_dict.sprite_credit != "":
+    if sub_dict.sprite_credit.primary != "":
         return True
-    if sub_dict.portrait_credit != "":
+    if sub_dict.portrait_credit.primary != "":
         return True
 
     for sub_idx in sub_dict.subgroups:
