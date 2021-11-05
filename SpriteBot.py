@@ -10,6 +10,7 @@ import TrackerUtils
 import datetime
 import git
 import sys
+import re
 
 
 # Housekeeping for login information
@@ -345,9 +346,7 @@ class SpriteBot:
         diffs = None
 
         chosen_node = TrackerUtils.getNodeFromIdx(self.tracker, full_idx, 0)
-
-        full_arr = [self.config.path, asset_type] + full_idx
-        chosen_path = os.path.join(*full_arr)
+        chosen_path = TrackerUtils.getDirFromIdx(self.config.path, asset_type, full_idx)
 
         if asset_type == "sprite":
             # get the sprite zip and verify its contents
@@ -570,13 +569,11 @@ class SpriteBot:
             new_revise = "Revised"
 
         # save and set the new sprite or portrait
-        full_arr = [self.config.path, asset_type] + full_idx
-        gen_path = os.path.join(*full_arr)
+        gen_path = TrackerUtils.getDirFromIdx(self.config.path, asset_type, full_idx)
         if asset_type == "sprite":
             if recolor:
                 orig_idx = TrackerUtils.createShinyIdx(full_idx, False)
-                orig_arr = [self.config.path, asset_type] + orig_idx
-                orig_path = os.path.join(*orig_arr)
+                orig_path = TrackerUtils.getDirFromIdx(self.config.path, asset_type, orig_idx)
                 # no need to check if the original sprite has changed between this recolor's submission and acceptance
                 # because when the original sprite is approved, all submissions for shinies are purged
                 try:
@@ -745,8 +742,7 @@ class SpriteBot:
                 base_link = await self.retrieveLinkMsg(full_idx, chosen_node, asset_type, True)
                 cur_recolor_img = SpriteUtils.getLinkImg(base_link)
                 # auto-generate the shiny recolor image, in file form
-                shiny_arr = [self.config.path, asset_type] + shiny_idx
-                shiny_path = os.path.join(*shiny_arr)
+                shiny_path = TrackerUtils.getDirFromIdx(self.config.path, asset_type, shiny_idx)
                 auto_recolor_img, content = SpriteUtils.autoRecolor(base_recolor_img, cur_recolor_img, shiny_path, asset_type)
                 # post it as a staged submission
                 return_name = "{0}-{1}{2}".format(asset_type + "_recolor", "-".join(shiny_idx), ".png")
@@ -1023,8 +1019,7 @@ class SpriteBot:
         gen_path = os.path.join(self.config.path, asset_type, "0000")
         # otherwise, use the provided path
         if chosen_node.__dict__[asset_type + "_credit"].primary != "":
-            full_arr = [self.config.path, asset_type] + full_idx
-            gen_path = os.path.join(*full_arr)
+            gen_path = TrackerUtils.getDirFromIdx(self.config.path, asset_type, full_idx)
 
         if recolor:
             target_idx = TrackerUtils.createShinyIdx(full_idx, True)
@@ -1066,6 +1061,51 @@ class SpriteBot:
         self.saveTracker()
         self.changed = True
 
+
+    async def moveSlot(self, msg, name_args, asset_type):
+        try:
+            delim_idx = name_args.index("->")
+        except:
+            await msg.channel.send(msg.author.mention + " Command needs to separate the source and destination with `->`.")
+            return
+
+        name_args_from = name_args[:delim_idx]
+        name_args_to = name_args[delim_idx+1:]
+
+        name_seq_from = [TrackerUtils.sanitizeName(i) for i in name_args_from]
+        full_idx_from = TrackerUtils.findFullTrackerIdx(self.tracker, name_seq_from, 0)
+        if full_idx_from is None:
+            await msg.channel.send(msg.author.mention + " No such Pokemon specified as source.")
+            return
+
+        name_seq_to = [TrackerUtils.sanitizeName(i) for i in name_args_to]
+        full_idx_to = TrackerUtils.findFullTrackerIdx(self.tracker, name_seq_to, 0)
+        if full_idx_to is None:
+            await msg.channel.send(msg.author.mention + " No such Pokemon specified as destination.")
+            return
+
+        chosen_node_from = TrackerUtils.getNodeFromIdx(self.tracker, full_idx_from, 0)
+        chosen_node_to = TrackerUtils.getNodeFromIdx(self.tracker, full_idx_to, 0)
+
+        if TrackerUtils.hasLock(chosen_node_from, asset_type, True):
+            await msg.channel.send(msg.author.mention + " Cannot move the locked Pokemon specified as source.")
+            return
+        if TrackerUtils.hasLock(chosen_node_to, asset_type, True):
+            await msg.channel.send(msg.author.mention + " Cannot move the locked Pokemon specified as destination.")
+            return
+
+        TrackerUtils.swapFolderPaths(self.config.path, self.tracker, asset_type, full_idx_from, full_idx_to)
+
+        await msg.channel.send(msg.author.mention + " Swapped {0} with {1}.".format(" ".join(name_seq_from), " ".join(name_seq_to)))
+        # if the source is empty in sprite and portrait, and its subunits are empty in sprite and portrait
+        # remind to delete
+        if not TrackerUtils.isDataPopulated(chosen_node_from):
+            await msg.channel.send(msg.author.mention + " {0} is now empty. Use `!delete` if it is no longer needed.".format(" ".join(name_seq_from)))
+        if not TrackerUtils.isDataPopulated(chosen_node_to):
+            await msg.channel.send(msg.author.mention + " {0} is now empty. Use `!delete` if it is no longer needed.".format(" ".join(name_seq_to)))
+
+        self.saveTracker()
+        self.changed = True
 
     async def placeBounty(self, msg, name_args, asset_type):
         try:
@@ -1134,6 +1174,26 @@ class SpriteBot:
 
         # set to complete
         await msg.channel.send(msg.author.mention + " {0} #{1:03d}: {2} now has a bounty of **{3}GP**, paid out when the {4} becomes {5}.".format(status, int(full_idx[0]), " ".join(name_seq), cur_val + amt, asset_type, PHASES[result_phase].title()))
+
+        self.saveTracker()
+        self.changed = True
+
+    async def setCanon(self, msg, name_args, canon_state):
+
+        name_seq = [TrackerUtils.sanitizeName(i) for i in name_args[:-1]]
+        full_idx = TrackerUtils.findFullTrackerIdx(self.tracker, name_seq, 0)
+        if full_idx is None:
+            await msg.channel.send(msg.author.mention + " No such Pokemon.")
+            return
+        chosen_node = TrackerUtils.getNodeFromIdx(self.tracker, full_idx, 0)
+
+        TrackerUtils.setCanon(chosen_node, canon_state)
+
+        lock_str = ""
+        if canon_state:
+            lock_str = "non-"
+        # set to complete
+        await msg.channel.send(msg.author.mention + " {0} is now {1}canon.".format(" ".join(name_seq), lock_str))
 
         self.saveTracker()
         self.changed = True
@@ -1277,8 +1337,7 @@ class SpriteBot:
         base_link = await self.retrieveLinkMsg(full_idx, chosen_node, asset_type, True)
         cur_recolor_img = SpriteUtils.getLinkImg(base_link)
         # auto-generate the shiny recolor image, in file form
-        shiny_arr = [self.config.path, asset_type] + shiny_idx
-        shiny_path = os.path.join(*shiny_arr)
+        shiny_path = TrackerUtils.getDirFromIdx(self.config.path, asset_type, shiny_idx)
         auto_recolor_img, content = SpriteUtils.autoRecolor(cur_recolor_img, cur_recolor_img, shiny_path, asset_type)
         # post it as a staged submission
         return_name = "{0}-{1}{2}".format(asset_type + "_recolor", "-".join(shiny_idx), ".png")
@@ -1386,8 +1445,7 @@ class SpriteBot:
             await msg.channel.send(msg.author.mention + " No credit found.")
             return
 
-        full_arr = [self.config.path, asset_type] + full_idx
-        gen_path = os.path.join(*full_arr)
+        gen_path = TrackerUtils.getDirFromIdx(self.config.path, asset_type, full_idx)
         credit_entries = TrackerUtils.getCreditEntries(gen_path)
 
         response = msg.author.mention + " "
@@ -1431,8 +1489,7 @@ class SpriteBot:
         if chosen_node.__dict__[asset_type + "_credit"].primary == "":
             await msg.channel.send(msg.author.mention + " No credit found.")
             return
-        full_arr = [self.config.path, asset_type] + full_idx
-        gen_path = os.path.join(*full_arr)
+        gen_path = TrackerUtils.getDirFromIdx(self.config.path, asset_type, full_idx)
 
         credit_entries = TrackerUtils.getCreditEntries(gen_path)
 
@@ -1692,11 +1749,11 @@ class SpriteBot:
                 return
 
             canon = True
-            if form_name.startswith("Alternate"):
+            if re.search(r"_?Alternate\d*$", form_name):
                 canon = False
-            if form_name.startswith("Altcolor"):
+            if re.search(r"_?Altcolor\d*$", form_name):
                 canon = False
-            if form_name.startswith("Beta"):
+            if re.search(r"_?Beta\d*$", form_name):
                 canon = False
             if species_name == "Missingno_":
                 canon = False
@@ -2249,6 +2306,10 @@ async def on_message(msg: discord.Message):
                 await sprite_bot.resetCredit(msg, args[1:], "sprite")
             elif base_arg == "resetportraitcredit":
                 await sprite_bot.resetCredit(msg, args[1:], "portrait")
+            elif base_arg == "movesprite" and authorized:
+                await sprite_bot.moveSlot(msg, args[1:], "sprite")
+            elif base_arg == "moveportrait" and authorized:
+                await sprite_bot.moveSlot(msg, args[1:], "portrait")
             elif base_arg == "clearcache" and authorized:
                 await sprite_bot.clearCache(msg, args[1:])
             elif base_arg == "error" and authorized:
@@ -2264,6 +2325,10 @@ async def on_message(msg: discord.Message):
                 await sprite_bot.setLock(msg, args[1:], "portrait", True)
             elif base_arg == "locksprite" and msg.author.id == sprite_bot.config.root:
                 await sprite_bot.setLock(msg, args[1:], "sprite", True)
+            elif base_arg == "canon" and msg.author.id == sprite_bot.config.root:
+                await sprite_bot.setCanon(msg, args[1:], True)
+            elif base_arg == "noncanon" and msg.author.id == sprite_bot.config.root:
+                await sprite_bot.setCanon(msg, args[1:], False)
             elif base_arg == "update" and msg.author.id == sprite_bot.config.root:
                 await sprite_bot.updateBot(msg)
             elif base_arg == "forcepush" and msg.author.id == sprite_bot.config.root:

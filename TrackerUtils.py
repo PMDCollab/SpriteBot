@@ -562,6 +562,108 @@ def renameFileCredits(species_path, old_name, new_name):
                 for entry in id_list:
                     txt.write(entry[0] + "\t" + entry[1] + "\n")
 
+def getDirFromIdx(base_path, asset_type, full_idx):
+    full_arr = [base_path, asset_type] + full_idx
+    return os.path.join(*full_arr)
+
+def moveTextureFiles(dir_from, dir_to):
+    cur_files = os.listdir(dir_from)
+    for file in cur_files:
+        full_base_path = os.path.join(dir_from, file)
+        if not os.path.isdir(full_base_path):
+            shutil.move(full_base_path, os.path.join(dir_to, file))
+
+def swapNodeFeatures(node_from, node_to, asset_type, recursive):
+    for key in node_from.__dict__:
+        if key.startswith(asset_type):
+            tmp = node_to.__dict__[key]
+            node_to.__dict__[key] = node_from.__dict__[key]
+            node_from.__dict__[key] = tmp
+    if recursive:
+        for subgroup in node_from.subgroups:
+            if subgroup not in node_to.subgroups:
+                node_to.subgroups[subgroup] = createFormNode(node_from.subgroups[subgroup].name, node_to.canon)
+        for subgroup in node_to.subgroups:
+            if subgroup not in node_from.subgroups:
+                node_from.subgroups[subgroup] = createFormNode(node_to.subgroups[subgroup].name, node_from.canon)
+
+        for subgroup in node_from.subgroups:
+            swapNodeFeatures(node_from.subgroups[subgroup], node_to.subgroups[subgroup], asset_type, recursive)
+
+def swapFolderPaths(base_path, tracker, asset_type, full_idx_from, full_idx_to):
+    default_from = False
+    default_to = False
+    if len(full_idx_from) == 1:
+        default_from = True
+        full_idx_from = full_idx_from + ["0000"]
+    if len(full_idx_to) == 1:
+        default_to = True
+        full_idx_to = full_idx_to + ["0000"]
+
+    chosen_node_from_parent = getNodeFromIdx(tracker, full_idx_from[:-1], 0)
+    chosen_node_from = getNodeFromIdx(tracker, full_idx_from, 0)
+    gen_path_from = getDirFromIdx(base_path, asset_type, full_idx_from)
+
+    chosen_node_to_parent = getNodeFromIdx(tracker, full_idx_to[:-1], 0)
+    chosen_node_to = getNodeFromIdx(tracker, full_idx_to, 0)
+    gen_path_to = getDirFromIdx(base_path, asset_type, full_idx_to)
+
+    if not os.path.exists(gen_path_from):
+        os.makedirs(gen_path_from, exist_ok=True)
+
+    if not os.path.exists(gen_path_to):
+        os.makedirs(gen_path_to, exist_ok=True)
+
+    # move default textures to form folders themselves
+    if default_from:
+        moveTextureFiles(os.path.dirname(gen_path_from), gen_path_from)
+    if default_to:
+        moveTextureFiles(os.path.dirname(gen_path_to), gen_path_to)
+
+    # swap the folders
+    shutil.move(gen_path_to, gen_path_to + "_temp")
+    shutil.move(gen_path_from, gen_path_to)
+    shutil.move(gen_path_to + "_temp", gen_path_from)
+
+    # move the defult textures back (remember that the folders are already swapped)
+    if default_from:
+        moveTextureFiles(gen_path_from, os.path.dirname(gen_path_from))
+    if default_to:
+        moveTextureFiles(gen_path_to, os.path.dirname(gen_path_to))
+
+    # move default node features to the form node
+    if default_from:
+        swapNodeFeatures(chosen_node_from_parent, chosen_node_from, asset_type, False)
+    if default_to:
+        swapNodeFeatures(chosen_node_to_parent, chosen_node_to, asset_type, False)
+
+    # swap the nodes in tracker, do it recursively for all subgroups
+    swapNodeFeatures(chosen_node_from, chosen_node_to, asset_type, True)
+
+    # move default node features from the form node back (remember that the nodes are already swapped)
+    if default_from:
+        swapNodeFeatures(chosen_node_from, chosen_node_from_parent, asset_type, False)
+    if default_to:
+        swapNodeFeatures(chosen_node_to, chosen_node_to_parent, asset_type, False)
+
+def hasLock(dict, asset_type, recursive):
+    for file in dict.__dict__[asset_type + "_files"]:
+        if dict.__dict__[asset_type + "_files"][file]:
+            return True
+
+    if recursive:
+        for subgroup in dict.subgroups:
+            if hasLock(dict.subgroups[subgroup], asset_type, recursive):
+                return True
+
+    return False
+
+def setCanon(dict, canon):
+    dict.canon = canon
+
+    for subgroup in dict.subgroups:
+        setCanon(dict.subgroups[subgroup], canon)
+
 """
 String operations
 """
