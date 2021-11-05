@@ -6,6 +6,7 @@ import traceback
 import asyncio
 import json
 import SpriteUtils
+import TrackerUtils
 import datetime
 import git
 import sys
@@ -101,17 +102,17 @@ class SpriteBot:
             new_tracker = json.load(f)
             self.tracker = { }
             for species_idx in new_tracker:
-                self.tracker[species_idx] = SpriteUtils.TrackerNode(new_tracker[species_idx])
-        self.names = SpriteUtils.loadNameFile(os.path.join(self.path, NAME_FILE_PATH))
-        confirmed_names = SpriteUtils.loadNameFile(os.path.join(self.config.path, NAME_FILE_PATH))
+                self.tracker[species_idx] = TrackerUtils.TrackerNode(new_tracker[species_idx])
+        self.names = TrackerUtils.loadNameFile(os.path.join(self.path, NAME_FILE_PATH))
+        confirmed_names = TrackerUtils.loadNameFile(os.path.join(self.config.path, NAME_FILE_PATH))
         self.client = client
         self.changed = False
 
         # update tracker based on last-modify
-        over_dict = SpriteUtils.initSubNode("", True)
+        over_dict = TrackerUtils.initSubNode("", True)
         over_dict.subgroups = self.tracker
-        SpriteUtils.fileSystemToJson(over_dict, os.path.join(self.config.path, "sprite"), "sprite", 0)
-        SpriteUtils.fileSystemToJson(over_dict, os.path.join(self.config.path, "portrait"), "portrait", 0)
+        TrackerUtils.fileSystemToJson(over_dict, os.path.join(self.config.path, "sprite"), "sprite", 0)
+        TrackerUtils.fileSystemToJson(over_dict, os.path.join(self.config.path, "portrait"), "portrait", 0)
 
         # update credits
         for name in confirmed_names:
@@ -119,7 +120,7 @@ class SpriteBot:
                 self.names[name] = confirmed_names[name]
             self.names[name].sprites = True
             self.names[name].portraits = True
-        SpriteUtils.updateNameStats(self.names, over_dict)
+        TrackerUtils.updateNameStats(self.names, over_dict)
 
         # save updated tracker back to the file
         self.saveTracker()
@@ -129,8 +130,8 @@ class SpriteBot:
         print("Info Initiated")
 
     def saveNames(self):
-        SpriteUtils.updateNameFile(os.path.join(self.path, NAME_FILE_PATH), self.names, True)
-        SpriteUtils.updateNameFile(os.path.join(self.config.path, NAME_FILE_PATH), self.names, False)
+        TrackerUtils.updateNameFile(os.path.join(self.path, NAME_FILE_PATH), self.names, True)
+        TrackerUtils.updateNameFile(os.path.join(self.config.path, NAME_FILE_PATH), self.names, False)
 
     def saveConfig(self):
         with open(os.path.join(self.path, CONFIG_FILE_PATH), 'w', encoding='utf-8') as txt:
@@ -201,10 +202,10 @@ class SpriteBot:
         added = chosen_node.__dict__[asset_type + "_credit"].primary != ""
         complete = chosen_node.__dict__[asset_type+"_complete"]
         required = chosen_node.__dict__[asset_type+"_required"]
-        if complete > SpriteUtils.PHASE_EXISTS: # star
+        if complete > TrackerUtils.PHASE_EXISTS: # star
             return "\u2B50"
         elif len(pending) > 0:
-            if complete > SpriteUtils.PHASE_INCOMPLETE:  # interrobang
+            if complete > TrackerUtils.PHASE_INCOMPLETE:  # interrobang
                 return "\u2049"
             else:  # question
                 return "\u2754"
@@ -212,7 +213,7 @@ class SpriteBot:
             if len(pending) > 0:  # interrobang
                 return "\u2049"
             else:
-                if complete > SpriteUtils.PHASE_INCOMPLETE:  # checkmark
+                if complete > TrackerUtils.PHASE_INCOMPLETE:  # checkmark
                     return "\u2705"
                 else:  # white circle
                     return "\u26AA"
@@ -244,7 +245,7 @@ class SpriteBot:
             # but getting users doesnt seem to work for the bot (probably needs perms of some sort)
             # maybe intents
             # for now we skip
-            return SpriteUtils.sanitizeCredit(mention)
+            return TrackerUtils.sanitizeCredit(mention)
 
         return mention
         # if mention in self.names:
@@ -255,7 +256,7 @@ class SpriteBot:
 
     def getPostsFromDict(self, include_sprite, include_portrait, include_credit, tracker_dict, posts, indices):
         if tracker_dict.name != "":
-            new_titles = SpriteUtils.getIdxName(self.tracker, indices)
+            new_titles = TrackerUtils.getIdxName(self.tracker, indices)
             dexnum = int(indices[0])
             name_str = " ".join(new_titles)
             post = ""
@@ -285,7 +286,7 @@ class SpriteBot:
 
     def getBountiesFromDict(self, asset_type, tracker_dict, entries, indices):
         if tracker_dict.name != "":
-            new_titles = SpriteUtils.getIdxName(self.tracker, indices)
+            new_titles = TrackerUtils.getIdxName(self.tracker, indices)
             dexnum = int(indices[0])
             name_str = " ".join(new_titles)
             post = asset_type.title() + " of "
@@ -343,7 +344,7 @@ class SpriteBot:
         quant_img = None
         diffs = None
 
-        chosen_node = SpriteUtils.getNodeFromIdx(self.tracker, full_idx, 0)
+        chosen_node = TrackerUtils.getNodeFromIdx(self.tracker, full_idx, 0)
 
         full_arr = [self.config.path, asset_type] + full_idx
         chosen_path = os.path.join(*full_arr)
@@ -364,9 +365,9 @@ class SpriteBot:
             orig_zip = None
             orig_zip_group = None
             # if it's a shiny, get the original image
-            if SpriteUtils.isShinyIdx(full_idx):
-                orig_idx = SpriteUtils.createShinyIdx(full_idx, False)
-                orig_node = SpriteUtils.getNodeFromIdx(self.tracker, orig_idx, 0)
+            if TrackerUtils.isShinyIdx(full_idx):
+                orig_idx = TrackerUtils.createShinyIdx(full_idx, False)
+                orig_node = TrackerUtils.getNodeFromIdx(self.tracker, orig_idx, 0)
 
                 if orig_node.__dict__[asset_type + "_credit"].primary == "":
                     # this means there's no original portrait to base the recolor off of
@@ -390,7 +391,7 @@ class SpriteBot:
             # if the file needs to be compared to an original, verify it as a recolor. Otherwise, by itself.
             try:
                 diffs = SpriteUtils.verifySpriteLock(chosen_node, chosen_path, orig_zip_group, wan_zip, recolor)
-                if SpriteUtils.isShinyIdx(full_idx):
+                if TrackerUtils.isShinyIdx(full_idx):
                     SpriteUtils.verifySpriteRecolor(msg_args, orig_zip, wan_zip, recolor)
                 else:
                     SpriteUtils.verifySprite(msg_args, wan_zip)
@@ -410,9 +411,9 @@ class SpriteBot:
 
             orig_img = None
             # if it's a shiny, get the original image
-            if SpriteUtils.isShinyIdx(full_idx):
-                orig_idx = SpriteUtils.createShinyIdx(full_idx, False)
-                orig_node = SpriteUtils.getNodeFromIdx(self.tracker, orig_idx, 0)
+            if TrackerUtils.isShinyIdx(full_idx):
+                orig_idx = TrackerUtils.createShinyIdx(full_idx, False)
+                orig_node = TrackerUtils.getNodeFromIdx(self.tracker, orig_idx, 0)
 
                 if orig_node.__dict__[asset_type + "_credit"].primary == "":
                     # this means there's no original portrait to base the recolor off of
@@ -435,7 +436,7 @@ class SpriteBot:
             # if the file needs to be compared to an original, verify it as a recolor. Otherwise, by itself.
             try:
                 diffs = SpriteUtils.verifyPortraitLock(chosen_node, chosen_path, img, recolor)
-                if SpriteUtils.isShinyIdx(full_idx):
+                if TrackerUtils.isShinyIdx(full_idx):
                     SpriteUtils.verifyPortraitRecolor(msg_args, orig_img, img, recolor)
                 else:
                     SpriteUtils.verifyPortrait(msg_args, img)
@@ -495,7 +496,7 @@ class SpriteBot:
     async def postStagedSubmission(self, channel, content, full_idx, chosen_node, asset_type, author, recolor,
                                    diffs, return_file, return_name, overcolor_img):
 
-        title = SpriteUtils.getIdxName(self.tracker, full_idx)
+        title = TrackerUtils.getIdxName(self.tracker, full_idx)
 
         send_files = [discord.File(return_file, return_name)]
         add_msg = ""
@@ -538,29 +539,29 @@ class SpriteBot:
             sender_info = "{0}/{1}".format(orig_sender, orig_author)
 
         file_name = msg.attachments[0].filename
-        file_valid, full_idx, asset_type, recolor = SpriteUtils.getStatsFromFilename(file_name)
+        file_valid, full_idx, asset_type, recolor = TrackerUtils.getStatsFromFilename(file_name)
         if not file_valid:
             await self.getChatChannel(msg.guild.id).send(orig_sender + " " + "Removed unknown file: {0}".format(file_name))
             await msg.delete()
             return
 
-        chosen_node = SpriteUtils.getNodeFromIdx(self.tracker, full_idx, 0)
+        chosen_node = TrackerUtils.getNodeFromIdx(self.tracker, full_idx, 0)
 
-        is_base = not SpriteUtils.isShinyIdx(full_idx)
+        is_base = not TrackerUtils.isShinyIdx(full_idx)
         shiny_idx = None
         shiny_node = None
         base_recolor_img = None
         if is_base:
-            shiny_idx = SpriteUtils.createShinyIdx(full_idx, True)
-            shiny_node = SpriteUtils.getNodeFromIdx(self.tracker, shiny_idx, 0)
+            shiny_idx = TrackerUtils.createShinyIdx(full_idx, True)
+            shiny_node = TrackerUtils.getNodeFromIdx(self.tracker, shiny_idx, 0)
 
-            if shiny_node.__dict__[asset_type + "_complete"] > SpriteUtils.PHASE_INCOMPLETE:
+            if shiny_node.__dict__[asset_type + "_complete"] > TrackerUtils.PHASE_INCOMPLETE:
                 # get recolor data
                 base_link = await self.retrieveLinkMsg(full_idx, chosen_node, asset_type, True)
                 base_recolor_img = SpriteUtils.getLinkImg(base_link)
 
         # get the name of the slot that it was written to
-        new_name = SpriteUtils.getIdxName(self.tracker, full_idx)
+        new_name = TrackerUtils.getIdxName(self.tracker, full_idx)
         new_name_str = " ".join(new_name)
 
         # change the status of the sprite
@@ -573,7 +574,7 @@ class SpriteBot:
         gen_path = os.path.join(*full_arr)
         if asset_type == "sprite":
             if recolor:
-                orig_idx = SpriteUtils.createShinyIdx(full_idx, False)
+                orig_idx = TrackerUtils.createShinyIdx(full_idx, False)
                 orig_arr = [self.config.path, asset_type] + orig_idx
                 orig_path = os.path.join(*orig_arr)
                 # no need to check if the original sprite has changed between this recolor's submission and acceptance
@@ -601,19 +602,19 @@ class SpriteBot:
                 portrait_img = SpriteUtils.removePalette(portrait_img)
             SpriteUtils.placePortraitToPath(portrait_img, gen_path)
 
-        prev_completion_file = SpriteUtils.getCurrentCompletion(chosen_node, asset_type)
+        prev_completion_file = TrackerUtils.getCurrentCompletion(chosen_node, asset_type)
 
         new_credit = True
-        cur_credits = SpriteUtils.getFileCredits(gen_path)
+        cur_credits = TrackerUtils.getFileCredits(gen_path)
         for credit in cur_credits:
             if credit[1] == orig_author:
                 new_credit = False
                 break
 
-        SpriteUtils.appendCredits(gen_path, orig_author)
+        TrackerUtils.appendCredits(gen_path, orig_author)
         # add to universal names list and save if changed
         if orig_author not in self.names:
-            self.names[orig_author] = SpriteUtils.CreditEntry("", "")
+            self.names[orig_author] = TrackerUtils.CreditEntry("", "")
         self.names[orig_author].sprites = True
         self.names[orig_author].portraits = True
         self.saveNames()
@@ -624,18 +625,18 @@ class SpriteBot:
         credit_data = chosen_node.__dict__[asset_type + "_credit"]
         if credit_data.primary != orig_author:
             # only update credit name if the new author is different from the primary
-            credit_entries = SpriteUtils.getCreditEntries(gen_path)
+            credit_entries = TrackerUtils.getCreditEntries(gen_path)
             if credit_data.primary == "":
                 credit_data.total = len(credit_entries)
                 credit_data.primary = credit_entries[0]
                 credit_data.secondary.clear()
             else:
-                SpriteUtils.updateCreditFromEntries(credit_data, credit_entries)
+                TrackerUtils.updateCreditFromEntries(credit_data, credit_entries)
 
         # update the file cache
-        SpriteUtils.updateFiles(chosen_node, gen_path, asset_type)
+        TrackerUtils.updateFiles(chosen_node, gen_path, asset_type)
 
-        current_completion_file = SpriteUtils.getCurrentCompletion(chosen_node, asset_type)
+        current_completion_file = TrackerUtils.getCurrentCompletion(chosen_node, asset_type)
 
         # remove from pending list
         pending_dict = chosen_node.__dict__[asset_type + "_pending"]
@@ -662,15 +663,15 @@ class SpriteBot:
         # if this was non-shiny, set the complete flag to false for the shiny
         if is_base:
             if shiny_node.__dict__[asset_type+"_credit"].primary != "":
-                shiny_node.__dict__[asset_type+"_complete"] = SpriteUtils.PHASE_INCOMPLETE
-                approve_msg += "\nNote: Shiny form now marked as {0} due to this change.".format(PHASES[SpriteUtils.PHASE_INCOMPLETE])
+                shiny_node.__dict__[asset_type+"_complete"] = TrackerUtils.PHASE_INCOMPLETE
+                approve_msg += "\nNote: Shiny form now marked as {0} due to this change.".format(PHASES[TrackerUtils.PHASE_INCOMPLETE])
 
 
         give_points = current_completion_file - prev_completion_file
 
-        if SpriteUtils.isShinyIdx(full_idx):
+        if TrackerUtils.isShinyIdx(full_idx):
             give_points = 1
-            if current_completion_file < SpriteUtils.PHASE_FULL:
+            if current_completion_file < TrackerUtils.PHASE_FULL:
                 give_points = 0
 
             if asset_type == "sprite":
@@ -768,13 +769,13 @@ class SpriteBot:
     async def submissionDeclined(self, msg, orig_sender, declines):
 
         file_name = msg.attachments[0].filename
-        file_valid, full_idx, asset_type, recolor = SpriteUtils.getStatsFromFilename(file_name)
+        file_valid, full_idx, asset_type, recolor = TrackerUtils.getStatsFromFilename(file_name)
         if not file_valid:
             await self.getChatChannel(msg.guild.id).send(orig_sender + " " + "Removed unknown file: {0}".format(file_name))
             await msg.delete()
             return
 
-        chosen_node = SpriteUtils.getNodeFromIdx(self.tracker, full_idx, 0)
+        chosen_node = TrackerUtils.getNodeFromIdx(self.tracker, full_idx, 0)
         # change the status of the sprite
         pending_dict = chosen_node.__dict__[asset_type+"_pending"]
         change_status = len(pending_dict) == 1
@@ -793,7 +794,7 @@ class SpriteBot:
     async def checkAllSubmissions(self):
         # clear all pending submissions; we don't know if they were deleted or not between startups
         for node_idx in self.tracker:
-            SpriteUtils.clearSubmissions(self.tracker[node_idx])
+            TrackerUtils.clearSubmissions(self.tracker[node_idx])
 
         # make sure they are re-added
         for server in self.config.servers:
@@ -877,7 +878,7 @@ class SpriteBot:
                         remove_users.append((xs, user))
 
             file_name = msg.attachments[0].filename
-            name_valid, full_idx, asset_type, recolor = SpriteUtils.getStatsFromFilename(file_name)
+            name_valid, full_idx, asset_type, recolor = TrackerUtils.getStatsFromFilename(file_name)
 
             if len(decline) > 0:
                 await self.submissionDeclined(msg, orig_sender, decline)
@@ -887,7 +888,7 @@ class SpriteBot:
                 await self.submissionApproved(msg, orig_sender, orig_author, approve)
                 return False
             else:
-                chosen_node = SpriteUtils.getNodeFromIdx(self.tracker, full_idx, 0)
+                chosen_node = TrackerUtils.getNodeFromIdx(self.tracker, full_idx, 0)
                 pending_dict = chosen_node.__dict__[asset_type + "_pending"]
                 pending_dict[str(msg.id)] = msg.channel.id
 
@@ -901,9 +902,9 @@ class SpriteBot:
                 return False
 
             file_name = msg.attachments[0].filename
-            name_valid, full_idx, asset_type, recolor = SpriteUtils.getStatsFromFilename(file_name)
+            name_valid, full_idx, asset_type, recolor = TrackerUtils.getStatsFromFilename(file_name)
 
-            chosen_node = SpriteUtils.getNodeFromIdx(self.tracker, full_idx, 0)
+            chosen_node = TrackerUtils.getNodeFromIdx(self.tracker, full_idx, 0)
             # if the node cant be found, the filepath is invalid
             if chosen_node is None:
                 name_valid = False
@@ -986,7 +987,7 @@ class SpriteBot:
         channel = self.client.get_channel(int(server.info))
 
         posts = []
-        over_dict = SpriteUtils.initSubNode("", True)
+        over_dict = TrackerUtils.initSubNode("", True)
         over_dict.subgroups = self.tracker
         self.getPostsFromDict(True, True, True, over_dict, posts, [])
 
@@ -1026,7 +1027,7 @@ class SpriteBot:
             gen_path = os.path.join(*full_arr)
 
         if recolor:
-            target_idx = SpriteUtils.createShinyIdx(full_idx, True)
+            target_idx = TrackerUtils.createShinyIdx(full_idx, True)
         else:
             target_idx = full_idx
         file_data, ext = SpriteUtils.generateFileData(gen_path, asset_type, recolor)
@@ -1040,17 +1041,17 @@ class SpriteBot:
 
 
     async def completeSlot(self, msg, name_args, asset_type, phase):
-        name_seq = [SpriteUtils.sanitizeName(i) for i in name_args]
-        full_idx = SpriteUtils.findFullTrackerIdx(self.tracker, name_seq, 0)
+        name_seq = [TrackerUtils.sanitizeName(i) for i in name_args]
+        full_idx = TrackerUtils.findFullTrackerIdx(self.tracker, name_seq, 0)
         if full_idx is None:
             await msg.channel.send(msg.author.mention + " No such Pokemon.")
             return
-        chosen_node = SpriteUtils.getNodeFromIdx(self.tracker, full_idx, 0)
+        chosen_node = TrackerUtils.getNodeFromIdx(self.tracker, full_idx, 0)
 
         phase_str = PHASES[phase]
 
         # if the node has no credit, fail
-        if chosen_node.__dict__[asset_type + "_credit"].primary == "" and phase > SpriteUtils.PHASE_INCOMPLETE:
+        if chosen_node.__dict__[asset_type + "_credit"].primary == "" and phase > TrackerUtils.PHASE_INCOMPLETE:
             status = self.getStatusEmoji(chosen_node, asset_type)
             await msg.channel.send(msg.author.mention +
                                    " {0} #{1:03d}: {2} has no data and cannot be marked {3}.".format(status, int(full_idx[0]), " ".join(name_seq), phase_str))
@@ -1065,6 +1066,7 @@ class SpriteBot:
         self.saveTracker()
         self.changed = True
 
+
     async def placeBounty(self, msg, name_args, asset_type):
         try:
             amt = int(name_args[-1])
@@ -1076,15 +1078,15 @@ class SpriteBot:
             await msg.channel.send(msg.author.mention + " Specify an amount above 0.")
             return
 
-        name_seq = [SpriteUtils.sanitizeName(i) for i in name_args[:-1]]
-        full_idx = SpriteUtils.findFullTrackerIdx(self.tracker, name_seq, 0)
+        name_seq = [TrackerUtils.sanitizeName(i) for i in name_args[:-1]]
+        full_idx = TrackerUtils.findFullTrackerIdx(self.tracker, name_seq, 0)
         if full_idx is None:
             await msg.channel.send(msg.author.mention + " No such Pokemon.")
             return
-        chosen_node = SpriteUtils.getNodeFromIdx(self.tracker, full_idx, 0)
+        chosen_node = TrackerUtils.getNodeFromIdx(self.tracker, full_idx, 0)
 
         status = self.getStatusEmoji(chosen_node, asset_type)
-        if chosen_node.__dict__[asset_type + "_complete"] >= SpriteUtils.PHASE_FULL:
+        if chosen_node.__dict__[asset_type + "_complete"] >= TrackerUtils.PHASE_FULL:
             await msg.channel.send(msg.author.mention + " {0} #{1:03d} {2} is fully featured and cannot have a bounty.".format(status, int(full_idx[0]), " ".join(name_seq)))
             return
 
@@ -1139,12 +1141,12 @@ class SpriteBot:
 
     async def setLock(self, msg, name_args, asset_type, lock_state):
 
-        name_seq = [SpriteUtils.sanitizeName(i) for i in name_args[:-1]]
-        full_idx = SpriteUtils.findFullTrackerIdx(self.tracker, name_seq, 0)
+        name_seq = [TrackerUtils.sanitizeName(i) for i in name_args[:-1]]
+        full_idx = TrackerUtils.findFullTrackerIdx(self.tracker, name_seq, 0)
         if full_idx is None:
             await msg.channel.send(msg.author.mention + " No such Pokemon.")
             return
-        chosen_node = SpriteUtils.getNodeFromIdx(self.tracker, full_idx, 0)
+        chosen_node = TrackerUtils.getNodeFromIdx(self.tracker, full_idx, 0)
 
         file_name = name_args[-1]
         for k in chosen_node.__dict__[asset_type + "_files"]:
@@ -1182,7 +1184,7 @@ class SpriteBot:
                 return
 
         entries = []
-        over_dict = SpriteUtils.initSubNode("", True)
+        over_dict = TrackerUtils.initSubNode("", True)
         over_dict.subgroups = self.tracker
 
         if include_sprite:
@@ -1209,12 +1211,12 @@ class SpriteBot:
         msgs_used, changed = await self.sendInfoPosts(msg.channel, posts, [], 0)
 
     async def clearCache(self, msg, name_args):
-        name_seq = [SpriteUtils.sanitizeName(i) for i in name_args]
-        full_idx = SpriteUtils.findFullTrackerIdx(self.tracker, name_seq, 0)
+        name_seq = [TrackerUtils.sanitizeName(i) for i in name_args]
+        full_idx = TrackerUtils.findFullTrackerIdx(self.tracker, name_seq, 0)
         if full_idx is None:
             await msg.channel.send(msg.author.mention + " No such Pokemon.")
             return
-        chosen_node = SpriteUtils.getNodeFromIdx(self.tracker, full_idx, 0)
+        chosen_node = TrackerUtils.getNodeFromIdx(self.tracker, full_idx, 0)
 
         # set to complete
         chosen_node.sprite_link = ""
@@ -1229,16 +1231,16 @@ class SpriteBot:
         if len(name_args) == 0:
             await msg.channel.send(msg.author.mention + " Specify a Pokemon.")
             return
-        name_seq = [SpriteUtils.sanitizeName(name_args[0])]
-        full_idx = SpriteUtils.findFullTrackerIdx(self.tracker, name_seq, 0)
+        name_seq = [TrackerUtils.sanitizeName(name_args[0])]
+        full_idx = TrackerUtils.findFullTrackerIdx(self.tracker, name_seq, 0)
         if full_idx is None:
             await msg.channel.send(msg.author.mention + " No such Pokemon.")
             return
 
-        chosen_node = SpriteUtils.getNodeFromIdx(self.tracker, full_idx, 0)
+        chosen_node = TrackerUtils.getNodeFromIdx(self.tracker, full_idx, 0)
 
         posts = []
-        over_dict = SpriteUtils.initSubNode("", True)
+        over_dict = TrackerUtils.initSubNode("", True)
         over_dict.subgroups = { full_idx[0] : chosen_node }
         self.getPostsFromDict(asset_type == 'sprite', asset_type == 'portrait', False, over_dict, posts, [])
         msgs_used, changed = await self.sendInfoPosts(msg.channel, posts, [], 0)
@@ -1248,8 +1250,8 @@ class SpriteBot:
         if len(name_args) == 0:
             await msg.channel.send(msg.author.mention + " Specify a Pokemon.")
             return
-        name_seq = [SpriteUtils.sanitizeName(i) for i in name_args]
-        full_idx = SpriteUtils.findFullTrackerIdx(self.tracker, name_seq, 0)
+        name_seq = [TrackerUtils.sanitizeName(i) for i in name_args]
+        full_idx = TrackerUtils.findFullTrackerIdx(self.tracker, name_seq, 0)
         if full_idx is None:
             await msg.channel.send(msg.author.mention + " No such Pokemon.")
             return
@@ -1259,14 +1261,14 @@ class SpriteBot:
             await msg.channel.send(msg.author.mention + " Can't recolor a shiny Pokemon.")
             return
 
-        chosen_node = SpriteUtils.getNodeFromIdx(self.tracker, full_idx, 0)
+        chosen_node = TrackerUtils.getNodeFromIdx(self.tracker, full_idx, 0)
 
         if chosen_node.__dict__[asset_type + "_credit"].primary == "":
             await msg.channel.send(msg.author.mention + " Can't recolor a Pokemon that doesn't have a {0}.".format(asset_type))
             return
 
-        shiny_idx = SpriteUtils.createShinyIdx(full_idx, True)
-        shiny_node = SpriteUtils.getNodeFromIdx(self.tracker, shiny_idx, 0)
+        shiny_idx = TrackerUtils.createShinyIdx(full_idx, True)
+        shiny_node = TrackerUtils.getNodeFromIdx(self.tracker, shiny_idx, 0)
 
         if shiny_node.__dict__[asset_type + "_credit"].primary == "":
             await msg.channel.send(msg.author.mention + " Can't recolor a Pokemon that doesn't have a shiny {0}.".format(asset_type))
@@ -1285,7 +1287,7 @@ class SpriteBot:
         auto_recolor_img.save(auto_recolor_file, format='PNG')
         auto_recolor_file.seek(0)
 
-        title = SpriteUtils.getIdxName(self.tracker, full_idx)
+        title = TrackerUtils.getIdxName(self.tracker, full_idx)
 
         send_files = [discord.File(auto_recolor_file, return_name)]
         await msg.channel.send("{0} {1}\n{2}".format(msg.author.mention, " ".join(title), content),
@@ -1320,8 +1322,8 @@ class SpriteBot:
         if len(name_args) == 0:
             await msg.channel.send(msg.author.mention + " Specify a Pokemon.")
             return
-        name_seq = [SpriteUtils.sanitizeName(i) for i in name_args]
-        full_idx = SpriteUtils.findFullTrackerIdx(self.tracker, name_seq, 0)
+        name_seq = [TrackerUtils.sanitizeName(i) for i in name_args]
+        full_idx = TrackerUtils.findFullTrackerIdx(self.tracker, name_seq, 0)
         if full_idx is None:
             await msg.channel.send(msg.author.mention + " No such Pokemon.")
             return
@@ -1331,7 +1333,7 @@ class SpriteBot:
             await msg.channel.send(msg.author.mention + " Can't get recolor for a shiny Pokemon.")
             return
 
-        chosen_node = SpriteUtils.getNodeFromIdx(self.tracker, full_idx, 0)
+        chosen_node = TrackerUtils.getNodeFromIdx(self.tracker, full_idx, 0)
         # post the statuses
         response = msg.author.mention + " "
         status = self.getStatusEmoji(chosen_node, asset_type)
@@ -1359,7 +1361,7 @@ class SpriteBot:
                 bounty = chosen_node.__dict__[asset_type + "_bounty"][str(next_phase)]
                 if bounty > 0:
                     response += "\n This {0} has a bounty of **{1}GP**, paid out when it becomes {2}".format(asset_type, bounty, PHASES[next_phase].title())
-            if chosen_node.modreward and chosen_node.__dict__[asset_type + "_complete"] == SpriteUtils.PHASE_INCOMPLETE:
+            if chosen_node.modreward and chosen_node.__dict__[asset_type + "_complete"] == TrackerUtils.PHASE_INCOMPLETE:
                 response += "\n The reward for this {0} will be decided by approvers.".format(asset_type)
         else:
             response += " does not need a {0}.".format(asset_type)
@@ -1372,13 +1374,13 @@ class SpriteBot:
         if len(name_args) == 0:
             await msg.channel.send(msg.author.mention + " Specify a Pokemon.")
             return
-        name_seq = [SpriteUtils.sanitizeName(i) for i in name_args]
-        full_idx = SpriteUtils.findFullTrackerIdx(self.tracker, name_seq, 0)
+        name_seq = [TrackerUtils.sanitizeName(i) for i in name_args]
+        full_idx = TrackerUtils.findFullTrackerIdx(self.tracker, name_seq, 0)
         if full_idx is None:
             await msg.channel.send(msg.author.mention + " No such Pokemon.")
             return
 
-        chosen_node = SpriteUtils.getNodeFromIdx(self.tracker, full_idx, 0)
+        chosen_node = TrackerUtils.getNodeFromIdx(self.tracker, full_idx, 0)
 
         if chosen_node.__dict__[asset_type + "_credit"].primary == "":
             await msg.channel.send(msg.author.mention + " No credit found.")
@@ -1386,7 +1388,7 @@ class SpriteBot:
 
         full_arr = [self.config.path, asset_type] + full_idx
         gen_path = os.path.join(*full_arr)
-        credit_entries = SpriteUtils.getCreditEntries(gen_path)
+        credit_entries = TrackerUtils.getCreditEntries(gen_path)
 
         response = msg.author.mention + " "
         status = self.getStatusEmoji(chosen_node, asset_type)
@@ -1418,13 +1420,13 @@ class SpriteBot:
         if len(name_args) == 0:
             await msg.channel.send(msg.author.mention + " Specify a Pokemon.")
             return
-        name_seq = [SpriteUtils.sanitizeName(i) for i in name_args]
-        full_idx = SpriteUtils.findFullTrackerIdx(self.tracker, name_seq, 0)
+        name_seq = [TrackerUtils.sanitizeName(i) for i in name_args]
+        full_idx = TrackerUtils.findFullTrackerIdx(self.tracker, name_seq, 0)
         if full_idx is None:
             await msg.channel.send(msg.author.mention + " No such Pokemon.")
             return
 
-        chosen_node = SpriteUtils.getNodeFromIdx(self.tracker, full_idx, 0)
+        chosen_node = TrackerUtils.getNodeFromIdx(self.tracker, full_idx, 0)
 
         if chosen_node.__dict__[asset_type + "_credit"].primary == "":
             await msg.channel.send(msg.author.mention + " No credit found.")
@@ -1432,7 +1434,7 @@ class SpriteBot:
         full_arr = [self.config.path, asset_type] + full_idx
         gen_path = os.path.join(*full_arr)
 
-        credit_entries = SpriteUtils.getCreditEntries(gen_path)
+        credit_entries = TrackerUtils.getCreditEntries(gen_path)
 
         # make the credit array into the most current author by itself
         credit_data = chosen_node.__dict__[asset_type + "_credit"]
@@ -1441,7 +1443,7 @@ class SpriteBot:
             return
 
         credit_data.primary = credit_entries[-1]
-        SpriteUtils.updateCreditFromEntries(credit_data, credit_entries)
+        TrackerUtils.updateCreditFromEntries(credit_data, credit_entries)
 
         await msg.channel.send(msg.author.mention + " Credit display has been reset for {0} {1}:\n{2}".format(asset_type, " ".join(name_seq), self.createCreditBlock(credit_data)))
 
@@ -1468,17 +1470,17 @@ class SpriteBot:
         msg_mention = "<@!{0}>".format(msg.author.id)
 
         if len(args) == 0:
-            new_credit = SpriteUtils.CreditEntry("", "")
+            new_credit = TrackerUtils.CreditEntry("", "")
         elif len(args) == 1:
-            new_credit = SpriteUtils.CreditEntry(args[0], "")
+            new_credit = TrackerUtils.CreditEntry(args[0], "")
         elif len(args) == 2:
-            new_credit = SpriteUtils.CreditEntry(args[0], args[1])
+            new_credit = TrackerUtils.CreditEntry(args[0], args[1])
         elif len(args) == 3:
             if not await self.isAuthorized(msg.author, msg.guild):
                 await msg.channel.send(msg.author.mention + " Not authorized to create absent registration.")
                 return
             msg_mention = args[0].upper()
-            new_credit = SpriteUtils.CreditEntry(args[1], args[2])
+            new_credit = TrackerUtils.CreditEntry(args[1], args[2])
         else:
             await msg.channel.send(msg.author.mention + " Invalid args")
             return
@@ -1508,19 +1510,19 @@ class SpriteBot:
             await msg.channel.send(msg.author.mention + " Entry {0} doesn't exist!".format(to_name))
             return
 
-        new_credit = SpriteUtils.CreditEntry(self.names[to_name].name, self.names[to_name].contact)
+        new_credit = TrackerUtils.CreditEntry(self.names[to_name].name, self.names[to_name].contact)
         new_credit.sprites = self.names[from_name].sprites or self.names[to_name].sprites
         new_credit.portraits = self.names[from_name].portraits or self.names[to_name].portraits
         del self.names[from_name]
         self.names[to_name] = new_credit
 
         # update tracker based on last-modify
-        over_dict = SpriteUtils.initSubNode("", True)
+        over_dict = TrackerUtils.initSubNode("", True)
         over_dict.subgroups = self.tracker
 
-        SpriteUtils.renameFileCredits(os.path.join(self.config.path, "sprite"), from_name, to_name)
-        SpriteUtils.renameFileCredits(os.path.join(self.config.path, "portrait"), from_name, to_name)
-        SpriteUtils.renameJsonCredits(over_dict, from_name, to_name)
+        TrackerUtils.renameFileCredits(os.path.join(self.config.path, "sprite"), from_name, to_name)
+        TrackerUtils.renameFileCredits(os.path.join(self.config.path, "portrait"), from_name, to_name)
+        TrackerUtils.renameJsonCredits(over_dict, from_name, to_name)
 
         await msg.channel.send(msg.author.mention + " account {0} deleted and credits moved to {1}.".format(from_name, to_name))
 
@@ -1575,24 +1577,24 @@ class SpriteBot:
                 if not new_name:
                     raise Exception() # TODO: what is this exception?
 
-                new_credit = SpriteUtils.CreditEntry("", "")
+                new_credit = TrackerUtils.CreditEntry("", "")
                 new_credit.sprites = self.names[msg_mention].sprites
                 new_credit.portraits = self.names[msg_mention].portraits
                 del self.names[msg_mention]
                 self.names[new_name] = new_credit
 
                 # update tracker based on last-modify
-                over_dict = SpriteUtils.initSubNode("", True)
+                over_dict = TrackerUtils.initSubNode("", True)
                 over_dict.subgroups = self.tracker
 
-                SpriteUtils.renameFileCredits(os.path.join(self.config.path, "sprite"), msg_mention, new_name)
-                SpriteUtils.renameFileCredits(os.path.join(self.config.path, "portrait"), msg_mention, new_name)
-                SpriteUtils.renameJsonCredits(over_dict, msg_mention, new_name)
+                TrackerUtils.renameFileCredits(os.path.join(self.config.path, "sprite"), msg_mention, new_name)
+                TrackerUtils.renameFileCredits(os.path.join(self.config.path, "portrait"), msg_mention, new_name)
+                TrackerUtils.renameJsonCredits(over_dict, msg_mention, new_name)
 
                 await msg.channel.send(msg.author.mention + " account deleted and credits moved to anonymous.")
             else:
                 await msg.channel.send(msg.author.mention + " {0} was not deleted because it was credited. Details have been wiped instead.".format(msg_mention))
-                new_credit = SpriteUtils.CreditEntry("", "")
+                new_credit = TrackerUtils.CreditEntry("", "")
                 new_credit.sprites = self.names[msg_mention].sprites
                 new_credit.portraits = self.names[msg_mention].portraits
                 self.names[msg_mention] = new_credit
@@ -1664,8 +1666,8 @@ class SpriteBot:
             await msg.channel.send(msg.author.mention + " Invalid number of args!")
             return
 
-        species_name = SpriteUtils.sanitizeName(args[0])
-        species_idx = SpriteUtils.findSlotIdx(self.tracker, species_name)
+        species_name = TrackerUtils.sanitizeName(args[0])
+        species_idx = TrackerUtils.findSlotIdx(self.tracker, species_name)
         if len(args) == 1:
             if species_idx is not None:
                 await msg.channel.send(msg.author.mention + " {0} already exists!".format(species_name))
@@ -1673,7 +1675,7 @@ class SpriteBot:
 
             count = len(self.tracker)
             new_idx = "{:04d}".format(count)
-            self.tracker[new_idx] = SpriteUtils.createSpeciesNode(species_name)
+            self.tracker[new_idx] = TrackerUtils.createSpeciesNode(species_name)
 
             await msg.channel.send(msg.author.mention + " Added #{0:03d}: {1}!".format(count, species_name))
         else:
@@ -1681,9 +1683,9 @@ class SpriteBot:
                 await msg.channel.send(msg.author.mention + " {0} doesn't exist! Create it first!".format(species_name))
                 return
 
-            form_name = SpriteUtils.sanitizeName(args[1])
+            form_name = TrackerUtils.sanitizeName(args[1])
             species_dict = self.tracker[species_idx]
-            form_idx = SpriteUtils.findSlotIdx(species_dict.subgroups, form_name)
+            form_idx = TrackerUtils.findSlotIdx(species_dict.subgroups, form_name)
             if form_idx is not None:
                 await msg.channel.send(msg.author.mention +
                                        " {2} already exists within #{0:03d}: {1}!".format(int(species_idx), species_name, form_name))
@@ -1701,7 +1703,7 @@ class SpriteBot:
 
             count = len(species_dict.subgroups)
             new_count = "{:04d}".format(count)
-            species_dict.subgroups[new_count] = SpriteUtils.createFormNode(form_name, canon)
+            species_dict.subgroups[new_count] = TrackerUtils.createFormNode(form_name, canon)
 
             await msg.channel.send(msg.author.mention +
                                    " Added #{0:03d}: {1} {2}!".format(int(species_idx), species_name, form_name))
@@ -1714,9 +1716,9 @@ class SpriteBot:
             await msg.channel.send(msg.author.mention + " Invalid number of args!")
             return
 
-        species_name = SpriteUtils.sanitizeName(args[0])
-        new_name = SpriteUtils.sanitizeName(args[-1])
-        species_idx = SpriteUtils.findSlotIdx(self.tracker, species_name)
+        species_name = TrackerUtils.sanitizeName(args[0])
+        new_name = TrackerUtils.sanitizeName(args[-1])
+        species_idx = TrackerUtils.findSlotIdx(self.tracker, species_name)
         if species_idx is None:
             await msg.channel.send(msg.author.mention + " {0} does not exist!".format(species_name))
             return
@@ -1724,7 +1726,7 @@ class SpriteBot:
         species_dict = self.tracker[species_idx]
 
         if len(args) == 2:
-            new_species_idx = SpriteUtils.findSlotIdx(self.tracker, new_name)
+            new_species_idx = TrackerUtils.findSlotIdx(self.tracker, new_name)
             if new_species_idx is not None:
                 await msg.channel.send(msg.author.mention + " #{0:03d}: {1} already exists!".format(int(new_species_idx), new_name))
                 return
@@ -1733,13 +1735,13 @@ class SpriteBot:
             await msg.channel.send(msg.author.mention + " Changed #{0:03d}: {1} to {2}!".format(int(species_idx), species_name, new_name))
         else:
 
-            form_name = SpriteUtils.sanitizeName(args[1])
-            form_idx = SpriteUtils.findSlotIdx(species_dict.subgroups, form_name)
+            form_name = TrackerUtils.sanitizeName(args[1])
+            form_idx = TrackerUtils.findSlotIdx(species_dict.subgroups, form_name)
             if form_idx is None:
                 await msg.channel.send(msg.author.mention + " {2} doesn't exist within #{0:03d}: {1}!".format(int(species_idx), species_name, form_name))
                 return
 
-            new_form_idx = SpriteUtils.findSlotIdx(species_dict.subgroups, new_name)
+            new_form_idx = TrackerUtils.findSlotIdx(species_dict.subgroups, new_name)
             if new_form_idx is not None:
                 await msg.channel.send(msg.author.mention + " {2} already exists within #{0:03d}: {1}!".format(int(species_idx), species_name, new_name))
                 return
@@ -1758,8 +1760,8 @@ class SpriteBot:
             await msg.channel.send(msg.author.mention + " Invalid number of args!")
             return
 
-        species_name = SpriteUtils.sanitizeName(args[0])
-        species_idx = SpriteUtils.findSlotIdx(self.tracker, species_name)
+        species_name = TrackerUtils.sanitizeName(args[0])
+        species_idx = TrackerUtils.findSlotIdx(self.tracker, species_name)
         if species_idx is None:
             await msg.channel.send(msg.author.mention + " {0} does not exist!".format(species_name))
             return
@@ -1775,8 +1777,8 @@ class SpriteBot:
                 await msg.channel.send(msg.author.mention + " #{0:03d}: {1}'s rewards will be given automatically.".format(int(species_idx), species_name))
         else:
 
-            form_name = SpriteUtils.sanitizeName(args[1])
-            form_idx = SpriteUtils.findSlotIdx(species_dict.subgroups, form_name)
+            form_name = TrackerUtils.sanitizeName(args[1])
+            form_idx = TrackerUtils.findSlotIdx(species_dict.subgroups, form_name)
             if form_idx is None:
                 await msg.channel.send(msg.author.mention + " {2} doesn't exist within #{0:03d}: {1}!".format(int(species_idx), species_name, form_name))
                 return
@@ -1798,8 +1800,8 @@ class SpriteBot:
             await msg.channel.send(msg.author.mention + " Invalid number of args!")
             return
 
-        species_name = SpriteUtils.sanitizeName(args[0])
-        species_idx = SpriteUtils.findSlotIdx(self.tracker, species_name)
+        species_name = TrackerUtils.sanitizeName(args[0])
+        species_idx = TrackerUtils.findSlotIdx(self.tracker, species_name)
         if species_idx is None:
             await msg.channel.send(msg.author.mention + " {0} does not exist!".format(species_name))
             return
@@ -1812,19 +1814,19 @@ class SpriteBot:
                 return
 
             # check against data population
-            if SpriteUtils.isDataPopulated(species_dict) and msg.author.id != self.config.root:
+            if TrackerUtils.isDataPopulated(species_dict) and msg.author.id != self.config.root:
                 await msg.channel.send(msg.author.mention + " Can only delete empty slots!")
                 return
 
 
             del self.tracker[species_idx]
-            SpriteUtils.deleteData(os.path.join(self.config.path, 'sprite', species_idx))
-            SpriteUtils.deleteData(os.path.join(self.config.path, 'portrait', species_idx))
+            TrackerUtils.deleteData(os.path.join(self.config.path, 'sprite', species_idx))
+            TrackerUtils.deleteData(os.path.join(self.config.path, 'portrait', species_idx))
             await msg.channel.send(msg.author.mention + " Deleted #{0:03d}: {1}!".format(int(species_idx), species_name))
         else:
 
-            form_name = SpriteUtils.sanitizeName(args[1])
-            form_idx = SpriteUtils.findSlotIdx(species_dict.subgroups, form_name)
+            form_name = TrackerUtils.sanitizeName(args[1])
+            form_idx = TrackerUtils.findSlotIdx(species_dict.subgroups, form_name)
             if form_idx is None:
                 await msg.channel.send(msg.author.mention + " {2} doesn't exist within #{0:03d}: {1}!".format(int(species_idx), species_name, form_name))
                 return
@@ -1836,13 +1838,13 @@ class SpriteBot:
 
             # check against data population
             form_dict = species_dict.subgroups[form_idx]
-            if SpriteUtils.isDataPopulated(form_dict) and msg.author.id != self.config.root:
+            if TrackerUtils.isDataPopulated(form_dict) and msg.author.id != self.config.root:
                 await msg.channel.send(msg.author.mention + " Can only delete empty slots!")
                 return
 
             del species_dict.subgroups[form_idx]
-            SpriteUtils.deleteData(os.path.join(self.config.path, 'sprite', species_idx, form_idx))
-            SpriteUtils.deleteData(os.path.join(self.config.path, 'portrait', species_idx, form_idx))
+            TrackerUtils.deleteData(os.path.join(self.config.path, 'sprite', species_idx, form_idx))
+            TrackerUtils.deleteData(os.path.join(self.config.path, 'portrait', species_idx, form_idx))
             await msg.channel.send(msg.author.mention + " Deleted #{0:03d}: {1} {2}!".format(int(species_idx), species_name, form_name))
 
         self.saveTracker()
@@ -1859,8 +1861,8 @@ class SpriteBot:
             await msg.channel.send(msg.author.mention + " Must specify sprite or portrait!")
             return
 
-        species_name = SpriteUtils.sanitizeName(args[0])
-        species_idx = SpriteUtils.findSlotIdx(self.tracker, species_name)
+        species_name = TrackerUtils.sanitizeName(args[0])
+        species_idx = TrackerUtils.findSlotIdx(self.tracker, species_name)
         if species_idx is None:
             await msg.channel.send(msg.author.mention + " {0} does not exist!".format(species_name))
             return
@@ -1868,29 +1870,29 @@ class SpriteBot:
         species_dict = self.tracker[species_idx]
         if len(args) == 2:
             # check against already existing
-            if SpriteUtils.genderDiffExists(species_dict.subgroups["0000"], asset_type):
+            if TrackerUtils.genderDiffExists(species_dict.subgroups["0000"], asset_type):
                 await msg.channel.send(msg.author.mention + " Gender difference already exists for #{0:03d}: {1}!".format(int(species_idx), species_name))
                 return
 
-            SpriteUtils.createGenderDiff(species_dict.subgroups["0000"], asset_type)
+            TrackerUtils.createGenderDiff(species_dict.subgroups["0000"], asset_type)
             await msg.channel.send(msg.author.mention +
                 " Added gender difference to #{0:03d}: {1}! ({2})".format(int(species_idx), species_name, asset_type))
         else:
 
-            form_name = SpriteUtils.sanitizeName(args[1])
-            form_idx = SpriteUtils.findSlotIdx(species_dict.subgroups, form_name)
+            form_name = TrackerUtils.sanitizeName(args[1])
+            form_idx = TrackerUtils.findSlotIdx(species_dict.subgroups, form_name)
             if form_idx is None:
                 await msg.channel.send(msg.author.mention + " {2} doesn't exist within #{0:03d}: {1}!".format(int(species_idx), species_name, form_name))
                 return
 
             # check against data population
             form_dict = species_dict.subgroups[form_idx]
-            if SpriteUtils.genderDiffExists(form_dict, asset_type):
+            if TrackerUtils.genderDiffExists(form_dict, asset_type):
                 await msg.channel.send(msg.author.mention +
                     " Gender difference already exists for #{0:03d}: {1} {2}!".format(int(species_idx), species_name, form_name))
                 return
 
-            SpriteUtils.createGenderDiff(form_dict, asset_type)
+            TrackerUtils.createGenderDiff(form_dict, asset_type)
             await msg.channel.send(msg.author.mention +
                 " Added gender difference to #{0:03d}: {1} {2}! ({3})".format(int(species_idx), species_name, form_name, asset_type))
 
@@ -1908,8 +1910,8 @@ class SpriteBot:
             await msg.channel.send(msg.author.mention + " Must specify sprite or portrait!")
             return
 
-        species_name = SpriteUtils.sanitizeName(args[0])
-        species_idx = SpriteUtils.findSlotIdx(self.tracker, species_name)
+        species_name = TrackerUtils.sanitizeName(args[0])
+        species_idx = TrackerUtils.findSlotIdx(self.tracker, species_name)
         if species_idx is None:
             await msg.channel.send(msg.author.mention + " {0} does not exist!".format(species_name))
             return
@@ -1917,38 +1919,38 @@ class SpriteBot:
         species_dict = self.tracker[species_idx]
         if len(args) == 2:
             # check against not existing
-            if not SpriteUtils.genderDiffExists(species_dict.subgroups["0000"], asset_type):
+            if not TrackerUtils.genderDiffExists(species_dict.subgroups["0000"], asset_type):
                 await msg.channel.send(msg.author.mention + " Gender difference doesnt exist for #{0:03d}: {1}!".format(int(species_idx), species_name))
                 return
 
             # check against data population
-            if SpriteUtils.genderDiffPopulated(species_dict.subgroups["0000"], asset_type):
+            if TrackerUtils.genderDiffPopulated(species_dict.subgroups["0000"], asset_type):
                 await msg.channel.send(msg.author.mention + " Gender difference isn't empty for #{0:03d}: {1}!".format(int(species_idx), species_name))
                 return
 
-            SpriteUtils.removeGenderDiff(species_dict.subgroups["0000"], asset_type)
+            TrackerUtils.removeGenderDiff(species_dict.subgroups["0000"], asset_type)
             await msg.channel.send(msg.author.mention +
                 " Removed gender difference to #{0:03d}: {1}! ({2})".format(int(species_idx), species_name, asset_type))
         else:
-            form_name = SpriteUtils.sanitizeName(args[1])
-            form_idx = SpriteUtils.findSlotIdx(species_dict.subgroups, form_name)
+            form_name = TrackerUtils.sanitizeName(args[1])
+            form_idx = TrackerUtils.findSlotIdx(species_dict.subgroups, form_name)
             if form_idx is None:
                 await msg.channel.send(msg.author.mention + " {2} doesn't exist within #{0:03d}: {1}!".format(int(species_idx), species_name, form_name))
                 return
 
             # check against not existing
             form_dict = species_dict.subgroups[form_idx]
-            if not SpriteUtils.genderDiffExists(form_dict, asset_type):
+            if not TrackerUtils.genderDiffExists(form_dict, asset_type):
                 await msg.channel.send(msg.author.mention +
                     " Gender difference doesn't exist for #{0:03d}: {1} {2}!".format(int(species_idx), species_name, form_name))
                 return
 
             # check against data population
-            if SpriteUtils.genderDiffPopulated(form_dict, asset_type):
+            if TrackerUtils.genderDiffPopulated(form_dict, asset_type):
                 await msg.channel.send(msg.author.mention + " Gender difference isn't empty for #{0:03d}: {1} {2}!".format(int(species_idx), species_name, form_name))
                 return
 
-            SpriteUtils.removeGenderDiff(form_dict, asset_type)
+            TrackerUtils.removeGenderDiff(form_dict, asset_type)
             await msg.channel.send(msg.author.mention +
                 " Removed gender difference to #{0:03d}: {1} {2}! ({3})".format(int(species_idx), species_name, form_name, asset_type))
 
@@ -2232,17 +2234,17 @@ async def on_message(msg: discord.Message):
             elif base_arg == "deletegender" and authorized:
                 await sprite_bot.removeGender(msg, args[1:])
             elif base_arg == "spritewip" and authorized:
-                await sprite_bot.completeSlot(msg, args[1:], "sprite", SpriteUtils.PHASE_INCOMPLETE)
+                await sprite_bot.completeSlot(msg, args[1:], "sprite", TrackerUtils.PHASE_INCOMPLETE)
             elif base_arg == "portraitwip" and authorized:
-                await sprite_bot.completeSlot(msg, args[1:], "portrait", SpriteUtils.PHASE_INCOMPLETE)
+                await sprite_bot.completeSlot(msg, args[1:], "portrait", TrackerUtils.PHASE_INCOMPLETE)
             elif base_arg == "spriteexists" and authorized:
-                await sprite_bot.completeSlot(msg, args[1:], "sprite", SpriteUtils.PHASE_EXISTS)
+                await sprite_bot.completeSlot(msg, args[1:], "sprite", TrackerUtils.PHASE_EXISTS)
             elif base_arg == "portraitexists" and authorized:
-                await sprite_bot.completeSlot(msg, args[1:], "portrait", SpriteUtils.PHASE_EXISTS)
+                await sprite_bot.completeSlot(msg, args[1:], "portrait", TrackerUtils.PHASE_EXISTS)
             elif base_arg == "spritefilled" and authorized:
-                await sprite_bot.completeSlot(msg, args[1:], "sprite", SpriteUtils.PHASE_FULL)
+                await sprite_bot.completeSlot(msg, args[1:], "sprite", TrackerUtils.PHASE_FULL)
             elif base_arg == "portraitfilled" and authorized:
-                await sprite_bot.completeSlot(msg, args[1:], "portrait", SpriteUtils.PHASE_FULL)
+                await sprite_bot.completeSlot(msg, args[1:], "portrait", TrackerUtils.PHASE_FULL)
             elif base_arg == "resetspritecredit":
                 await sprite_bot.resetCredit(msg, args[1:], "sprite")
             elif base_arg == "resetportraitcredit":
