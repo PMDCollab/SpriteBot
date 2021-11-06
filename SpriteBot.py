@@ -11,6 +11,7 @@ import datetime
 import git
 import sys
 import re
+import argparse
 
 
 # Housekeeping for login information
@@ -31,6 +32,16 @@ PHASES = [ "\u26AA incomplete", "\u2705 available", "\u2B50 fully featured" ]
 COMMAND_PREFIX = '!'
 
 scdir = os.path.dirname(os.path.abspath(__file__))
+
+parser = argparse.ArgumentParser()
+parser.add_argument('--overcolor', nargs='?', const=True, default=False)
+parser.add_argument('--lineart', nargs='?', const=True, default=False)
+parser.add_argument('--multioffset', nargs='?', const=True, default=False)
+parser.add_argument('--noflip', nargs='?', const=True, default=False)
+parser.add_argument('--base', nargs='+')
+parser.add_argument('--colormod', type=int)
+parser.add_argument('--colors', type=int)
+parser.add_argument('--author')
 
 # The Discord client.
 client = discord.Client()
@@ -340,7 +351,7 @@ class SpriteBot:
         result_url = resp.attachments[0].url
         return result_url
 
-    async def verifySubmission(self, msg, full_idx, asset_type, recolor, msg_args):
+    async def verifySubmission(self, msg, full_idx, base_idx, asset_type, recolor, msg_args):
         decline_msg = None
         quant_img = None
         diffs = None
@@ -350,6 +361,7 @@ class SpriteBot:
 
         if asset_type == "sprite":
             # get the sprite zip and verify its contents
+            wan_zip = None
             try:
                 if recolor:
                     wan_zip = SpriteUtils.getLinkImg(msg.attachments[0].url)
@@ -363,10 +375,16 @@ class SpriteBot:
 
             orig_zip = None
             orig_zip_group = None
+
+            orig_idx = None
             # if it's a shiny, get the original image
             if TrackerUtils.isShinyIdx(full_idx):
                 orig_idx = TrackerUtils.createShinyIdx(full_idx, False)
-                orig_node = TrackerUtils.getNodeFromIdx(self.tracker, orig_idx, 0)
+            elif base_idx is not None:
+                orig_idx = base_idx
+
+            if orig_idx is not None:
+                orig_node = TrackerUtils.getNodeFromIdx(self.tracker, base_idx, 0)
 
                 if orig_node.__dict__[asset_type + "_credit"].primary == "":
                     # this means there's no original portrait to base the recolor off of
@@ -391,12 +409,17 @@ class SpriteBot:
             try:
                 diffs = SpriteUtils.verifySpriteLock(chosen_node, chosen_path, orig_zip_group, wan_zip, recolor)
                 if TrackerUtils.isShinyIdx(full_idx):
-                    SpriteUtils.verifySpriteRecolor(msg_args, orig_zip, wan_zip, recolor)
+                    SpriteUtils.verifySpriteRecolor(msg_args, orig_zip, wan_zip, recolor, True)
+                elif base_idx is not None:
+                    SpriteUtils.verifySpriteRecolor(msg_args, orig_zip, wan_zip, recolor, False)
                 else:
                     SpriteUtils.verifySprite(msg_args, wan_zip)
             except SpriteUtils.SpriteVerifyError as e:
                 decline_msg = e.message
                 quant_img = e.preview_img
+            except Exception as e:
+                await self.returnMsgFile(msg, msg.author.mention + " A problem occurred reading submitted sprite.\n{0}".format(str(e)), asset_type)
+                raise e
         elif asset_type == "portrait":
             # get the portrait image and verify its contents
             try:
@@ -500,6 +523,7 @@ class SpriteBot:
         send_files = [discord.File(return_file, return_name)]
         add_msg = ""
         if overcolor_img is not None:
+            reduced_img = None
             if asset_type == "sprite":
                 reduced_img = SpriteUtils.simple_quant(overcolor_img)
             elif asset_type == "portrait":
@@ -519,7 +543,7 @@ class SpriteBot:
             if recolor or asset_type == "portrait":
                 orig_link = await self.retrieveLinkMsg(full_idx, chosen_node, asset_type, recolor)
                 add_msg += "\nCurrent Version: {0}".format(orig_link)
-        new_msg = await channel.send("{0} {1}\n{2}".format(author, " ".join(title), content + add_msg),
+        new_msg = await channel.send("{0} {1}\n{2}".format(author, " ".join(title), content.replace('\n', ' ') + add_msg),
                                      files=send_files)
 
         pending_dict = chosen_node.__dict__[asset_type+"_pending"]
@@ -546,11 +570,24 @@ class SpriteBot:
 
         chosen_node = TrackerUtils.getNodeFromIdx(self.tracker, full_idx, 0)
 
-        is_base = not TrackerUtils.isShinyIdx(full_idx)
+        msg_lines = msg.content.split('\n')
+        base_idx = None
+        if len(msg_lines) > 1:
+            msg_args = parser.parse_args(msg_lines[1].split())
+            name_seq = [TrackerUtils.sanitizeName(i) for i in msg_args.base]
+            base_idx = TrackerUtils.findFullTrackerIdx(self.tracker, name_seq, 0)
+            if base_idx is None:
+                await msg.channel.send(msg.author.mention + " No such Pokemon to base this sprite off.")
+                await msg.delete()
+                return
+
+
+
+        is_shiny = TrackerUtils.isShinyIdx(full_idx)
         shiny_idx = None
         shiny_node = None
         base_recolor_img = None
-        if is_base:
+        if not is_shiny:
             shiny_idx = TrackerUtils.createShinyIdx(full_idx, True)
             shiny_node = TrackerUtils.getNodeFromIdx(self.tracker, shiny_idx, 0)
 
@@ -571,8 +608,13 @@ class SpriteBot:
         # save and set the new sprite or portrait
         gen_path = TrackerUtils.getDirFromIdx(self.config.path, asset_type, full_idx)
         if asset_type == "sprite":
-            if recolor:
+            orig_idx = None
+            if is_shiny:
                 orig_idx = TrackerUtils.createShinyIdx(full_idx, False)
+            elif base_idx is not None:
+                orig_idx = base_idx
+
+            if orig_idx is not None:
                 orig_path = TrackerUtils.getDirFromIdx(self.config.path, asset_type, orig_idx)
                 # no need to check if the original sprite has changed between this recolor's submission and acceptance
                 # because when the original sprite is approved, all submissions for shinies are purged
@@ -658,7 +700,7 @@ class SpriteBot:
             approve_msg += "\n{0} is now {1}.".format(asset_type.title(), PHASES[current_completion_file])
 
         # if this was non-shiny, set the complete flag to false for the shiny
-        if is_base:
+        if not is_shiny:
             if shiny_node.__dict__[asset_type+"_credit"].primary != "":
                 shiny_node.__dict__[asset_type+"_complete"] = TrackerUtils.PHASE_INCOMPLETE
                 approve_msg += "\nNote: Shiny form now marked as {0} due to this change.".format(PHASES[TrackerUtils.PHASE_INCOMPLETE])
@@ -720,7 +762,7 @@ class SpriteBot:
 
         self.changed = True
 
-        if is_base:
+        if not is_shiny:
             pending = {}
             for pending_id in shiny_node.__dict__[asset_type+"_pending"]:
                 pending[pending_id] = shiny_node.__dict__[asset_type+"_pending"][pending_id]
@@ -751,8 +793,8 @@ class SpriteBot:
                 auto_recolor_img.save(auto_recolor_file, format='PNG')
                 auto_recolor_file.seek(0)
 
-                msg_args = content.split()
-                overcolor = ('overcolor' in msg_args)
+                msg_args = parser.parse_args(content.split())
+                overcolor = msg_args.overcolor
                 overcolor_img = None
                 if overcolor:
                     overcolor_img = SpriteUtils.removePalette(auto_recolor_img)
@@ -832,7 +874,7 @@ class SpriteBot:
                     async for user in reaction.users():
                         remove_users.append((reaction, user))
 
-            msg_lines = msg.content.split()
+            msg_lines = msg.content.split('\n')
             main_data = msg_lines[0].split()
             sender_data = main_data[0].split("/")
             orig_sender = sender_data[0]
@@ -913,25 +955,37 @@ class SpriteBot:
                 await self.getChatChannel(msg.guild.id).send(msg.author.mention + " Invalid filename {0}. Do not change the filename from the original.".format(file_name))
                 return False
 
-            msg_args = msg.content.split()
-            overcolor = ('overcolor' in msg_args)
+            try:
+                msg_args = parser.parse_args(msg.content.split())
+            except SystemExit:
+                await msg.delete()
+                await self.getChatChannel(msg.guild.id).send(msg.author.mention + " Invalid arguments used in submission post.")
+                return False
+
+            name_seq = [TrackerUtils.sanitizeName(i) for i in msg_args.base]
+            base_idx = TrackerUtils.findFullTrackerIdx(self.tracker, name_seq, 0)
+            if base_idx is None:
+                await msg.channel.send(msg.author.mention + " No such Pokemon to base this sprite off.")
+                return
+
+            overcolor = msg_args.overcolor
             # at this point, we confirm the file name is valid, now check the contents
-            verified, diffs = await self.verifySubmission(msg, full_idx, asset_type, recolor, msg_args)
+            verified, diffs = await self.verifySubmission(msg, full_idx, base_idx, asset_type, recolor, msg_args)
             if not verified:
                 return False
 
             # after other args have been consumed, check for one more arg: if the submission was made in someone else's stead
             author = "<@!{0}>".format(msg.author.id)
-            if len(msg_args) > 0:
+            if msg_args.author is not None:
                 decline_msg = None
-                if msg_args[0] not in self.names:
-                    decline_msg = "{0} does not have a profile.".format(msg_args[0])
+                if msg_args.author not in self.names:
+                    decline_msg = "{0} does not have a profile.".format(msg_args.author)
 
                 if decline_msg is not None:
                     await self.returnMsgFile(msg, msg.author.mention + " " + decline_msg, asset_type)
                     return False
 
-                author = "{0}/{1}".format(author, msg_args[0])
+                author = "{0}/{1}".format(author, msg_args.author)
 
             await self.stageSubmission(msg, full_idx, chosen_node, asset_type, author, recolor, diffs, overcolor)
             return True

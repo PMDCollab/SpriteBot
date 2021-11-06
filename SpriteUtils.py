@@ -330,7 +330,7 @@ def compareSpriteRecolorDiff(orig_anim_img, shiny_anim_img, anim_name,
                     shiny_palette[shiny_color] = 0
                 shiny_palette[shiny_color] += 1
 
-def verifySpriteRecolor(msg_args, orig_zip, wan_zip, recolor):
+def verifySpriteRecolor(msg_args, orig_zip, wan_zip, recolor, checkSilhouette):
     orig_palette = {}
     shiny_palette = {}
     trans_diff = {}
@@ -396,7 +396,7 @@ def verifySpriteRecolor(msg_args, orig_zip, wan_zip, recolor):
         except zipfile.BadZipfile as e:
             raise SpriteVerifyError(str(e))
 
-    if len(trans_diff) > 0:
+    if checkSilhouette and len(trans_diff) > 0:
         px_strings = []
         for anim_name in trans_diff:
             px_strings.append(anim_name + ": " + ", ".join([str(a) for a in trans_diff[anim_name]]))
@@ -404,34 +404,23 @@ def verifySpriteRecolor(msg_args, orig_zip, wan_zip, recolor):
             "\n".join(px_strings)[:1900]))
 
     if len(black_diff) > 0:
-        if len(msg_args) == 0 or not msg_args[0] == "lineart":
+        if not msg_args.lineart:
             px_strings = []
             for anim_name in black_diff:
                 px_strings.append(anim_name + ": " + ", ".join([str(a) for a in black_diff[anim_name]]))
-            raise SpriteVerifyError("Some pixels were found to have changed from black to another color:\n{0}\nIf this was intended (very rare!), resubmit and include `lineart` in the message.".format(
+            raise SpriteVerifyError("Some pixels were found to have changed from black to another color:\n{0}\nIf this was intended (very rare!), resubmit and include `--lineart` in the message.".format(
                 "\n".join(px_strings)[:1800]))
-        else:
-            msg_args.pop(0)
 
     if len(orig_palette) != len(shiny_palette):
         palette_diff = len(shiny_palette) - len(orig_palette)
         if palette_diff != 0:
-            if palette_diff > 0:
-                diff_str = "+" + str(palette_diff)
-            else:
-                diff_str = str(palette_diff)
-            if len(msg_args) == 0 or not msg_args[0] == diff_str:
-                base_str = "Recolor has `{0}` colors compared to the original.\nIf this was intended, resubmit and specify `{0}` in the message."
-                raise SpriteVerifyError(base_str.format(diff_str))
-            else:
-                msg_args.pop(0)
+            if msg_args.colormod != palette_diff:
+                base_str = "Recolor has {0} colors compared to the original.\nIf this was intended, resubmit and specify `--colormod {0}` in the message."
+                raise SpriteVerifyError(base_str.format(palette_diff))
 
     # then, check the colors
     if len(shiny_palette) > 15:
-        escape_clause = len(msg_args) > 0 and msg_args[0] == "=" + str(len(shiny_palette))
-        if escape_clause:
-            msg_args.pop(0)
-        else:
+        if msg_args.colors != len(shiny_palette):
             if recolor:
                 combinedImg = wan_zip
             else:
@@ -439,7 +428,7 @@ def verifySpriteRecolor(msg_args, orig_zip, wan_zip, recolor):
                     combinedImg, _ = getCombinedImg(shiny_zip, True)
             reduced_img = simple_quant(combinedImg)
             raise SpriteVerifyError("The sprite has {0} non-transparent colors with only 15 allowed.\n"
-                                    "If this is acceptable, include `={0}` in the message."
+                                    "If this is acceptable, include `--colors {0}` in the message."
                                     "  Otherwise reduce colors for the sprite.".format(len(shiny_palette)), reduced_img)
 
 def verifyPortraitRecolor(msg_args, orig_img, img, recolor):
@@ -461,15 +450,9 @@ def verifyPortraitRecolor(msg_args, orig_img, img, recolor):
     else:
         palette_diff = comparePalette(orig_img, img)
         if palette_diff != 0:
-            if palette_diff > 0:
-                diff_str = "+" + str(palette_diff)
-            else:
-                diff_str = str(palette_diff)
-            if len(msg_args) == 0 or not msg_args[0] == diff_str:
-                base_str = "Recolor has `{0}` colors compared to the original.\nIf this was intended, resubmit and specify `{0}` in the message."
-                raise SpriteVerifyError(base_str.format(diff_str))
-            else:
-                msg_args.pop(0)
+            if msg_args.colormod != palette_diff:
+                base_str = "Recolor has `{0}` colors compared to the original.\nIf this was intended, resubmit and specify `--colormod {0}` in the message."
+                raise SpriteVerifyError(base_str.format(palette_diff))
 
     palette_counts = {}
     in_data = img.getdata()
@@ -497,14 +480,11 @@ def verifyPortraitRecolor(msg_args, orig_img, img, recolor):
             overpalette[emote_loc] = palette_counts[emote_loc]
 
     if len(overpalette) > 0:
-        escape_clause = len(msg_args) > 0 and msg_args[0] == "overcolor"
-        if escape_clause:
-            msg_args.pop(0)
-        else:
+        if not msg_args.overcolor:
             reduced_img = simple_quant_portraits(img)
             rogue_emotes = [getEmotionFromTilePos(a) for a in overpalette]
             raise SpriteVerifyError("Some emotions have over 15 colors.\n" \
-                   "If this is acceptable, include `overcolor` in the message.  Otherwise reduce colors for emotes:\n" \
+                   "If this is acceptable, include `--overcolor` in the message.  Otherwise reduce colors for emotes:\n" \
                    "{0}".format(str(rogue_emotes)[:1900]), reduced_img)
 
 def getEmotionFromTilePos(tile_pos):
@@ -717,10 +697,7 @@ def verifySprite(msg_args, wan_zip):
         final_frames = []
         mapDuplicateImportImgs(frames, final_frames, frame_map, offset_diffs)
         if len(offset_diffs) > 0:
-            escape_clause = len(msg_args) > 0 and msg_args[0] == "multioffset"
-            if escape_clause:
-                msg_args.pop(0)
-            else:
+            if not msg_args.multioffset:
                 offset_diff_names = []
                 for orig_idx in offset_diffs:
                     offset_group = [frameToSequence[orig_idx]]
@@ -729,20 +706,17 @@ def verifySprite(msg_args, wan_zip):
                     offset_diff_names.append(offset_group)
 
                 raise SpriteVerifyError("Some frames have identical sprites but different offsets.\n"
-                                        "If this is acceptable, include `multioffset` in the message (very rare!)."
+                                        "If this is acceptable, include `--multioffset` in the message (very rare!)."
                                         "  Otherwise make these frame offsets consistent:\n{0}".format(str(offset_diff_names)[:1800]))
 
         # then, check the colors
         if len(palette) > 15:
-            escape_clause = len(msg_args) > 0 and msg_args[0] == "=" + str(len(palette))
-            if escape_clause:
-                msg_args.pop(0)
-            else:
+            if msg_args.colors != len(palette):
                 with zipfile.ZipFile(wan_zip, 'r') as zip:
                     combinedImg, _ = getCombinedImg(zip, True)
                     reduced_img = simple_quant(combinedImg)
                 raise SpriteVerifyError("The sprite has {0} non-transparent colors with only 15 allowed.\n"
-                                        "If this is acceptable, include `={0}` in the message."
+                                        "If this is acceptable, include `--colors {0}` in the message."
                                         "  Otherwise reduce colors for the sprite.".format(len(palette)), reduced_img)
     except zipfile.BadZipfile as e:
         raise SpriteVerifyError(str(e))
@@ -976,10 +950,7 @@ def verifyPortrait(msg_args, img):
             overpalette[emote_loc] = palette_counts[emote_loc]
 
     if len(overpalette) > 0:
-        escape_clause = len(msg_args) > 0 and msg_args[0] == "overcolor"
-        if escape_clause:
-            msg_args.pop(0)
-        else:
+        if not msg_args.overcolor:
             reduced_img = img.copy()
             for emote_loc in overpalette:
                 crop_pos = (emote_loc[0] * PORTRAIT_SIZE, emote_loc[1] * PORTRAIT_SIZE,
@@ -991,7 +962,7 @@ def verifyPortrait(msg_args, img):
 
             rogue_emotes = [getEmotionFromTilePos(a) for a in overpalette]
             raise SpriteVerifyError("Some emotions have over 15 colors.\n" \
-                   "If this is acceptable, include `overcolor` in the message.  Otherwise reduce colors for emotes:\n" \
+                   "If this is acceptable, include `--overcolor` in the message.  Otherwise reduce colors for emotes:\n" \
                    "{0}".format(str(rogue_emotes)[:1900]), reduced_img)
 
     # make sure all mirrored emotions have their original emotions
@@ -1011,15 +982,11 @@ def verifyPortrait(msg_args, img):
                     has_missing_original = True
 
     if has_one_flip and len(flipped_tiles) > 0:
-        escape_clause = len(msg_args) > 0 and msg_args[0] == "noflip"
-        if escape_clause:
-            msg_args.pop(0)
-
         if has_missing_original:
             raise SpriteVerifyError("File has a flipped emotion when the original is missing.")
-        if not escape_clause:
+        if not msg_args.noflip:
             raise SpriteVerifyError("File is missing some flipped emotions." \
-                   "If you want to submit incomplete, include `noflip` in the message.")
+                   "If you want to submit incomplete, include `--noflip` in the message.")
 
 def verifyPortraitLock(dict, chosen_path, img, recolor):
     # make sure all locked portraits are the same as their original counterparts
