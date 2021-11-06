@@ -574,12 +574,13 @@ class SpriteBot:
         base_idx = None
         if len(msg_lines) > 1:
             msg_args = parser.parse_args(msg_lines[1].split())
-            name_seq = [TrackerUtils.sanitizeName(i) for i in msg_args.base]
-            base_idx = TrackerUtils.findFullTrackerIdx(self.tracker, name_seq, 0)
-            if base_idx is None:
-                await msg.channel.send(msg.author.mention + " No such Pokemon to base this sprite off.")
-                await msg.delete()
-                return
+            if msg_args.base:
+                name_seq = [TrackerUtils.sanitizeName(i) for i in msg_args.base]
+                base_idx = TrackerUtils.findFullTrackerIdx(self.tracker, name_seq, 0)
+                if base_idx is None:
+                    await msg.channel.send(msg.author.mention + " No such Pokemon to base this sprite off.")
+                    await msg.delete()
+                    return
 
 
 
@@ -962,11 +963,13 @@ class SpriteBot:
                 await self.getChatChannel(msg.guild.id).send(msg.author.mention + " Invalid arguments used in submission post.\n`{0}`".format(msg.content))
                 return False
 
-            name_seq = [TrackerUtils.sanitizeName(i) for i in msg_args.base]
-            base_idx = TrackerUtils.findFullTrackerIdx(self.tracker, name_seq, 0)
-            if base_idx is None:
-                await msg.channel.send(msg.author.mention + " No such Pokemon to base this sprite off.")
-                return
+            base_idx = None
+            if msg_args.base:
+                name_seq = [TrackerUtils.sanitizeName(i) for i in msg_args.base]
+                base_idx = TrackerUtils.findFullTrackerIdx(self.tracker, name_seq, 0)
+                if base_idx is None:
+                    await msg.channel.send(msg.author.mention + " No such Pokemon to base this sprite off.")
+                    return
 
             overcolor = msg_args.overcolor
             # at this point, we confirm the file name is valid, now check the contents
