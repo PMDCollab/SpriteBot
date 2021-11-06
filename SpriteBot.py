@@ -1802,6 +1802,10 @@ class SpriteBot:
                                        " {2} already exists within #{0:03d}: {1}!".format(int(species_idx), species_name, form_name))
                 return
 
+            if form_name == "Shiny" or form_name == "Female":
+                await msg.channel.send(msg.author.mention + " Invalid form name!")
+                return
+
             canon = True
             if re.search(r"_?Alternate\d*$", form_name):
                 canon = False

@@ -428,41 +428,41 @@ def genderDiffPopulated(form_dict, asset_type):
 def createGenderDiff(form_dict, asset_type):
     if "0000" not in form_dict.subgroups:
         form_dict.subgroups["0000"] = initSubNode("", form_dict.canon)
-    normal_dict = form_dict.subgroups["0000"].subgroups
+    normal_dict = form_dict.subgroups["0000"]
     createShinyGenderDiff(normal_dict, asset_type)
 
-    shiny_dict = form_dict.subgroups["0001"].subgroups
+    shiny_dict = form_dict.subgroups["0001"]
     createShinyGenderDiff(shiny_dict, asset_type)
 
 def createShinyGenderDiff(color_dict, asset_type):
-    female_idx = findSlotIdx(color_dict, "Female")
+    female_idx = findSlotIdx(color_dict.subgroups, "Female")
     if female_idx is None:
         female_dict = initSubNode("Female", color_dict.canon)
-        color_dict["0002"] = female_dict
+        color_dict.subgroups["0002"] = female_dict
     else:
-        female_dict = color_dict[female_idx]
+        female_dict = color_dict.subgroups[female_idx]
     female_dict.__dict__[asset_type + "_required"] = True
 
 
 def removeGenderDiff(form_dict, asset_type):
-    normal_dict = form_dict.subgroups["0000"].subgroups
+    normal_dict = form_dict.subgroups["0000"]
     nothing_left = removeColorGenderDiff(normal_dict, asset_type)
     if nothing_left:
         del form_dict.subgroups["0000"]
 
-    shiny_dict = form_dict.subgroups["0001"].subgroups
+    shiny_dict = form_dict.subgroups["0001"]
     removeColorGenderDiff(shiny_dict, asset_type)
 
 def removeColorGenderDiff(color_dict, asset_type):
     # return whether or not the gender was fully deleted
-    female_idx = findSlotIdx(color_dict, "Female")
+    female_idx = findSlotIdx(color_dict.subgroups, "Female")
     if female_idx is None:
         return True
 
-    female_dict = color_dict[female_idx]
+    female_dict = color_dict.subgroups[female_idx]
     female_dict.__dict__[asset_type + "_required"] = False
     if not female_dict.__dict__["sprite_required"] and not female_dict.__dict__["portrait_required"]:
-        del color_dict[female_idx]
+        del color_dict.subgroups[female_idx]
         return True
 
     return False
