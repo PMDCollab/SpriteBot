@@ -1234,7 +1234,7 @@ class SpriteBot:
 
     async def setCanon(self, msg, name_args, canon_state):
 
-        name_seq = [TrackerUtils.sanitizeName(i) for i in name_args[:-1]]
+        name_seq = [TrackerUtils.sanitizeName(i) for i in name_args]
         full_idx = TrackerUtils.findFullTrackerIdx(self.tracker, name_seq, 0)
         if full_idx is None:
             await msg.channel.send(msg.author.mention + " No such Pokemon.")
@@ -1243,9 +1243,9 @@ class SpriteBot:
 
         TrackerUtils.setCanon(chosen_node, canon_state)
 
-        lock_str = ""
+        lock_str = "non-"
         if canon_state:
-            lock_str = "non-"
+            lock_str = ""
         # set to complete
         await msg.channel.send(msg.author.mention + " {0} is now {1}canon.".format(" ".join(name_seq), lock_str))
 
