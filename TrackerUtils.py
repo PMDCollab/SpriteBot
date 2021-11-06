@@ -228,6 +228,8 @@ def updateCreditFromEntries(credit_data, credit_entries):
             if len(credit_data.secondary) >= MAX_SECONDARY_CREDIT:
                 break
 
+
+
 def fileSystemToJson(dict, species_path, prefix, tier):
     # get last modify date of everything that isn't credits.txt or dirs
     last_modify = ""
@@ -672,3 +674,126 @@ def sanitizeName(str):
 
 def sanitizeCredit(str):
     return re.sub("\t\n", "", str)
+
+
+def initTransferNode():
+    sub_dict = { }
+    sub_dict["name"] = ""
+    sub_dict["usage"] = None
+    sub_dict["alt"] = 0
+    sub_dict["subgroups"] = {}
+    return TransferNode(sub_dict)
+
+def initTransferMap(over_dict, out_path):
+    over_transfer = initTransferNode()
+    try:
+        with open(os.path.join(out_path, "transfer.json")) as f:
+            new_tracker = json.load(f)
+            transfer_tracker = {}
+            for species_idx in new_tracker:
+                transfer_tracker[species_idx] = TransferNode(new_tracker[species_idx])
+        over_transfer.subgroups = transfer_tracker
+    except:
+        transfer_tracker = over_transfer.subgroups
+
+    generateMap(over_transfer, over_dict)
+
+    new_transfer = {}
+    for species_idx in transfer_tracker:
+        new_transfer[species_idx] = transfer_tracker[species_idx].getDict()
+    with open(os.path.join(out_path, "transfer.json"), 'w', encoding='utf-8') as txt:
+        json.dump(new_transfer, txt, indent=2)
+    return over_transfer
+
+
+class TransferNode:
+
+    def __init__(self, node_dict):
+        temp_list = [i for i in node_dict]
+        temp_list = sorted(temp_list)
+
+        main_dict = { }
+        for key in temp_list:
+            main_dict[key] = node_dict[key]
+
+        self.__dict__ = main_dict
+
+        sub_dict = { }
+        for key in self.subgroups:
+            sub_dict[key] = TransferNode(self.subgroups[key])
+        self.subgroups = sub_dict
+
+    def getDict(self):
+        node_dict = { }
+        for k in self.__dict__:
+            node_dict[k] = self.__dict__[k]
+
+        sub_dict = { }
+        for sub_idx in self.subgroups:
+            sub_dict[sub_idx] = self.subgroups[sub_idx].getDict()
+        node_dict["subgroups"] = sub_dict
+        return node_dict
+
+
+
+def generateMap(transfer_dict, dict):
+    transfer_dict.name = dict.name
+    if transfer_dict.usage is None:
+        if not dict.canon:
+            transfer_dict.usage = False
+        else:
+            transfer_dict.usage = True
+
+    for subgroup in dict.subgroups:
+        sub_node = dict.subgroups[subgroup]
+        if subgroup not in transfer_dict.subgroups:
+            transfer_dict.subgroups[subgroup] = initTransferNode()
+        generateMap(transfer_dict.subgroups[subgroup], sub_node)
+
+
+def importFolders(base_path, transfer_dict, out_path):
+    if not os.path.exists(base_path):
+        return
+
+    os.makedirs(out_path, exist_ok=True)
+
+    if transfer_dict.usage:
+        orig_path = base_path
+        if transfer_dict.alt > 0:
+            orig_path = os.path.join(base_path, "{:04d}".format(transfer_dict.alt))
+        for in_file in os.listdir(orig_path):
+            full_path = os.path.join(orig_path, in_file)
+            if not os.path.isdir(full_path):
+                shutil.copy(full_path, os.path.join(out_path, in_file))
+
+    for subgroup in transfer_dict.subgroups:
+        sub_node = transfer_dict.subgroups[subgroup]
+        full_path = os.path.join(base_path, subgroup)
+        full_out_path = os.path.join(out_path, subgroup)
+        if transfer_dict.alt > 0:
+            # skip the alt that was used
+            if subgroup == "{:04d}".format(transfer_dict.alt):
+                continue
+            # go to the alt folder as the source for the default destination
+            if subgroup == "{:04d}".format(0):
+                full_path = os.path.join(base_path, "{:04d}".format(transfer_dict.alt))
+                full_out_path = os.path.join(out_path, subgroup)
+        importFolders(full_path, sub_node, full_out_path)
+
+
+def transferWithTracker(base_path, out_path):
+    with open(os.path.join(base_path, "tracker.json")) as f:
+        new_tracker = json.load(f)
+        tracker = {}
+        for species_idx in new_tracker:
+            tracker[species_idx] = TrackerNode(new_tracker[species_idx])
+
+    over_dict = initSubNode("", True)
+    over_dict.subgroups = tracker
+    fileSystemToJson(over_dict, os.path.join(base_path, "sprite"), "sprite", 0)
+    fileSystemToJson(over_dict, os.path.join(base_path, "portrait"), "portrait", 0)
+
+    over_transfer = initTransferMap(over_dict, out_path)
+
+    importFolders(os.path.join(base_path, "sprite"), over_transfer, os.path.join(out_path, "sprite"))
+    importFolders(os.path.join(base_path, "portrait"), over_transfer, os.path.join(out_path, "portrait"))
