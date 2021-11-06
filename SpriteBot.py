@@ -959,7 +959,7 @@ class SpriteBot:
                 msg_args = parser.parse_args(msg.content.split())
             except SystemExit:
                 await msg.delete()
-                await self.getChatChannel(msg.guild.id).send(msg.author.mention + " Invalid arguments used in submission post.")
+                await self.getChatChannel(msg.guild.id).send(msg.author.mention + " Invalid arguments used in submission post.\n`{0}`".format(msg.content))
                 return False
 
             name_seq = [TrackerUtils.sanitizeName(i) for i in msg_args.base]
