@@ -510,12 +510,12 @@ class SpriteBot:
             if recolor:
                 overcolor_img = SpriteUtils.removePalette(overcolor_img)
 
-        await self.postStagedSubmission(msg.channel, msg.content, full_idx, chosen_node, asset_type, author, recolor,
+        await self.postStagedSubmission(msg.channel, msg.content.replace('\n', ' '), full_idx, chosen_node, asset_type, author, recolor,
                                         diffs, return_file, return_name, overcolor_img)
 
         await msg.delete()
 
-    async def postStagedSubmission(self, channel, content, full_idx, chosen_node, asset_type, author, recolor,
+    async def postStagedSubmission(self, channel, formatted_content, full_idx, chosen_node, asset_type, author, recolor,
                                    diffs, return_file, return_name, overcolor_img):
 
         title = TrackerUtils.getIdxName(self.tracker, full_idx)
@@ -543,7 +543,7 @@ class SpriteBot:
             if recolor or asset_type == "portrait":
                 orig_link = await self.retrieveLinkMsg(full_idx, chosen_node, asset_type, recolor)
                 add_msg += "\nCurrent Version: {0}".format(orig_link)
-        new_msg = await channel.send("{0} {1}\n{2}".format(author, " ".join(title), content.replace('\n', ' ') + add_msg),
+        new_msg = await channel.send("{0} {1}\n{2}".format(author, " ".join(title), formatted_content + add_msg),
                                      files=send_files)
 
         pending_dict = chosen_node.__dict__[asset_type+"_pending"]
@@ -573,7 +573,12 @@ class SpriteBot:
         msg_lines = msg.content.split('\n')
         base_idx = None
         if len(msg_lines) > 1:
-            msg_args = parser.parse_args(msg_lines[1].split())
+            try:
+                msg_args = parser.parse_args(msg_lines[1].split())
+            except SystemExit:
+                await msg.delete()
+                await self.getChatChannel(msg.guild.id).send(msg.author.mention + " Invalid arguments used in submission post.\n`{0}`".format(msg.content))
+                return
             if msg_args.base:
                 name_seq = [TrackerUtils.sanitizeName(i) for i in msg_args.base]
                 base_idx = TrackerUtils.findFullTrackerIdx(self.tracker, name_seq, 0)
@@ -794,7 +799,13 @@ class SpriteBot:
                 auto_recolor_img.save(auto_recolor_file, format='PNG')
                 auto_recolor_file.seek(0)
 
-                msg_args = parser.parse_args(content.split())
+                try:
+                    msg_lines = content.split('\n')
+                    msg_args = parser.parse_args(msg_lines[0].split())
+                except SystemExit:
+                    await self.sendError(traceback.format_exc())
+                    return
+
                 overcolor = msg_args.overcolor
                 overcolor_img = None
                 if overcolor:

@@ -1404,10 +1404,7 @@ def autoRecolor(prev_base_img, cur_base_img, shiny_path, asset_type):
     shiny_palette = getPalette(cur_shiny_img)
     palette_diff = len(shiny_palette) - len(base_palette)
     if palette_diff != 0:
-        if palette_diff > 0:
-            args.append("+" + str(palette_diff))
-        else:
-            args.append(str(palette_diff))
+        args.append("--colormod " + str(palette_diff))
 
     if asset_type == "portrait":
         palette_counts = {}
@@ -1436,7 +1433,7 @@ def autoRecolor(prev_base_img, cur_base_img, shiny_path, asset_type):
                 overpalette = True
 
         if overpalette:
-            args.append("overcolor")
+            args.append("--overcolor")
     elif asset_type == "sprite":
         if len(shiny_palette) > 15:
             args.append("=" + str(len(shiny_palette)))
