@@ -384,7 +384,7 @@ class SpriteBot:
                 orig_idx = base_idx
 
             if orig_idx is not None:
-                orig_node = TrackerUtils.getNodeFromIdx(self.tracker, base_idx, 0)
+                orig_node = TrackerUtils.getNodeFromIdx(self.tracker, orig_idx, 0)
 
                 if orig_node.__dict__[asset_type + "_credit"].primary == "":
                     # this means there's no original portrait to base the recolor off of
@@ -583,7 +583,7 @@ class SpriteBot:
                 name_seq = [TrackerUtils.sanitizeName(i) for i in msg_args.base]
                 base_idx = TrackerUtils.findFullTrackerIdx(self.tracker, name_seq, 0)
                 if base_idx is None:
-                    await msg.channel.send(msg.author.mention + " No such Pokemon to base this sprite off.")
+                    await self.getChatChannel(msg.guild.id).send(msg.author.mention + " No such Pokemon to base this sprite off.")
                     await msg.delete()
                     return
 
@@ -979,7 +979,7 @@ class SpriteBot:
                 name_seq = [TrackerUtils.sanitizeName(i) for i in msg_args.base]
                 base_idx = TrackerUtils.findFullTrackerIdx(self.tracker, name_seq, 0)
                 if base_idx is None:
-                    await msg.channel.send(msg.author.mention + " No such Pokemon to base this sprite off.")
+                    await self.getChatChannel(msg.guild.id).send(msg.author.mention + " No such Pokemon to base this sprite off.")
                     return
 
             overcolor = msg_args.overcolor
