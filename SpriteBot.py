@@ -1980,6 +1980,35 @@ class SpriteBot:
         self.changed = True
 
 
+    async def setNeed(self, msg, args, needed):
+        if len(args) < 2 or len(args) > 4:
+            await msg.channel.send(msg.author.mention + " Invalid number of args!")
+            return
+
+        asset_type = args[-1].lower()
+        if asset_type != "sprite" and asset_type != "portrait":
+            await msg.channel.send(msg.author.mention + " Must specify sprite or portrait!")
+            return
+
+        name_seq = [TrackerUtils.sanitizeName(i) for i in args[:-1]]
+        full_idx = TrackerUtils.findFullTrackerIdx(self.tracker, name_seq, 0)
+        if full_idx is None:
+            await msg.channel.send(msg.author.mention + " No such Pokemon.")
+            return
+        if len(full_idx) > 3:
+            await msg.channel.send(msg.author.mention + " Cannot alter the need for genders. Use `!addgender` and `!deletegender` instead.")
+            return
+        chosen_node = TrackerUtils.getNodeFromIdx(self.tracker, full_idx, 0)
+        chosen_node.__dict__[asset_type + "_required"] = needed
+
+        if needed:
+            await msg.channel.send(msg.author.mention + " {0} {1} is now needed.".format(asset_type, " ".join(name_seq)))
+        else:
+            await msg.channel.send(msg.author.mention + " {0} {1} is no longer needed.".format(asset_type, " ".join(name_seq)))
+
+        self.saveTracker()
+        self.changed = True
+
     async def addGender(self, msg, args):
         if len(args) < 2 or len(args) > 3:
             await msg.channel.send(msg.author.mention + " Invalid number of args!")
@@ -2362,6 +2391,10 @@ async def on_message(msg: discord.Message):
                 await sprite_bot.addGender(msg, args[1:])
             elif base_arg == "deletegender" and authorized:
                 await sprite_bot.removeGender(msg, args[1:])
+            elif base_arg == "need" and authorized:
+                await sprite_bot.setNeed(msg, args[1:], True)
+            elif base_arg == "dontneed" and authorized:
+                await sprite_bot.setNeed(msg, args[1:], False)
             elif base_arg == "spritewip" and authorized:
                 await sprite_bot.completeSlot(msg, args[1:], "sprite", TrackerUtils.PHASE_INCOMPLETE)
             elif base_arg == "portraitwip" and authorized:
