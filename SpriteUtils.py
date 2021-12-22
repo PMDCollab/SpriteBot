@@ -128,6 +128,17 @@ def removePalette(inImg):
     imgCrop = inImg.crop((0,1,inImg.size[0], inImg.size[1]))
     return imgCrop.convert("RGBA")
 
+def getLinkData(url):
+    full_path, ext = os.path.splitext(url)
+    _, file = os.path.split(full_path)
+    req = urllib.request.Request(url, None, RETRIEVE_HEADERS)
+
+    with urllib.request.urlopen(req) as response:
+        zip_data = BytesIO()
+        zip_data.write(response.read())
+        zip_data.seek(0)
+        return zip_data, file
+
 def getLinkImg(url):
     full_path, ext = os.path.splitext(url)
     unzip = ext == ".zip"

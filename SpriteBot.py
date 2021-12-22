@@ -42,6 +42,7 @@ parser.add_argument('--base', nargs='+')
 parser.add_argument('--colormod', type=int)
 parser.add_argument('--colors', type=int)
 parser.add_argument('--author')
+parser.add_argument('--addauthor', nargs='?', const=True, default=False)
 
 # The Discord client.
 client = discord.Client()
@@ -572,6 +573,7 @@ class SpriteBot:
 
         msg_lines = msg.content.split('\n')
         base_idx = None
+        add_author = False
         if len(msg_lines) > 1:
             try:
                 msg_args = parser.parse_args(msg_lines[1].split())
@@ -579,6 +581,8 @@ class SpriteBot:
                 await msg.delete()
                 await self.getChatChannel(msg.guild.id).send(msg.author.mention + " Invalid arguments used in submission post.\n`{0}`".format(msg.content))
                 return
+            if msg_args.addauthor:
+                add_author = True
             if msg_args.base:
                 name_seq = [TrackerUtils.sanitizeName(i) for i in msg_args.base]
                 base_idx = TrackerUtils.findFullTrackerIdx(self.tracker, name_seq, 0)
@@ -608,12 +612,18 @@ class SpriteBot:
 
         # change the status of the sprite
         new_revise = "New"
-        if chosen_node.__dict__[asset_type+"_credit"].primary != "":
+        if add_author:
+            new_revise = "Revised Credit"
+        elif chosen_node.__dict__[asset_type+"_credit"].primary != "":
             new_revise = "Revised"
 
         # save and set the new sprite or portrait
         gen_path = TrackerUtils.getDirFromIdx(self.config.path, asset_type, full_idx)
-        if asset_type == "sprite":
+
+        if add_author:
+            # dont update files if just updating author
+            pass
+        elif asset_type == "sprite":
             orig_idx = None
             if is_shiny:
                 orig_idx = TrackerUtils.createShinyIdx(full_idx, False)
@@ -706,7 +716,7 @@ class SpriteBot:
             approve_msg += "\n{0} is now {1}.".format(asset_type.title(), PHASES[current_completion_file])
 
         # if this was non-shiny, set the complete flag to false for the shiny
-        if not is_shiny:
+        if not is_shiny and not add_author:
             if shiny_node.__dict__[asset_type+"_credit"].primary != "":
                 shiny_node.__dict__[asset_type+"_complete"] = TrackerUtils.PHASE_INCOMPLETE
                 approve_msg += "\nNote: Shiny form now marked as {0} due to this change.".format(PHASES[TrackerUtils.PHASE_INCOMPLETE])
@@ -768,7 +778,8 @@ class SpriteBot:
 
         self.changed = True
 
-        if not is_shiny:
+        # autogenerate the shiny
+        if not is_shiny and not add_author:
             pending = {}
             for pending_id in shiny_node.__dict__[asset_type+"_pending"]:
                 pending[pending_id] = shiny_node.__dict__[asset_type+"_pending"][pending_id]
@@ -1547,7 +1558,7 @@ class SpriteBot:
             await msg.channel.send(msg.author.mention + " Specify a user ID and Pokemon.")
             return
 
-        wanted_author = name_args[0]
+        wanted_author = name_args[0]# self.extractBotId(name_args[0])
         name_seq = [TrackerUtils.sanitizeName(i) for i in name_args[1:]]
         full_idx = TrackerUtils.findFullTrackerIdx(self.tracker, name_seq, 0)
         if full_idx is None:
@@ -1580,6 +1591,40 @@ class SpriteBot:
 
         self.saveTracker()
         self.changed = True
+
+    async def addCredit(self, msg, name_args, asset_type):
+        # compute answer from current status
+        if len(name_args) < 2:
+            await msg.channel.send(msg.author.mention + " Specify a user ID and Pokemon.")
+            return
+
+        wanted_author = name_args[0]# self.extractBotId(name_args[0])
+        name_seq = [TrackerUtils.sanitizeName(i) for i in name_args[1:]]
+        full_idx = TrackerUtils.findFullTrackerIdx(self.tracker, name_seq, 0)
+        if full_idx is None:
+            await msg.channel.send(msg.author.mention + " No such Pokemon.")
+            return
+
+        chosen_node = TrackerUtils.getNodeFromIdx(self.tracker, full_idx, 0)
+
+        if chosen_node.__dict__[asset_type + "_credit"].primary == "":
+            await msg.channel.send(msg.author.mention + " This command only works on filled {0}.".format(asset_type))
+            return
+
+        if wanted_author not in self.names:
+            await msg.channel.send(msg.author.mention + " No such profile ID.")
+            return
+
+        chat_id = self.config.servers[str(msg.guild.id)].submit
+        submit_channel = self.client.get_channel(chat_id)
+        author = "<@!{0}>".format(msg.author.id)
+
+        base_link = await self.retrieveLinkMsg(full_idx, chosen_node, asset_type, False)
+        base_file, base_name = SpriteUtils.getLinkData(base_link)
+
+        # stage a post in submissions
+        await self.postStagedSubmission(submit_channel, "--addauthor", full_idx, chosen_node, asset_type, author,
+                                                False, None, base_file, base_name, None)
 
 
     async def getProfile(self, msg):
@@ -2413,10 +2458,14 @@ async def on_message(msg: discord.Message):
                 await sprite_bot.completeSlot(msg, args[1:], "sprite", TrackerUtils.PHASE_FULL)
             elif base_arg == "portraitfilled" and authorized:
                 await sprite_bot.completeSlot(msg, args[1:], "portrait", TrackerUtils.PHASE_FULL)
-            elif base_arg == "setspritecredit":
+            elif base_arg == "setspritecredit" and authorized:
                 await sprite_bot.resetCredit(msg, args[1:], "sprite")
-            elif base_arg == "setportraitcredit":
+            elif base_arg == "setportraitcredit" and authorized:
                 await sprite_bot.resetCredit(msg, args[1:], "portrait")
+            elif base_arg == "addspritecredit" and authorized:
+                await sprite_bot.addCredit(msg, args[1:], "sprite")
+            elif base_arg == "addportraitcredit" and authorized:
+                await sprite_bot.addCredit(msg, args[1:], "portrait")
             elif base_arg == "movesprite" and authorized:
                 await sprite_bot.moveSlot(msg, args[1:], "sprite")
             elif base_arg == "moveportrait" and authorized:
