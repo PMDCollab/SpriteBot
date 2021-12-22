@@ -1985,12 +1985,12 @@ class SpriteBot:
             await msg.channel.send(msg.author.mention + " Invalid number of args!")
             return
 
-        asset_type = args[-1].lower()
+        asset_type = args[0].lower()
         if asset_type != "sprite" and asset_type != "portrait":
             await msg.channel.send(msg.author.mention + " Must specify sprite or portrait!")
             return
 
-        name_seq = [TrackerUtils.sanitizeName(i) for i in args[:-1]]
+        name_seq = [TrackerUtils.sanitizeName(i) for i in args[1:]]
         full_idx = TrackerUtils.findFullTrackerIdx(self.tracker, name_seq, 0)
         if full_idx is None:
             await msg.channel.send(msg.author.mention + " No such Pokemon.")
@@ -2014,12 +2014,12 @@ class SpriteBot:
             await msg.channel.send(msg.author.mention + " Invalid number of args!")
             return
 
-        asset_type = args[-1].lower()
+        asset_type = args[0].lower()
         if asset_type != "sprite" and asset_type != "portrait":
             await msg.channel.send(msg.author.mention + " Must specify sprite or portrait!")
             return
 
-        species_name = TrackerUtils.sanitizeName(args[0])
+        species_name = TrackerUtils.sanitizeName(args[1])
         species_idx = TrackerUtils.findSlotIdx(self.tracker, species_name)
         if species_idx is None:
             await msg.channel.send(msg.author.mention + " {0} does not exist!".format(species_name))
@@ -2037,7 +2037,7 @@ class SpriteBot:
                 " Added gender difference to #{0:03d}: {1}! ({2})".format(int(species_idx), species_name, asset_type))
         else:
 
-            form_name = TrackerUtils.sanitizeName(args[1])
+            form_name = TrackerUtils.sanitizeName(args[2])
             form_idx = TrackerUtils.findSlotIdx(species_dict.subgroups, form_name)
             if form_idx is None:
                 await msg.channel.send(msg.author.mention + " {2} doesn't exist within #{0:03d}: {1}!".format(int(species_idx), species_name, form_name))
@@ -2063,12 +2063,12 @@ class SpriteBot:
             await msg.channel.send(msg.author.mention + " Invalid number of args!")
             return
 
-        asset_type = args[-1].lower()
+        asset_type = args[0].lower()
         if asset_type != "sprite" and asset_type != "portrait":
             await msg.channel.send(msg.author.mention + " Must specify sprite or portrait!")
             return
 
-        species_name = TrackerUtils.sanitizeName(args[0])
+        species_name = TrackerUtils.sanitizeName(args[1])
         species_idx = TrackerUtils.findSlotIdx(self.tracker, species_name)
         if species_idx is None:
             await msg.channel.send(msg.author.mention + " {0} does not exist!".format(species_name))
@@ -2090,7 +2090,7 @@ class SpriteBot:
             await msg.channel.send(msg.author.mention +
                 " Removed gender difference to #{0:03d}: {1}! ({2})".format(int(species_idx), species_name, asset_type))
         else:
-            form_name = TrackerUtils.sanitizeName(args[1])
+            form_name = TrackerUtils.sanitizeName(args[2])
             form_idx = TrackerUtils.findSlotIdx(species_dict.subgroups, form_name)
             if form_idx is None:
                 await msg.channel.send(msg.author.mention + " {2} doesn't exist within #{0:03d}: {1}!".format(int(species_idx), species_name, form_name))
