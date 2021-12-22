@@ -1543,10 +1543,12 @@ class SpriteBot:
 
     async def resetCredit(self, msg, name_args, asset_type):
         # compute answer from current status
-        if len(name_args) == 0:
-            await msg.channel.send(msg.author.mention + " Specify a Pokemon.")
+        if len(name_args) < 2:
+            await msg.channel.send(msg.author.mention + " Specify a user ID and Pokemon.")
             return
-        name_seq = [TrackerUtils.sanitizeName(i) for i in name_args]
+
+        wanted_author = name_args[0]
+        name_seq = [TrackerUtils.sanitizeName(i) for i in name_args[1:]]
         full_idx = TrackerUtils.findFullTrackerIdx(self.tracker, name_seq, 0)
         if full_idx is None:
             await msg.channel.send(msg.author.mention + " No such Pokemon.")
@@ -1561,13 +1563,17 @@ class SpriteBot:
 
         credit_entries = TrackerUtils.getCreditEntries(gen_path)
 
+        if wanted_author not in credit_entries:
+            await msg.channel.send(msg.author.mention + " Could not find ID `{0}` in credits for {1}.".format(wanted_author, asset_type))
+            return
+
         # make the credit array into the most current author by itself
         credit_data = chosen_node.__dict__[asset_type + "_credit"]
         if credit_data.primary == "CHUNSOFT":
             await msg.channel.send(msg.author.mention + " Cannot reset credit for a CHUNSOFT {0}.".format(asset_type))
             return
 
-        credit_data.primary = credit_entries[-1]
+        credit_data.primary = wanted_author
         TrackerUtils.updateCreditFromEntries(credit_data, credit_entries)
 
         await msg.channel.send(msg.author.mention + " Credit display has been reset for {0} {1}:\n{2}".format(asset_type, " ".join(name_seq), self.createCreditBlock(credit_data)))
@@ -2407,9 +2413,9 @@ async def on_message(msg: discord.Message):
                 await sprite_bot.completeSlot(msg, args[1:], "sprite", TrackerUtils.PHASE_FULL)
             elif base_arg == "portraitfilled" and authorized:
                 await sprite_bot.completeSlot(msg, args[1:], "portrait", TrackerUtils.PHASE_FULL)
-            elif base_arg == "resetspritecredit":
+            elif base_arg == "setspritecredit":
                 await sprite_bot.resetCredit(msg, args[1:], "sprite")
-            elif base_arg == "resetportraitcredit":
+            elif base_arg == "setportraitcredit":
                 await sprite_bot.resetCredit(msg, args[1:], "portrait")
             elif base_arg == "movesprite" and authorized:
                 await sprite_bot.moveSlot(msg, args[1:], "sprite")
