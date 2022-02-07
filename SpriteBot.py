@@ -2350,7 +2350,367 @@ class SpriteBot:
                              "`Contact` - Your preferred contact info; can be email, url, etc.\n" \
                              "**Examples**\n" \
                              "`!register Audino https://github.com/audinowho`"
+            else:
+                return_msg = "Unknown Command."
         await msg.channel.send(msg.author.mention + " {0}".format(return_msg))
+
+
+    async def staffhelp(self, msg, args):
+        if len(args) == 0:
+            return_msg = "**Approver Commands**\n" \
+                  "`!add` - Adds a Pokemon or forme to the current list\n" \
+                  "`!delete` - Deletes an empty Pokemon or forme\n" \
+                  "`!rename` - Renames a Pokemon or forme\n" \
+                  "`!addgender` - Adds the female sprite/portrait to the Pokemon\n" \
+                  "`!deletegender` - Removes the female sprite/portrait from the Pokemon\n" \
+                  "`!need` - Marks a sprite/portrait as needed\n" \
+                  "`!dontneed` - Marks a sprite/portrait as unneeded\n" \
+                  "`!movesprite` - Swaps the sprites for two Pokemon/formes\n" \
+                  "`!moveportrait` - Swaps the portraits for two Pokemon/formes\n" \
+                  "`!spritewip` - Sets the sprite status as Incomplete\n" \
+                  "`!portraitwip` - Sets the portrait status as Incomplete\n" \
+                  "`!spriteexists` - Sets the sprite status as Exists\n" \
+                  "`!portraitexists` - Sets the portrait status as Exists\n" \
+                  "`!spritefilled` - Sets the sprite status as Fully Featured\n" \
+                  "`!portraitfilled` - Sets the portrait status as Fully Featured\n" \
+                  "`!setspritecredit` - Sets the primary author of the sprite\n" \
+                  "`!setportraitcredit` - Sets the primary author of the portrait\n" \
+                  "`!addspritecredit` - Adds a new author to the credits of the sprite\n" \
+                  "`!addportraitcredit` - Adds a new author to the credits of the portrait\n" \
+                  "`!modreward` - Toggles whether a sprite/portrait will have a custom reward\n" \
+                  "`!register` - Use with arguments to make absentee profiles\n" \
+                  "`!transferprofile` - Transfers the credit from absentee profile to a real one\n" \
+                  "`!clearcache` - Clears the image/zip links for a Pokemon/forme/shiny/gender\n" \
+                  "Type `!staffhelp` with the name of a command to learn more about it."
+
+        else:
+            base_arg = args[0]
+            if base_arg == "add":
+                return_msg = "**Command Help**\n" \
+                             "`!add <Pokemon Name> [Form Name]`\n" \
+                             "Adds a Pokemon to the dex, or a form to the existing Pokemon.\n" \
+                             "`Pokemon Name` - Name of the Pokemon\n" \
+                             "`Form Name` - [Optional] Form name of the Pokemon\n" \
+                             "**Examples**\n" \
+                             "`!add Calyrex`\n" \
+                             "`!add Mr_Mime Galar`\n" \
+                             "`!add Missingno_ Kotora`"
+            elif base_arg == "delete":
+                return_msg = "**Command Help**\n" \
+                             "`!delete <Pokemon Name> [Form Name]`\n" \
+                             "Deletes a Pokemon or form of an existing Pokemon.  " \
+                             "Only works if the slot + its children are empty.  " \
+                             "Must be on the last slot in its list.\n" \
+                             "`Pokemon Name` - Name of the Pokemon\n" \
+                             "`Form Name` - [Optional] Form name of the Pokemon\n" \
+                             "**Examples**\n" \
+                             "`!delete Pikablu`\n" \
+                             "`!delete Arceus Mega`"
+            elif base_arg == "rename":
+                return_msg = "**Command Help**\n" \
+                             "`!rename <Pokemon Name> [Form Name] <New Name>`\n" \
+                             "Changes the existing species or form to the new name.\n" \
+                             "`Pokemon Name` - Name of the Pokemon\n" \
+                             "`Form Name` - [Optional] Form name of the Pokemon\n" \
+                             "`New Name` - New Pokemon of Form name\n" \
+                             "**Examples**\n" \
+                             "`!rename Calrex Calyrex`\n" \
+                             "`!rename Vulpix Aloha Alola`"
+            elif base_arg == "addgender":
+                return_msg = "**Command Help**\n" \
+                             "`!addgender <Pokemon Name> [Pokemon Form] <Asset Type>`\n" \
+                             "Adds a slot for the female version of the species, or form of the species.\n" \
+                             "`Pokemon Name` - Name of the Pokemon\n" \
+                             "`Form Name` - [Optional] Form name of the Pokemon\n" \
+                             "`Asset Type` - \"sprite\" or \"portrait\"\n" \
+                             "**Examples**\n" \
+                             "`!addgender Venusaur Sprite`\n" \
+                             "`!addgender Steelix Portrait`\n" \
+                             "`!addgender Raichu Alola Sprite`"
+            elif base_arg == "deletegender":
+                return_msg = "**Command Help**\n" \
+                             "`!deletegender <Pokemon Name> [Pokemon Form] <Asset Type>`\n" \
+                             "Removes the slot for the female version of the species, or form of the species.  " \
+                             "Only works if empty.\n" \
+                             "`Pokemon Name` - Name of the Pokemon\n" \
+                             "`Form Name` - [Optional] Form name of the Pokemon\n" \
+                             "`Asset Type` - \"sprite\" or \"portrait\"\n" \
+                             "**Examples**\n" \
+                             "`!deletegender Venusaur Sprite`\n" \
+                             "`!deletegender Steelix Portrait`\n" \
+                             "`!deletegender Raichu Alola Sprite`"
+            elif base_arg == "need":
+                return_msg = "**Command Help**\n" \
+                             "`!need <Asset Type> <Pokemon Name> [Pokemon Form] [Shiny]`\n" \
+                             "Marks a sprite/portrait as Needed.  This is the default for all sprites/portraits.\n" \
+                             "`Asset Type` - \"sprite\" or \"portrait\"\n" \
+                             "`Pokemon Name` - Name of the Pokemon\n" \
+                             "`Form Name` - [Optional] Form name of the Pokemon\n" \
+                             "`Shiny` - [Optional] Specifies if you want the shiny sprite or not\n" \
+                             "**Examples**\n" \
+                             "`!need Sprite Venusaur`\n" \
+                             "`!need Portrait Steelix`\n" \
+                             "`!need Portrait Minior Red`\n" \
+                             "`!need Portrait Minior Shiny`\n" \
+                             "`!need Sprite Castform Sunny Shiny`"
+            elif base_arg == "dontneed":
+                return_msg = "**Command Help**\n" \
+                             "`!dontneed <Asset Type> <Pokemon Name> [Pokemon Form] [Shiny]`\n" \
+                             "Marks a sprite/portrait as Unneeded.  " \
+                             "Unneeded sprites/portraits are marked with \u26AB and do not need submissions.\n" \
+                             "`Asset Type` - \"sprite\" or \"portrait\"\n" \
+                             "`Pokemon Name` - Name of the Pokemon\n" \
+                             "`Form Name` - [Optional] Form name of the Pokemon\n" \
+                             "`Shiny` - [Optional] Specifies if you want the shiny sprite or not\n" \
+                             "**Examples**\n" \
+                             "`!dontneed Sprite Venusaur`\n" \
+                             "`!dontneed Portrait Steelix`\n" \
+                             "`!dontneed Portrait Minior Red`\n" \
+                             "`!dontneed Portrait Minior Shiny`\n" \
+                             "`!dontneed Sprite Alcremie Shiny`"
+            elif base_arg == "movesprite":
+                return_msg = "**Command Help**\n" \
+                             "`!movesprite <Pokemon Name> [Pokemon Form] [Shiny] [Gender] -> <Pokemon Name 2> [Pokemon Form 2] [Shiny 2] [Gender 2]`\n" \
+                             "Swaps the contents of one sprite with another.  " \
+                             "Good for promoting alternates to main, temp Pokemon to newly revealed dex numbers, " \
+                             "or just fixing mistakes.\n" \
+                             "`Pokemon Name` - Name of the Pokemon\n" \
+                             "`Form Name` - [Optional] Form name of the Pokemon\n" \
+                             "`Shiny` - [Optional] Specifies if you want the shiny sprite or not\n" \
+                             "`Gender` - [Optional] Specifies the gender of the Pokemon\n" \
+                             "**Examples**\n" \
+                             "`!movesprite Escavalier -> Accelgor`\n" \
+                             "`!movesprite Zoroark Alternate -> Zoroark`\n" \
+                             "`!movesprite Missingno_ Kleavor -> Kleavor`\n" \
+                             "`!movesprite Minior Blue -> Minior Indigo`"
+            elif base_arg == "moveportrait":
+                return_msg = "**Command Help**\n" \
+                             "`!moveportrait <Pokemon Name> [Pokemon Form] [Shiny] [Gender] -> <Pokemon Name 2> [Pokemon Form 2] [Shiny 2] [Gender 2]`\n" \
+                             "Swaps the contents of one portrait with another.  " \
+                             "Good for promoting alternates to main, temp Pokemon to newly revealed dex numbers, " \
+                             "or just fixing mistakes.\n" \
+                             "`Pokemon Name` - Name of the Pokemon\n" \
+                             "`Form Name` - [Optional] Form name of the Pokemon\n" \
+                             "`Shiny` - [Optional] Specifies if you want the shiny sprite or not\n" \
+                             "`Gender` - [Optional] Specifies the gender of the Pokemon\n" \
+                             "**Examples**\n" \
+                             "`!moveportrait Escavalier -> Accelgor`\n" \
+                             "`!moveportrait Zoroark Alternate -> Zoroark`\n" \
+                             "`!moveportrait Missingno_ Kleavor -> Kleavor`\n" \
+                             "`!moveportrait Minior Blue -> Minior Indigo`"
+            elif base_arg == "spritewip":
+                return_msg = "**Command Help**\n" \
+                             "`!spritewip <Pokemon Name> [Form Name] [Shiny] [Gender]`\n" \
+                             "Manually sets the sprite status as \u26AA Incomplete.\n" \
+                             "`Pokemon Name` - Name of the Pokemon\n" \
+                             "`Form Name` - [Optional] Form name of the Pokemon\n" \
+                             "`Shiny` - [Optional] Specifies if you want the shiny sprite or not\n" \
+                             "`Gender` - [Optional] Specifies the gender of the Pokemon\n" \
+                             "**Examples**\n" \
+                             "`!spritewip Pikachu`\n" \
+                             "`!spritewip Pikachu Shiny`\n" \
+                             "`!spritewip Pikachu Female`\n" \
+                             "`!spritewip Pikachu Shiny Female`\n" \
+                             "`!spritewip Shaymin Sky`\n" \
+                             "`!spritewip Shaymin Sky Shiny`"
+            elif base_arg == "portraitwip":
+                return_msg = "**Command Help**\n" \
+                             "`!portraitwip <Pokemon Name> [Form Name] [Shiny] [Gender]`\n" \
+                             "Manually sets the portrait status as \u26AA Incomplete.\n" \
+                             "`Pokemon Name` - Name of the Pokemon\n" \
+                             "`Form Name` - [Optional] Form name of the Pokemon\n" \
+                             "`Shiny` - [Optional] Specifies if you want the shiny sprite or not\n" \
+                             "`Gender` - [Optional] Specifies the gender of the Pokemon\n" \
+                             "**Examples**\n" \
+                             "`!portraitwip Pikachu`\n" \
+                             "`!portraitwip Pikachu Shiny`\n" \
+                             "`!portraitwip Pikachu Female`\n" \
+                             "`!portraitwip Pikachu Shiny Female`\n" \
+                             "`!portraitwip Shaymin Sky`\n" \
+                             "`!portraitwip Shaymin Sky Shiny`"
+            elif base_arg == "spriteexists":
+                return_msg = "**Command Help**\n" \
+                             "`!spriteexists <Pokemon Name> [Form Name] [Shiny] [Gender]`\n" \
+                             "Manually sets the sprite status as \u2705 Available.\n" \
+                             "`Pokemon Name` - Name of the Pokemon\n" \
+                             "`Form Name` - [Optional] Form name of the Pokemon\n" \
+                             "`Shiny` - [Optional] Specifies if you want the shiny sprite or not\n" \
+                             "`Gender` - [Optional] Specifies the gender of the Pokemon\n" \
+                             "**Examples**\n" \
+                             "`!spriteexists Pikachu`\n" \
+                             "`!spriteexists Pikachu Shiny`\n" \
+                             "`!spriteexists Pikachu Female`\n" \
+                             "`!spriteexists Pikachu Shiny Female`\n" \
+                             "`!spriteexists Shaymin Sky`\n" \
+                             "`!spriteexists Shaymin Sky Shiny`"
+            elif base_arg == "portraitexists":
+                return_msg = "**Command Help**\n" \
+                             "`!portraitexists <Pokemon Name> [Form Name] [Shiny] [Gender]`\n" \
+                             "Manually sets the portrait status as \u2705 Available.\n" \
+                             "`Pokemon Name` - Name of the Pokemon\n" \
+                             "`Form Name` - [Optional] Form name of the Pokemon\n" \
+                             "`Shiny` - [Optional] Specifies if you want the shiny sprite or not\n" \
+                             "`Gender` - [Optional] Specifies the gender of the Pokemon\n" \
+                             "**Examples**\n" \
+                             "`!portraitexists Pikachu`\n" \
+                             "`!portraitexists Pikachu Shiny`\n" \
+                             "`!portraitexists Pikachu Female`\n" \
+                             "`!portraitexists Pikachu Shiny Female`\n" \
+                             "`!portraitexists Shaymin Sky`\n" \
+                             "`!portraitexists Shaymin Sky Shiny`"
+            elif base_arg == "spritefilled":
+                return_msg = "**Command Help**\n" \
+                             "`!spritefilled <Pokemon Name> [Form Name] [Shiny] [Gender]`\n" \
+                             "Manually sets the sprite status as \u2B50 Fully Featured.\n" \
+                             "`Pokemon Name` - Name of the Pokemon\n" \
+                             "`Form Name` - [Optional] Form name of the Pokemon\n" \
+                             "`Shiny` - [Optional] Specifies if you want the shiny sprite or not\n" \
+                             "`Gender` - [Optional] Specifies the gender of the Pokemon\n" \
+                             "**Examples**\n" \
+                             "`!spritefilled Pikachu`\n" \
+                             "`!spritefilled Pikachu Shiny`\n" \
+                             "`!spritefilled Pikachu Female`\n" \
+                             "`!spritefilled Pikachu Shiny Female`\n" \
+                             "`!spritefilled Shaymin Sky`\n" \
+                             "`!spritefilled Shaymin Sky Shiny`"
+            elif base_arg == "portraitfilled":
+                return_msg = "**Command Help**\n" \
+                             "`!portraitfilled <Pokemon Name> [Form Name] [Shiny] [Gender]`\n" \
+                             "Manually sets the portrait status as \u2B50 Fully Featured.\n" \
+                             "`Pokemon Name` - Name of the Pokemon\n" \
+                             "`Form Name` - [Optional] Form name of the Pokemon\n" \
+                             "`Shiny` - [Optional] Specifies if you want the shiny sprite or not\n" \
+                             "`Gender` - [Optional] Specifies the gender of the Pokemon\n" \
+                             "**Examples**\n" \
+                             "`!portraitfilled Pikachu`\n" \
+                             "`!portraitfilled Pikachu Shiny`\n" \
+                             "`!portraitfilled Pikachu Female`\n" \
+                             "`!portraitfilled Pikachu Shiny Female`\n" \
+                             "`!portraitfilled Shaymin Sky`\n" \
+                             "`!portraitfilled Shaymin Sky Shiny`"
+            elif base_arg == "setspritecredit":
+                return_msg = "**Command Help**\n" \
+                             "`!setspritecredit <Author ID> <Pokemon Name> [Form Name] [Shiny] [Gender]`\n" \
+                             "Manually sets the primary author of a sprite to the specified author.  " \
+                             "The specified author must already exist in the credits for the sprite.\n" \
+                             "`Author ID` - The discord ID of the author to set as primary\n" \
+                             "`Pokemon Name` - Name of the Pokemon\n" \
+                             "`Form Name` - [Optional] Form name of the Pokemon\n" \
+                             "`Shiny` - [Optional] Specifies if you want the shiny sprite or not\n" \
+                             "`Gender` - [Optional] Specifies the gender of the Pokemon\n" \
+                             "**Examples**\n" \
+                             "`!setspritecredit @Audino Unown Shiny`\n" \
+                             "`!setspritecredit <@!117780585635643396> Unown Shiny`\n" \
+                             "`!setspritecredit POWERCRISTAL Calyrex`\n" \
+                             "`!setspritecredit POWERCRISTAL Calyrex Shiny`\n" \
+                             "`!setspritecredit POWERCRISTAL Jellicent Shiny Female`"
+            elif base_arg == "setportraitcredit":
+                return_msg = "**Command Help**\n" \
+                             "`!setportraitcredit <Author ID> <Pokemon Name> [Form Name] [Shiny] [Gender]`\n" \
+                             "Manually sets the primary author of a portrait to the specified author.  " \
+                             "The specified author must already exist in the credits for the portrait.\n" \
+                             "`Author ID` - The discord ID of the author to set as primary\n" \
+                             "`Pokemon Name` - Name of the Pokemon\n" \
+                             "`Form Name` - [Optional] Form name of the Pokemon\n" \
+                             "`Shiny` - [Optional] Specifies if you want the shiny sprite or not\n" \
+                             "`Gender` - [Optional] Specifies the gender of the Pokemon\n" \
+                             "**Examples**\n" \
+                             "`!setportraitcredit @Audino Unown Shiny`\n" \
+                             "`!setportraitcredit <@!117780585635643396> Unown Shiny`\n" \
+                             "`!setportraitcredit POWERCRISTAL Calyrex`\n" \
+                             "`!setportraitcredit POWERCRISTAL Calyrex Shiny`\n" \
+                             "`!setportraitcredit POWERCRISTAL Jellicent Shiny Female`"
+            elif base_arg == "addspritecredit":
+                return_msg = "**Command Help**\n" \
+                             "`!addspritecredit <Author ID> <Pokemon Name> [Form Name] [Shiny] [Gender]`\n" \
+                             "Adds the specified author to the credits of the sprite.  " \
+                             "This makes a post in the submissions channel, asking other approvers to sign off.\n" \
+                             "`Author ID` - The discord ID of the author to set as primary\n" \
+                             "`Pokemon Name` - Name of the Pokemon\n" \
+                             "`Form Name` - [Optional] Form name of the Pokemon\n" \
+                             "`Shiny` - [Optional] Specifies if you want the shiny sprite or not\n" \
+                             "`Gender` - [Optional] Specifies the gender of the Pokemon\n" \
+                             "**Examples**\n" \
+                             "`!addspritecredit @Audino Unown Shiny`\n" \
+                             "`!addspritecredit <@!117780585635643396> Unown Shiny`\n" \
+                             "`!addspritecredit POWERCRISTAL Calyrex`\n" \
+                             "`!addspritecredit POWERCRISTAL Calyrex Shiny`\n" \
+                             "`!addspritecredit POWERCRISTAL Jellicent Shiny Female`"
+            elif base_arg == "addportraitcredit":
+                return_msg = "**Command Help**\n" \
+                             "`!addportraitcredit <Author ID> <Pokemon Name> [Form Name] [Shiny] [Gender]`\n" \
+                             "Adds the specified author to the credits of the portrait.  " \
+                             "This makes a post in the submissions channel, asking other approvers to sign off.\n" \
+                             "`Author ID` - The discord ID of the author to set as primary\n" \
+                             "`Pokemon Name` - Name of the Pokemon\n" \
+                             "`Form Name` - [Optional] Form name of the Pokemon\n" \
+                             "`Shiny` - [Optional] Specifies if you want the shiny sprite or not\n" \
+                             "`Gender` - [Optional] Specifies the gender of the Pokemon\n" \
+                             "**Examples**\n" \
+                             "`!addportraitcredit @Audino Unown Shiny`\n" \
+                             "`!addportraitcredit <@!117780585635643396> Unown Shiny`\n" \
+                             "`!addportraitcredit POWERCRISTAL Calyrex`\n" \
+                             "`!addportraitcredit POWERCRISTAL Calyrex Shiny`\n" \
+                             "`!addportraitcredit POWERCRISTAL Jellicent Shiny Female`"
+            elif base_arg == "modreward":
+                return_msg = "**Command Help**\n" \
+                             "`!modreward <Pokemon Name> [Form Name]`\n" \
+                             "Toggles whether a Pokemon/form will have a custom reward.  " \
+                             "Instead of the bot automatically handing out GP, the approver must do so instead.\n" \
+                             "`Pokemon Name` - Name of the Pokemon\n" \
+                             "`Form Name` - [Optional] Form name of the Pokemon\n" \
+                             "**Examples**\n" \
+                             "`!modreward Unown`\n" \
+                             "`!modreward Minior Red`"
+            elif base_arg == "register":
+                return_msg = "**Command Help**\n" \
+                             "`!register <Author ID> <Name> <Contact>`\n" \
+                             "Registers an absentee profile with name and contact info for crediting purposes.  " \
+                             "If a discord ID is provided, the profile is force-edited " \
+                             "(can be used to remove inappropriate content)." \
+                             "This command is also available for self-registration.  " \
+                             "Check the `!help` version for more.\n" \
+                             "`Author ID` - The desired ID of the absentee profile\n" \
+                             "`Name` - The person's preferred name\n" \
+                             "`Contact` - The person's preferred contact info\n" \
+                             "**Examples**\n" \
+                             "`!register SUGIMORI Sugimori https://twitter.com/SUPER_32X`\n" \
+                             "`!register @Audino Audino https://github.com/audinowho`\n" \
+                             "`!register <@!117780585635643396> Audino https://github.com/audinowho`"
+            elif base_arg == "transferprofile":
+                return_msg = "**Command Help**\n" \
+                             "`!transferprofile <Author ID> <New Author ID>`\n" \
+                             "Transfers the credit from absentee profile to a real one.  " \
+                             "Used for when an absentee's discord account is confirmed " \
+                             "and credit needs te be moved to the new name." \
+                             "This command is also available for self-registration.  " \
+                             "Check the `!help` version for more.\n" \
+                             "`Author ID` - The desired ID of the absentee profile\n" \
+                             "`New Author ID` - The real discord ID of the author\n" \
+                             "**Examples**\n" \
+                             "`!transferprofile AUDINO_WHO <@!117780585635643396>`\n" \
+                             "`!transferprofile AUDINO_WHO @Audino`"
+            elif base_arg == "clearcache":
+                return_msg = "**Command Help**\n" \
+                             "`!clearcache <Pokemon Name> [Form Name] [Shiny] [Gender]`\n" \
+                             "Clears the all uploaded images related to a Pokemon, allowing them to be regenerated.  " \
+                             "This includes all portrait image and sprite zip links, " \
+                             "meant to be used whenever those links somehow become stale.\n" \
+                             "`Pokemon Name` - Name of the Pokemon\n" \
+                             "`Form Name` - [Optional] Form name of the Pokemon\n" \
+                             "`Shiny` - [Optional] Specifies if you want the shiny sprite or not\n" \
+                             "`Gender` - [Optional] Specifies the gender of the Pokemon\n" \
+                             "**Examples**\n" \
+                             "`!clearcache Pikachu`\n" \
+                             "`!clearcache Pikachu Shiny`\n" \
+                             "`!clearcache Pikachu Female`\n" \
+                             "`!clearcache Pikachu Shiny Female`\n" \
+                             "`!clearcache Shaymin Sky`\n" \
+                             "`!clearcache Shaymin Sky Shiny`"
+            else:
+                return_msg = "Unknown Command."
+        await msg.channel.send(msg.author.mention + " {0}".format(return_msg))
+
 
 @client.event
 async def on_ready():
@@ -2394,6 +2754,8 @@ async def on_message(msg: discord.Message):
             base_arg = args[0].lower()
             if base_arg == "help":
                 await sprite_bot.help(msg, args[1:])
+            elif base_arg == "staffhelp":
+                await sprite_bot.staffhelp(msg, args[1:])
                 # primary commands
             elif base_arg == "listsprite":
                 await sprite_bot.listForms(msg, args[1:], "sprite")
@@ -2428,16 +2790,12 @@ async def on_message(msg: discord.Message):
             elif base_arg == "autocolor":
                 await sprite_bot.tryAutoRecolor(msg, args[1:], "portrait")
                 # authorized commands
-            elif base_arg == "transferprofile" and authorized:
-                await sprite_bot.transferProfile(msg, args[1:])
             elif base_arg == "add" and authorized:
                 await sprite_bot.addSpeciesForm(msg, args[1:])
-            elif base_arg == "modreward" and authorized:
-                await sprite_bot.modSpeciesForm(msg, args[1:])
-            elif base_arg == "rename" and authorized:
-                await sprite_bot.renameSpeciesForm(msg, args[1:])
             elif base_arg == "delete" and authorized:
                 await sprite_bot.removeSpeciesForm(msg, args[1:])
+            elif base_arg == "rename" and authorized:
+                await sprite_bot.renameSpeciesForm(msg, args[1:])
             elif base_arg == "addgender" and authorized:
                 await sprite_bot.addGender(msg, args[1:])
             elif base_arg == "deletegender" and authorized:
@@ -2446,6 +2804,10 @@ async def on_message(msg: discord.Message):
                 await sprite_bot.setNeed(msg, args[1:], True)
             elif base_arg == "dontneed" and authorized:
                 await sprite_bot.setNeed(msg, args[1:], False)
+            elif base_arg == "movesprite" and authorized:
+                await sprite_bot.moveSlot(msg, args[1:], "sprite")
+            elif base_arg == "moveportrait" and authorized:
+                await sprite_bot.moveSlot(msg, args[1:], "portrait")
             elif base_arg == "spritewip" and authorized:
                 await sprite_bot.completeSlot(msg, args[1:], "sprite", TrackerUtils.PHASE_INCOMPLETE)
             elif base_arg == "portraitwip" and authorized:
@@ -2466,14 +2828,12 @@ async def on_message(msg: discord.Message):
                 await sprite_bot.addCredit(msg, args[1:], "sprite")
             elif base_arg == "addportraitcredit" and authorized:
                 await sprite_bot.addCredit(msg, args[1:], "portrait")
-            elif base_arg == "movesprite" and authorized:
-                await sprite_bot.moveSlot(msg, args[1:], "sprite")
-            elif base_arg == "moveportrait" and authorized:
-                await sprite_bot.moveSlot(msg, args[1:], "portrait")
+            elif base_arg == "modreward" and authorized:
+                await sprite_bot.modSpeciesForm(msg, args[1:])
+            elif base_arg == "transferprofile" and authorized:
+                await sprite_bot.transferProfile(msg, args[1:])
             elif base_arg == "clearcache" and authorized:
                 await sprite_bot.clearCache(msg, args[1:])
-            elif base_arg == "error" and authorized:
-                raise Exception()
                 # root commands
             elif base_arg == "rescan" and msg.author.id == sprite_bot.config.root:
                 await sprite_bot.rescan(msg)
