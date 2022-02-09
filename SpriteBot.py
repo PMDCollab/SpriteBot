@@ -1442,11 +1442,20 @@ class SpriteBot:
 
         return base_name
 
-    def createCreditBlock(self, credit):
+    def createCreditBlock(self, credit, base_credit):
         author_arr = []
         author_arr.append(self.createCreditAttribution(credit.primary))
         for author in credit.secondary:
             author_arr.append(self.createCreditAttribution(author))
+        if base_credit is not None:
+            attr = self.createCreditAttribution(base_credit.primary)
+            if attr not in author_arr:
+                author_arr.append(attr)
+            for author in credit.secondary:
+                attr = self.createCreditAttribution(author)
+                if attr not in author_arr:
+                    author_arr.append(attr)
+
 
         block = "Authors: {0}".format(", ".join(author_arr))
         credit_diff = credit.total - len(author_arr)
@@ -1486,7 +1495,8 @@ class SpriteBot:
                     response += "\n [This {0} is missing. If you want to submit, use this file as a template!]".format(asset_type)
                 elif not recolor:
                     credit = chosen_node.__dict__[asset_type + "_credit"]
-                    response += "\n" + self.createCreditBlock(credit)
+                    base_credit = None
+                    response += "\n" + self.createCreditBlock(credit, base_credit)
                     if len(credit.secondary) + 1 < credit.total:
                         response += "\nRun `!{0}credit {1}` for full credit.".format(asset_type, " ".join(name_seq))
                 if recolor:
