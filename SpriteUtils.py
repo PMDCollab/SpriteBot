@@ -1480,7 +1480,7 @@ def colorToHex(color):
 Returns Image
 """
 def preparePortraitImage(path):
-    printImg = Image.new('RGBA', (Constants.PORTRAIT_SIZE * 5, Constants.PORTRAIT_SIZE * 8), (0, 0, 0, 0))
+    printImg = Image.new('RGBA', (Constants.PORTRAIT_SHEET_WIDTH, Constants.PORTRAIT_SHEET_HEIGHT), (0, 0, 0, 0))
     maxX = 0
     maxY = 0
     for file in os.listdir(path):
@@ -1497,8 +1497,8 @@ def preparePortraitImage(path):
 
                 if use:
                     inImg = Image.open(os.path.join(path, file)).convert("RGBA")
-                    placeX = Constants.PORTRAIT_SIZE * (idx % 5)
-                    placeY = Constants.PORTRAIT_SIZE * (idx // 5)
+                    placeX = Constants.PORTRAIT_SIZE * (idx % Constants.PORTRAIT_TILE_X)
+                    placeY = Constants.PORTRAIT_SIZE * (idx // Constants.PORTRAIT_TILE_Y)
                     # handle flips
                     if flip:
                         placeY += 4 * Constants.PORTRAIT_SIZE
@@ -1508,8 +1508,9 @@ def preparePortraitImage(path):
                     break
 
     if maxX > 0 and maxY > 0:
-        outImg = printImg.crop((0,0,maxX, maxY))
-        return outImg
+        if Constants.CROP_PORTRAITS:
+            return printImg.crop((0,0,maxX, maxY))
+        return printImg
     return None
 
 def preparePortraitRecolor(path):
