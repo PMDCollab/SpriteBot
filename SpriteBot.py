@@ -12,13 +12,14 @@ import git
 import sys
 import re
 import argparse
-
+import Constants
 
 # Housekeeping for login information
 TOKEN_FILE_PATH = 'token.txt'
 NAME_FILE_PATH = 'credit_names.txt'
 INFO_FILE_PATH = 'README.md'
 CONFIG_FILE_PATH = 'config.json'
+SPRITE_CONFIG_FILE_PATH = 'sprite_config.json'
 TRACKER_FILE_PATH = 'tracker.json'
 
 SPRITE_WORTH = 10
@@ -104,6 +105,18 @@ class SpriteBot:
         self.need_restart = False
         with open(os.path.join(self.path, CONFIG_FILE_PATH)) as f:
             self.config = BotConfig(json.load(f))
+        with open(os.path.join(self.config.path, SPRITE_CONFIG_FILE_PATH)) as f:
+            sprite_config = json.load(f)
+            Constants.PORTRAIT_SIZE = sprite_config['portrait_size']
+            Constants.PORTRAIT_TILE_X = sprite_config['portrait_tile_x']
+            Constants.PORTRAIT_TILE_Y = sprite_config['portrait_tile_y']
+            Constants.COMPLETION_EMOTIONS = sprite_config['completion_emotions']
+            Constants.EMOTIONS = sprite_config['emotions']
+            Constants.COMPLETION_ACTIONS = sprite_config['completion_actions']
+            Constants.ACTIONS = sprite_config['actions']
+            for key in sprite_config['action_map']:
+                Constants.ACTION_MAP[int(key)] = sprite_config['action_map'][key]
+
         with open(os.path.join(self.config.path, INFO_FILE_PATH)) as f:
             self.info_post = f.read().split("\n\n\n")
 

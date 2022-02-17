@@ -16,7 +16,7 @@ import zipfile
 import xml.etree.ElementTree as ET
 import xml.dom.minidom as minidom
 import utils as exUtils
-from Constants import *
+import Constants
 
 
 MAX_SECONDARY_CREDIT = 2
@@ -161,8 +161,8 @@ def getCurrentCompletion(dict, prefix):
         completion = PHASE_FULL
         while completion > PHASE_INCOMPLETE:
             has_all = True
-            for idx in COMPLETION_ACTIONS[completion]:
-                file = ACTIONS[idx]
+            for idx in Constants.COMPLETION_ACTIONS[completion]:
+                file = Constants.ACTIONS[idx]
                 if file not in dict.__dict__[prefix + "_files"]:
                     has_all = False
                     break
@@ -179,8 +179,8 @@ def getCurrentCompletion(dict, prefix):
                 break
         while completion > PHASE_INCOMPLETE:
             has_all = True
-            for idx in COMPLETION_EMOTIONS[completion]:
-                file = EMOTIONS[idx]
+            for idx in Constants.COMPLETION_EMOTIONS[completion]:
+                file = Constants.EMOTIONS[idx]
                 if file not in dict.__dict__[prefix + "_files"]:
                     has_all = False
                     break
@@ -199,8 +199,8 @@ def getCurrentCompletion(dict, prefix):
 def updateFiles(dict, species_path, prefix):
     file_list = []
     if prefix == "sprite":
-        if os.path.exists(os.path.join(species_path, MULTI_SHEET_XML)):
-            tree = ET.parse(os.path.join(species_path, MULTI_SHEET_XML))
+        if os.path.exists(os.path.join(species_path, Constants.MULTI_SHEET_XML)):
+            tree = ET.parse(os.path.join(species_path, Constants.MULTI_SHEET_XML))
             root = tree.getroot()
             anims_node = root.find('Anims')
             for anim_node in anims_node.iter('Anim'):
