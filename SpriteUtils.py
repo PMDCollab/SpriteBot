@@ -1498,7 +1498,7 @@ def preparePortraitImage(path):
                 if use:
                     inImg = Image.open(os.path.join(path, file)).convert("RGBA")
                     placeX = Constants.PORTRAIT_SIZE * (idx % Constants.PORTRAIT_TILE_X)
-                    placeY = Constants.PORTRAIT_SIZE * (idx // Constants.PORTRAIT_TILE_Y)
+                    placeY = Constants.PORTRAIT_SIZE * (idx // Constants.PORTRAIT_TILE_X)
                     # handle flips
                     if flip:
                         placeY += 4 * Constants.PORTRAIT_SIZE
