@@ -841,7 +841,7 @@ class SpriteBot:
                 if overcolor:
                     overcolor_img = SpriteUtils.removePalette(auto_recolor_img)
 
-                await self.postStagedSubmission(msg.channel, content, shiny_idx, shiny_node, asset_type, orig_sender,
+                await self.postStagedSubmission(msg.channel, content, shiny_idx, shiny_node, asset_type, sender_info,
                                                 True, None, auto_recolor_file, return_name, overcolor_img)
 
 
