@@ -53,6 +53,7 @@ class BotServer:
             self.chat = 0
             self.submit = 0
             self.approval = 0
+            self.prefix = ""
             self.info_posts = []
             return
         self.__dict__ = main_dict
