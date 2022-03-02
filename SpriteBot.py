@@ -841,7 +841,7 @@ class SpriteBot:
                 if overcolor:
                     overcolor_img = SpriteUtils.removePalette(auto_recolor_img)
 
-                await self.postStagedSubmission(msg.channel, content, shiny_idx, shiny_node, asset_type, sender_info,
+                await self.postStagedSubmission(msg.channel, content, shiny_idx, shiny_node, asset_type, orig_sender,
                                                 True, None, auto_recolor_file, return_name, overcolor_img)
 
 
@@ -1674,18 +1674,25 @@ class SpriteBot:
     async def setProfile(self, msg, args):
         msg_mention = "<@!{0}>".format(msg.author.id)
 
-        if len(args) == 0:
+
+        if len(args) > 0:
+            if args[0].startswith("<@!") and args[0].endswith(">"):
+                if not await self.isAuthorized(msg.author, msg.guild):
+                    await msg.channel.send(msg.author.mention + " Not authorized to create absent registration.")
+                    return
+                msg_mention = args[0].upper()
+                author_info_args = args[1:]
+            else:
+                author_info_args = args
+        else:
+            author_info_args = args
+
+        if len(author_info_args) == 0:
             new_credit = TrackerUtils.CreditEntry("", "")
-        elif len(args) == 1:
-            new_credit = TrackerUtils.CreditEntry(args[0], "")
-        elif len(args) == 2:
-            new_credit = TrackerUtils.CreditEntry(args[0], args[1])
-        elif len(args) == 3:
-            if not await self.isAuthorized(msg.author, msg.guild):
-                await msg.channel.send(msg.author.mention + " Not authorized to create absent registration.")
-                return
-            msg_mention = args[0].upper()
-            new_credit = TrackerUtils.CreditEntry(args[1], args[2])
+        elif len(author_info_args) == 1:
+            new_credit = TrackerUtils.CreditEntry(author_info_args[0], "")
+        elif len(author_info_args) == 2:
+            new_credit = TrackerUtils.CreditEntry(author_info_args[0], author_info_args[1])
         else:
             await msg.channel.send(msg.author.mention + " Invalid args")
             return
