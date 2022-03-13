@@ -1510,10 +1510,10 @@ class SpriteBot:
             await msg.channel.send(msg.author.mention + " No such Pokemon.")
             return
 
-        # can't get recolor link for a shiny
+        # special case recolor link for a shiny
+        recolor_shiny = False
         if recolor and "Shiny" in name_seq:
-            await msg.channel.send(msg.author.mention + " Can't get recolor for a shiny Pokemon.")
-            return
+            recolor_shiny = True
 
         chosen_node = TrackerUtils.getNodeFromIdx(self.tracker, full_idx, 0)
         # post the statuses
@@ -1524,17 +1524,20 @@ class SpriteBot:
         if chosen_node.__dict__[asset_type + "_required"]:
             file_exists = chosen_node.__dict__[asset_type + "_credit"].primary != ""
             if not file_exists and recolor:
-                response += " doesn't have a {0} to recolor. Submit the original first.".format(asset_type)
+                if recolor_shiny:
+                    response += " doesn't have a {0}. Submit it first.".format(asset_type)
+                else:
+                    response += " doesn't have a {0} to recolor. Submit the original first.".format(asset_type)
             else:
                 if not file_exists:
                     response += "\n [This {0} is missing. If you want to submit, use this file as a template!]".format(asset_type)
-                elif not recolor:
+                else:
                     credit = chosen_node.__dict__[asset_type + "_credit"]
                     base_credit = None
                     response += "\n" + self.createCreditBlock(credit, base_credit)
                     if len(credit.secondary) + 1 < credit.total:
                         response += "\nRun `!{0}credit {1}` for full credit.".format(asset_type, " ".join(name_seq))
-                if recolor:
+                if recolor and not recolor_shiny:
                     response += "\n [Recolor this {0} to its shiny palette and submit it.]".format(asset_type)
                 chosen_link = await self.retrieveLinkMsg(full_idx, chosen_node, asset_type, recolor)
                 response += "\n" + chosen_link
