@@ -29,6 +29,8 @@ PORTRAIT_SHINY_WORTH = 1
 
 PHASES = [ "\u26AA incomplete", "\u2705 available", "\u2B50 fully featured" ]
 
+MESSAGE_BOUNTIES_DISABLED = "Bounties are disabled for this instance of SpriteBot"
+
 scdir = os.path.dirname(os.path.abspath(__file__))
 
 parser = argparse.ArgumentParser()
@@ -74,8 +76,12 @@ class BotConfig:
             self.update_ch = 0
             self.update_msg = 0
             self.servers = {}
+            self.use_bounties = False
             return
 
+        if "use_bounties" not in main_dict:
+            main_dict["use_bounties"] = False
+        
         self.__dict__ = main_dict
 
         sub_dict = {}
@@ -784,16 +790,17 @@ class SpriteBot:
 
 
         # add bounty
-        result_phase = current_completion_file
-        while result_phase > 0:
-            if str(result_phase) in chosen_node.__dict__[asset_type + "_bounty"]:
-                give_points += chosen_node.__dict__[asset_type + "_bounty"][str(result_phase)]
-                del chosen_node.__dict__[asset_type + "_bounty"][str(result_phase)]
-            result_phase -= 1
+        if self.config.use_bounties:
+            result_phase = current_completion_file
+            while result_phase > 0:
+                if str(result_phase) in chosen_node.__dict__[asset_type + "_bounty"]:
+                    give_points += chosen_node.__dict__[asset_type + "_bounty"][str(result_phase)]
+                    del chosen_node.__dict__[asset_type + "_bounty"][str(result_phase)]
+                result_phase -= 1
 
-        if give_points > 0 and orig_author.startswith("<@!") and self.config.points_ch != 0:
-            orig_author_id = orig_author[3:-1]
-            await self.client.get_channel(self.config.points_ch).send("!gr {0} {1} {2}".format(orig_author_id, give_points, self.config.servers[str(msg.guild.id)].chat))
+            if give_points > 0 and orig_author.startswith("<@!") and self.config.points_ch != 0:
+                orig_author_id = orig_author[3:-1]
+                await self.client.get_channel(self.config.points_ch).send("!gr {0} {1} {2}".format(orig_author_id, give_points, self.config.servers[str(msg.guild.id)].chat))
 
         self.changed = True
 
@@ -1206,6 +1213,10 @@ class SpriteBot:
         self.changed = True
 
     async def placeBounty(self, msg, name_args, asset_type):
+        if not self.config.use_bounties:
+            await msg.channel.send(msg.author.mention + " " + MESSAGE_BOUNTIES_DISABLED)
+            return
+
         try:
             amt = int(name_args[-1])
         except Exception as e:
@@ -1329,6 +1340,10 @@ class SpriteBot:
         self.changed = True
 
     async def listBounties(self, msg, name_args):
+        if not self.config.use_bounties:
+            await msg.channel.send(msg.author.mention + " " + MESSAGE_BOUNTIES_DISABLED)
+            return
+        
         include_sprite = True
         include_portrait = True
 
@@ -1524,10 +1539,11 @@ class SpriteBot:
                 response += "\n" + chosen_link
 
             next_phase = chosen_node.__dict__[asset_type + "_complete"] + 1
-            if str(next_phase) in chosen_node.__dict__[asset_type + "_bounty"]:
-                bounty = chosen_node.__dict__[asset_type + "_bounty"][str(next_phase)]
-                if bounty > 0:
-                    response += "\n This {0} has a bounty of **{1}GP**, paid out when it becomes {2}".format(asset_type, bounty, PHASES[next_phase].title())
+            if self.config.use_bounties:
+                if str(next_phase) in chosen_node.__dict__[asset_type + "_bounty"]:
+                    bounty = chosen_node.__dict__[asset_type + "_bounty"][str(next_phase)]
+                    if bounty > 0:
+                        response += "\n This {0} has a bounty of **{1}GP**, paid out when it becomes {2}".format(asset_type, bounty, PHASES[next_phase].title())
             if chosen_node.modreward and chosen_node.__dict__[asset_type + "_complete"] == TrackerUtils.PHASE_INCOMPLETE:
                 response += "\n The reward for this {0} will be decided by approvers.".format(asset_type)
         else:
@@ -2199,6 +2215,7 @@ class SpriteBot:
 
     async def help(self, msg, args):
         prefix = self.config.servers[str(msg.guild.id)].prefix
+        use_bounties = self.config.use_bounties
         if len(args) == 0:
             return_msg = "**Commands**\n" \
                   f"`{prefix}sprite` - Get the Pokemon's sprite sheet\n" \
@@ -2207,13 +2224,14 @@ class SpriteBot:
                   f"`{prefix}recolorportrait` - Get the Pokemon's portrait sheet in a form for easy recoloring\n" \
                   f"`{prefix}autocolor` - Generates an automatic recolor of the Pokemon's portrait sheet\n" \
                   f"`{prefix}listsprite` - List all sprites related to a Pokemon\n" \
-                  f"`{prefix}listportrait` - List all portraits related to a Pokemon\n" \
-                  f"`{prefix}spritebounty` - Place a bounty on a sprite\n" \
-                  f"`{prefix}portraitbounty` - Place a bounty on a portrait\n" \
-                  f"`{prefix}bounties` - View top bounties\n" \
-                  f"`{prefix}register` - Register your profile\n" \
-                  f"`{prefix}profile` - View your profile\n" \
-                  f"Type `{prefix}help` with the name of a command to learn more about it."
+                  f"`{prefix}listportrait` - List all portraits related to a Pokemon\n"
+            if use_bounties:
+                return_msg += f"`{prefix}spritebounty` - Place a bounty on a sprite\n" \
+                              f"`{prefix}portraitbounty` - Place a bounty on a portrait\n" \
+                              f"`{prefix}bounties` - View top bounties\n"
+            return_msg += f"`{prefix}register` - Register your profile\n" \
+                          f"`{prefix}profile` - View your profile\n" \
+                          f"Type `{prefix}help` with the name of a command to learn more about it."
 
         else:
             base_arg = args[0]
@@ -2327,48 +2345,57 @@ class SpriteBot:
                              f"`{prefix}portraitcredit Shaymin Sky`\n" \
                              f"`{prefix}portraitcredit Shaymin Sky Shiny`"
             elif base_arg == "spritebounty":
-                return_msg = "**Command Help**\n" \
-                             f"`{prefix}spritebounty <Pokemon Name> [Form Name] [Shiny] [Gender] <Points>`\n" \
-                             "Places a bounty on a missing or incomplete sprite, using your Guild Points.\n" \
-                             "`Pokemon Name` - Name of the Pokemon\n" \
-                             "`Form Name` - [Optional] Form name of the Pokemon\n" \
-                             "`Shiny` - [Optional] Specifies if you want the shiny sprite or not\n" \
-                             "`Gender` - [Optional] Specifies the gender of the Pokemon, for those with gender differences\n" \
-                             "`Points` - The number of guild points you wish to donate\n" \
-                             "**Examples**\n" \
-                             f"`{prefix}spritebounty Meowstic 1`\n" \
-                             f"`{prefix}spritebounty Meowstic 5`\n" \
-                             f"`{prefix}spritebounty Meowstic Shiny 1`\n" \
-                             f"`{prefix}spritebounty Meowstic Female 1`\n" \
-                             f"`{prefix}spritebounty Meowstic Shiny Female 1`\n" \
-                             f"`{prefix}spritebounty Diancie Mega 1`\n" \
-                             f"`{prefix}spritebounty Diancie Mega Shiny 1`"
+                if use_bounties:
+                    return_msg = "**Command Help**\n" \
+                                f"`{prefix}spritebounty <Pokemon Name> [Form Name] [Shiny] [Gender] <Points>`\n" \
+                                "Places a bounty on a missing or incomplete sprite, using your Guild Points.\n" \
+                                "`Pokemon Name` - Name of the Pokemon\n" \
+                                "`Form Name` - [Optional] Form name of the Pokemon\n" \
+                                "`Shiny` - [Optional] Specifies if you want the shiny sprite or not\n" \
+                                "`Gender` - [Optional] Specifies the gender of the Pokemon, for those with gender differences\n" \
+                                "`Points` - The number of guild points you wish to donate\n" \
+                                "**Examples**\n" \
+                                f"`{prefix}spritebounty Meowstic 1`\n" \
+                                f"`{prefix}spritebounty Meowstic 5`\n" \
+                                f"`{prefix}spritebounty Meowstic Shiny 1`\n" \
+                                f"`{prefix}spritebounty Meowstic Female 1`\n" \
+                                f"`{prefix}spritebounty Meowstic Shiny Female 1`\n" \
+                                f"`{prefix}spritebounty Diancie Mega 1`\n" \
+                                f"`{prefix}spritebounty Diancie Mega Shiny 1`"
+                else:
+                    return_msg = MESSAGE_BOUNTIES_DISABLED
             elif base_arg == "portraitbounty":
-                return_msg = "**Command Help**\n" \
-                             f"`{prefix}portraitbounty <Pokemon Name> [Form Name] [Shiny] [Gender] <Points>`\n" \
-                             "Places a bounty on a missing or incomplete portrait, using your Guild Points.\n" \
-                             "`Pokemon Name` - Name of the Pokemon\n" \
-                             "`Form Name` - [Optional] Form name of the Pokemon\n" \
-                             "`Shiny` - [Optional] Specifies if you want the shiny portrait or not\n" \
-                             "`Gender` - [Optional] Specifies the gender of the Pokemon, for those with gender differences\n" \
-                             "`Points` - The number of guild points you wish to donate\n" \
-                             "**Examples**\n" \
-                             f"`{prefix}portraitbounty Meowstic 1`\n" \
-                             f"`{prefix}portraitbounty Meowstic 5`\n" \
-                             f"`{prefix}portraitbounty Meowstic Shiny 1`\n" \
-                             f"`{prefix}portraitbounty Meowstic Female 1`\n" \
-                             f"`{prefix}portraitbounty Meowstic Shiny Female 1`\n" \
-                             f"`{prefix}portraitbounty Diancie Mega 1`\n" \
-                             f"`{prefix}portraitbounty Diancie Mega Shiny 1`"
+                if use_bounties:
+                    return_msg = "**Command Help**\n" \
+                                f"`{prefix}portraitbounty <Pokemon Name> [Form Name] [Shiny] [Gender] <Points>`\n" \
+                                "Places a bounty on a missing or incomplete portrait, using your Guild Points.\n" \
+                                "`Pokemon Name` - Name of the Pokemon\n" \
+                                "`Form Name` - [Optional] Form name of the Pokemon\n" \
+                                "`Shiny` - [Optional] Specifies if you want the shiny portrait or not\n" \
+                                "`Gender` - [Optional] Specifies the gender of the Pokemon, for those with gender differences\n" \
+                                "`Points` - The number of guild points you wish to donate\n" \
+                                "**Examples**\n" \
+                                f"`{prefix}portraitbounty Meowstic 1`\n" \
+                                f"`{prefix}portraitbounty Meowstic 5`\n" \
+                                f"`{prefix}portraitbounty Meowstic Shiny 1`\n" \
+                                f"`{prefix}portraitbounty Meowstic Female 1`\n" \
+                                f"`{prefix}portraitbounty Meowstic Shiny Female 1`\n" \
+                                f"`{prefix}portraitbounty Diancie Mega 1`\n" \
+                                f"`{prefix}portraitbounty Diancie Mega Shiny 1`"
+                else:
+                    return_msg = MESSAGE_BOUNTIES_DISABLED
             elif base_arg == "bounties":
-                return_msg = "**Command Help**\n" \
-                             f"`{prefix}bounties [Type]`\n" \
-                             "View the top sprites/portraits that have bounties placed on them.  " \
-                             "You will claim a bounty when you successfully submit that sprite/portrait.\n" \
-                             "`Type` - [Optional] Can be `sprite` or `portrait`\n" \
-                             "**Examples**\n" \
-                             f"`{prefix}bounties`\n" \
-                             f"`{prefix}bounties sprite`"
+                if use_bounties:
+                    return_msg = "**Command Help**\n" \
+                                f"`{prefix}bounties [Type]`\n" \
+                                "View the top sprites/portraits that have bounties placed on them.  " \
+                                "You will claim a bounty when you successfully submit that sprite/portrait.\n" \
+                                "`Type` - [Optional] Can be `sprite` or `portrait`\n" \
+                                "**Examples**\n" \
+                                f"`{prefix}bounties`\n" \
+                                f"`{prefix}bounties sprite`"
+                else:
+                    return_msg = MESSAGE_BOUNTIES_DISABLED
             elif base_arg == "profile":
                 return_msg = "**Command Help**\n" \
                              f"`{prefix}profile`\n" \
