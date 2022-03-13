@@ -1668,7 +1668,7 @@ class SpriteBot:
         base_file, base_name = SpriteUtils.getLinkData(base_link)
 
         # stage a post in submissions
-        await self.postStagedSubmission(submit_channel, "--addauthor", full_idx, chosen_node, asset_type, author,
+        await self.postStagedSubmission(submit_channel, "--addauthor", full_idx, chosen_node, asset_type, author + "/" + wanted_author,
                                                 False, None, base_file, base_name, None)
 
 
