@@ -50,15 +50,18 @@ client = discord.Client()
 class BotServer:
 
     def __init__(self, main_dict=None):
+        self.info = 0
+        self.chat = 0
+        self.submit = 0
+        self.approval = 0
+        self.prefix = ""
+        self.info_posts = []
+
         if main_dict is None:
-            self.info = 0
-            self.chat = 0
-            self.submit = 0
-            self.approval = 0
-            self.prefix = ""
-            self.info_posts = []
             return
-        self.__dict__ = main_dict
+
+        for key in main_dict:
+            self.__dict__[key] = main_dict[key]
 
     def getDict(self):
         return self.__dict__
@@ -66,23 +69,22 @@ class BotServer:
 class BotConfig:
 
     def __init__(self, main_dict=None):
+        self.path = ""
+        self.root = 0
+        self.push = False
+        self.points = 0
+        self.error_ch = 0
+        self.points_ch = 0
+        self.update_ch = 0
+        self.update_msg = 0
+        self.use_bounties = False
+        self.servers = {}
+
         if main_dict is None:
-            self.path = ""
-            self.root = 0
-            self.push = False
-            self.points = 0
-            self.error_ch = 0
-            self.points_ch = 0
-            self.update_ch = 0
-            self.update_msg = 0
-            self.servers = {}
-            self.use_bounties = False
             return
 
-        if "use_bounties" not in main_dict:
-            main_dict["use_bounties"] = False
-        
-        self.__dict__ = main_dict
+        for key in main_dict:
+            self.__dict__[key] = main_dict[key]
 
         sub_dict = {}
         for key in self.servers:
@@ -790,17 +792,16 @@ class SpriteBot:
 
 
         # add bounty
-        if self.config.use_bounties:
-            result_phase = current_completion_file
-            while result_phase > 0:
-                if str(result_phase) in chosen_node.__dict__[asset_type + "_bounty"]:
-                    give_points += chosen_node.__dict__[asset_type + "_bounty"][str(result_phase)]
-                    del chosen_node.__dict__[asset_type + "_bounty"][str(result_phase)]
-                result_phase -= 1
+        result_phase = current_completion_file
+        while result_phase > 0:
+            if str(result_phase) in chosen_node.__dict__[asset_type + "_bounty"]:
+                give_points += chosen_node.__dict__[asset_type + "_bounty"][str(result_phase)]
+                del chosen_node.__dict__[asset_type + "_bounty"][str(result_phase)]
+            result_phase -= 1
 
-            if give_points > 0 and orig_author.startswith("<@!") and self.config.points_ch != 0:
-                orig_author_id = orig_author[3:-1]
-                await self.client.get_channel(self.config.points_ch).send("!gr {0} {1} {2}".format(orig_author_id, give_points, self.config.servers[str(msg.guild.id)].chat))
+        if give_points > 0 and orig_author.startswith("<@!") and self.config.points_ch != 0:
+            orig_author_id = orig_author[3:-1]
+            await self.client.get_channel(self.config.points_ch).send("!gr {0} {1} {2}".format(orig_author_id, give_points, self.config.servers[str(msg.guild.id)].chat))
 
         self.changed = True
 
@@ -1539,11 +1540,11 @@ class SpriteBot:
                 response += "\n" + chosen_link
 
             next_phase = chosen_node.__dict__[asset_type + "_complete"] + 1
-            if self.config.use_bounties:
-                if str(next_phase) in chosen_node.__dict__[asset_type + "_bounty"]:
-                    bounty = chosen_node.__dict__[asset_type + "_bounty"][str(next_phase)]
-                    if bounty > 0:
-                        response += "\n This {0} has a bounty of **{1}GP**, paid out when it becomes {2}".format(asset_type, bounty, PHASES[next_phase].title())
+
+            if str(next_phase) in chosen_node.__dict__[asset_type + "_bounty"]:
+                bounty = chosen_node.__dict__[asset_type + "_bounty"][str(next_phase)]
+                if bounty > 0:
+                    response += "\n This {0} has a bounty of **{1}GP**, paid out when it becomes {2}".format(asset_type, bounty, PHASES[next_phase].title())
             if chosen_node.modreward and chosen_node.__dict__[asset_type + "_complete"] == TrackerUtils.PHASE_INCOMPLETE:
                 response += "\n The reward for this {0} will be decided by approvers.".format(asset_type)
         else:
