@@ -2921,7 +2921,7 @@ async def on_message(msg: discord.Message):
             elif base_arg == "forcepush" and msg.author.id == sprite_bot.config.root:
                 await sprite_bot.gitCommit("Tracker update from forced push.")
                 await sprite_bot.gitPush()
-                msg.channel.send(msg.author.mention + " Changes pushed.")
+                await msg.channel.send(msg.author.mention + " Changes pushed.")
             elif base_arg in ["gr", "tr", "checkr"]:
                 pass
             else:
