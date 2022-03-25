@@ -1,4 +1,5 @@
 .idea/
+.vscode/
 __pycache__/
 venv/
 venv_*/
@@ -7,3 +8,4 @@ config.json
 credit_names.txt
 info.txt
 token.txt
+*.org

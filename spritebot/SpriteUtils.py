@@ -1,24 +1,17 @@
-import sys
 import os
-import re
-import shutil
 import math
-import struct
-import glob
+import shutil
 import time
 import urllib
 import urllib.request
-from PIL import Image, ImageDraw, ImageFont
-import datetime
-import json
+from PIL import Image
 from io import BytesIO
 import zipfile
 import xml.etree.ElementTree as ET
-import xml.dom.minidom as minidom
-import utils as exUtils
-import Constants
+import spritebot.utils as exUtils
+import spritebot.Constants as Constants
 
-RETRIEVE_HEADERS = { 'User-Agent': 'Mozilla/5.0 (Windows; U; Windows NT 5.1; en-US; rv:1.9.0.7) Gecko/2009021910 Firefox/3.0.7'}
+RETRIEVE_HEADERS = {'User-Agent': 'Mozilla/5.0 (Windows; U; Windows NT 5.1; en-US; rv:1.9.0.7) Gecko/2009021910 Firefox/3.0.7'}
 
 
 ZIP_SIZE_LIMIT = 5000000
@@ -109,15 +102,15 @@ def getPalette(inImg):
     return palette
 
 def insertPalette(inImg):
-    outImg = Image.new('RGBA', (inImg.size[0], inImg.size[1]+1), (0,0,0,0))
-    datas = [(0,0,0,0)] * (outImg.size[0] * outImg.size[1])
+    outImg = Image.new('RGBA', (inImg.size[0], inImg.size[1]+1), (0, 0, 0, 0))
+    datas = [(0, 0, 0, 0)] * (outImg.size[0] * outImg.size[1])
     palette = getPalette(inImg)
     paletteNum = 0
     for key in palette:
         datas[paletteNum] = key
         paletteNum = paletteNum + 1
     outImg.putdata(datas)
-    outImg.paste(inImg, (0,1))
+    outImg.paste(inImg, (0, 1))
     return outImg
 
 
@@ -125,7 +118,7 @@ def xyPlusOne(loc):
     return (loc[0], loc[1]+1)
 
 def removePalette(inImg):
-    imgCrop = inImg.crop((0,1,inImg.size[0], inImg.size[1]))
+    imgCrop = inImg.crop((0, 1, inImg.size[0], inImg.size[1]))
     return imgCrop.convert("RGBA")
 
 def getLinkData(url):
@@ -485,7 +478,7 @@ def verifyPortraitRecolor(msg_args, orig_img, img, recolor):
                     palette[cur_pixel] = True
             palette_counts[(xx, yy)] = len(palette)
 
-    overpalette = { }
+    overpalette = {}
     for emote_loc in palette_counts:
         if palette_counts[emote_loc] > 15:
             overpalette[emote_loc] = palette_counts[emote_loc]
@@ -494,8 +487,8 @@ def verifyPortraitRecolor(msg_args, orig_img, img, recolor):
         if not msg_args.overcolor:
             reduced_img = simple_quant_portraits(img)
             rogue_emotes = [getEmotionFromTilePos(a) for a in overpalette]
-            raise SpriteVerifyError("Some emotions have over 15 colors.\n" \
-                   "If this is acceptable, include `--overcolor` in the message.  Otherwise reduce colors for emotes:\n" \
+            raise SpriteVerifyError("Some emotions have over 15 colors.\n"
+                   "If this is acceptable, include `--overcolor` in the message.  Otherwise reduce colors for emotes:\n"
                    "{0}".format(str(rogue_emotes)[:1900]), reduced_img)
 
 def getEmotionFromTilePos(tile_pos):
@@ -955,7 +948,7 @@ def verifyPortrait(msg_args, img):
         rogue_emotes = [getEmotionFromTilePos(a) for a in rogue_tiles]
         raise SpriteVerifyError("The following emotions have transparent pixels: {0}".format(str(rogue_emotes)[:1900]))
 
-    overpalette = { }
+    overpalette = {}
     for emote_loc in palette_counts:
         if palette_counts[emote_loc] > 15:
             overpalette[emote_loc] = palette_counts[emote_loc]
@@ -972,8 +965,8 @@ def verifyPortrait(msg_args, img):
                 reduced_img.paste(reduced_portrait, crop_pos)
 
             rogue_emotes = [getEmotionFromTilePos(a) for a in overpalette]
-            raise SpriteVerifyError("Some emotions have over 15 colors.\n" \
-                   "If this is acceptable, include `--overcolor` in the message.  Otherwise reduce colors for emotes:\n" \
+            raise SpriteVerifyError("Some emotions have over 15 colors.\n"
+                   "If this is acceptable, include `--overcolor` in the message.  Otherwise reduce colors for emotes:\n"
                    "{0}".format(str(rogue_emotes)[:1900]), reduced_img)
 
     # make sure all mirrored emotions have their original emotions
@@ -996,7 +989,7 @@ def verifyPortrait(msg_args, img):
         if has_missing_original:
             raise SpriteVerifyError("File has a flipped emotion when the original is missing.")
         if not msg_args.noflip:
-            raise SpriteVerifyError("File is missing some flipped emotions." \
+            raise SpriteVerifyError("File is missing some flipped emotions."
                    "If you want to submit incomplete, include `--noflip` in the message.")
 
 def verifyPortraitLock(dict, chosen_path, img, recolor):
@@ -1129,13 +1122,13 @@ def placePortraitToPath(outImg, dest_path):
         placeX = Constants.PORTRAIT_SIZE * (idx % Constants.PORTRAIT_TILE_X)
         placeY = Constants.PORTRAIT_SIZE * (idx // Constants.PORTRAIT_TILE_X)
         if placeX < outImg.size[0] and placeY < outImg.size[1]:
-            imgCrop = outImg.crop((placeX,placeY,placeX+Constants.PORTRAIT_SIZE,placeY+Constants.PORTRAIT_SIZE))
+            imgCrop = outImg.crop((placeX, placeY, placeX+Constants.PORTRAIT_SIZE, placeY+Constants.PORTRAIT_SIZE))
             if not isBlank(imgCrop):
                 imgCrop.save(os.path.join(dest_path, Constants.EMOTIONS[idx]+".png"))
         # check flips
         placeY += 4 * Constants.PORTRAIT_SIZE
         if placeX < outImg.size[0] and placeY < outImg.size[1]:
-            imgCrop = outImg.crop((placeX,placeY,placeX+Constants.PORTRAIT_SIZE,placeY+Constants.PORTRAIT_SIZE))
+            imgCrop = outImg.crop((placeX, placeY, placeX+Constants.PORTRAIT_SIZE, placeY+Constants.PORTRAIT_SIZE))
             if not isBlank(imgCrop):
                 imgCrop.save(os.path.join(dest_path, Constants.EMOTIONS[idx]+"^.png"))
 
@@ -1167,7 +1160,7 @@ def prepareSpriteZip(path):
             asset_files.append(file)
 
     fileData = BytesIO()
-    with zipfile.ZipFile(fileData,'w') as zip:
+    with zipfile.ZipFile(fileData, 'w') as zip:
         # writing each file one by one
         for file in asset_files:
             full_file = os.path.join(path, file)
@@ -1300,7 +1293,7 @@ def getRecolorMap(img, shinyImg, frame_size):
 
     if img.size != shinyImg.size:
         newShiny = Image.new('RGBA', img.size, (0, 0, 0, 0))
-        newShiny.paste(shinyImg, (0,0), shinyImg)
+        newShiny.paste(shinyImg, (0, 0), shinyImg)
         shinyImg = newShiny
 
     for yy in range(0, img.size[1], frame_size[1]):
@@ -1344,13 +1337,13 @@ def getRecoloredTex(color_tbl, img_tbl, frame_tex):
     # attempt to find an image in img_tbl that corresponds with this one
     for frame, shiny_frame in img_tbl:
         if exUtils.imgsEqual(frame, frame_tex):
-            return shiny_frame, { }
+            return shiny_frame, {}
         if exUtils.imgsEqual(frame, frame_tex, True):
-            return shiny_frame.transpose(Image.FLIP_LEFT_RIGHT), { }
+            return shiny_frame.transpose(Image.FLIP_LEFT_RIGHT), {}
     # attempt to recolor the image
     datas = frame_tex.getdata()
-    shiny_datas = [(0,0,0,0)] * len(datas)
-    off_color_tbl = { }
+    shiny_datas = [(0, 0, 0, 0)] * len(datas)
+    off_color_tbl = {}
     for idx in range(len(datas)):
         color = datas[idx]
         if color[3] != 255:
@@ -1373,7 +1366,7 @@ def autoRecolor(prev_base_img, cur_base_img, shiny_path, asset_type):
     prev_base_img = removePalette(prev_base_img)
     cur_base_img = removePalette(cur_base_img)
     prev_shiny_img = None
-    frame_size = (0,0)
+    frame_size = (0, 0)
     if asset_type == "sprite":
         prev_shiny_img, frame_size = getCombinedImg(shiny_path, False)
 
@@ -1509,7 +1502,7 @@ def preparePortraitImage(path):
 
     if maxX > 0 and maxY > 0:
         if Constants.CROP_PORTRAITS:
-            return printImg.crop((0,0,maxX, maxY))
+            return printImg.crop((0, 0, maxX, maxY))
         return printImg
     return None
 

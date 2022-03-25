@@ -1,54 +1,28 @@
+from spritebot.Constants import CONFIG_FILE_PATH, INFO_FILE_PATH, SPRITE_CONFIG_FILE_PATH, TRACKER_FILE_PATH, NAME_FILE_PATH
 import os
 import io
 import discord
-import urllib
 import traceback
-import asyncio
 import json
-import SpriteUtils
-import TrackerUtils
+import spritebot.TrackerUtils as TrackerUtils
+import spritebot.SpriteUtils as SpriteUtils
 import datetime
 import git
-import sys
 import re
 import argparse
-import Constants
-
-# Housekeeping for login information
-TOKEN_FILE_PATH = 'token.txt'
-NAME_FILE_PATH = 'credit_names.txt'
-INFO_FILE_PATH = 'README.md'
-CONFIG_FILE_PATH = 'config.json'
-SPRITE_CONFIG_FILE_PATH = 'sprite_config.json'
-TRACKER_FILE_PATH = 'tracker.json'
+import spritebot.Constants as Constants
 
 SPRITE_WORTH = 10
 PORTRAIT_WORTH = 1
 SPRITE_SHINY_WORTH = 2
 PORTRAIT_SHINY_WORTH = 1
 
-PHASES = [ "\u26AA incomplete", "\u2705 available", "\u2B50 fully featured" ]
+PHASES = ["\u26AA incomplete", "\u2705 available", "\u2B50 fully featured"]
 
 MESSAGE_BOUNTIES_DISABLED = "Bounties are disabled for this instance of SpriteBot"
 
-scdir = os.path.dirname(os.path.abspath(__file__))
-
-parser = argparse.ArgumentParser()
-parser.add_argument('--overcolor', nargs='?', const=True, default=False)
-parser.add_argument('--lineart', nargs='?', const=True, default=False)
-parser.add_argument('--multioffset', nargs='?', const=True, default=False)
-parser.add_argument('--noflip', nargs='?', const=True, default=False)
-parser.add_argument('--base', nargs='+')
-parser.add_argument('--colormod', type=int)
-parser.add_argument('--colors', type=int)
-parser.add_argument('--author')
-parser.add_argument('--addauthor', nargs='?', const=True, default=False)
-
-# The Discord client.
-client = discord.Client()
 
 class BotServer:
-
     def __init__(self, main_dict=None):
         self.info = 0
         self.chat = 0
@@ -65,6 +39,7 @@ class BotServer:
 
     def getDict(self):
         return self.__dict__
+
 
 class BotConfig:
 
@@ -92,14 +67,15 @@ class BotConfig:
         self.servers = sub_dict
 
     def getDict(self):
-        node_dict = { }
+        node_dict = {}
         for k in self.__dict__:
             node_dict[k] = self.__dict__[k]
-        sub_dict = { }
+        sub_dict = {}
         for sub_idx in self.servers:
             sub_dict[sub_idx] = self.servers[sub_idx].getDict()
         node_dict["servers"] = sub_dict
         return node_dict
+
 
 class SpriteBot:
     """
@@ -109,6 +85,18 @@ class SpriteBot:
         # init data
         self.path = in_path
         self.need_restart = False
+
+        self.parser = argparse.ArgumentParser()
+        self.parser.add_argument('--overcolor', nargs='?', const=True, default=False)
+        self.parser.add_argument('--lineart', nargs='?', const=True, default=False)
+        self.parser.add_argument('--multioffset', nargs='?', const=True, default=False)
+        self.parser.add_argument('--noflip', nargs='?', const=True, default=False)
+        self.parser.add_argument('--base', nargs='+')
+        self.parser.add_argument('--colormod', type=int)
+        self.parser.add_argument('--colors', type=int)
+        self.parser.add_argument('--author')
+        self.parser.add_argument('--addauthor', nargs='?', const=True, default=False)
+
         with open(os.path.join(self.path, CONFIG_FILE_PATH)) as f:
             self.config = BotConfig(json.load(f))
         with open(os.path.join(self.config.path, SPRITE_CONFIG_FILE_PATH)) as f:
@@ -140,7 +128,7 @@ class SpriteBot:
         # tracking data from the content folder
         with open(os.path.join(self.config.path, TRACKER_FILE_PATH)) as f:
             new_tracker = json.load(f)
-            self.tracker = { }
+            self.tracker = {}
             for species_idx in new_tracker:
                 self.tracker[species_idx] = TrackerUtils.TrackerNode(new_tracker[species_idx])
         self.names = TrackerUtils.loadNameFile(os.path.join(self.path, NAME_FILE_PATH))
@@ -179,7 +167,7 @@ class SpriteBot:
             json.dump(config, txt, indent=2)
 
     def saveTracker(self):
-        new_tracker = { }
+        new_tracker = {}
         for species_idx in self.tracker:
             new_tracker[species_idx] = self.tracker[species_idx].getDict()
         with open(os.path.join(self.config.path, TRACKER_FILE_PATH), 'w', encoding='utf-8') as txt:
@@ -207,7 +195,7 @@ class SpriteBot:
         resp_ch = self.getChatChannel(msg.guild.id)
         resp = await resp_ch.send("Pulling from repo...")
         # update self
-        bot_repo = git.Repo(scdir)
+        bot_repo = git.Repo(self.path)
         origin = bot_repo.remotes.origin
         origin.pull()
         await resp.edit(content="Update complete! Bot will restart.")
@@ -238,11 +226,11 @@ class SpriteBot:
         return self.client.get_channel(chat_id)
 
     def getStatusEmoji(self, chosen_node, asset_type):
-        pending = chosen_node.__dict__[asset_type+"_pending"]
+        pending = chosen_node.__dict__[asset_type + "_pending"]
         added = chosen_node.__dict__[asset_type + "_credit"].primary != ""
-        complete = chosen_node.__dict__[asset_type+"_complete"]
-        required = chosen_node.__dict__[asset_type+"_required"]
-        if complete > TrackerUtils.PHASE_EXISTS: # star
+        complete = chosen_node.__dict__[asset_type + "_complete"]
+        required = chosen_node.__dict__[asset_type + "_required"]
+        if complete > TrackerUtils.PHASE_EXISTS:  # star
             return "\u2B50"
         elif len(pending) > 0:
             if complete > TrackerUtils.PHASE_INCOMPLETE:  # interrobang
@@ -574,7 +562,7 @@ class SpriteBot:
         new_msg = await channel.send("{0} {1}\n{2}".format(author, " ".join(title), formatted_content + add_msg),
                                      files=send_files)
 
-        pending_dict = chosen_node.__dict__[asset_type+"_pending"]
+        pending_dict = chosen_node.__dict__[asset_type + "_pending"]
         change_status = len(pending_dict) == 0
         pending_dict[str(new_msg.id)] = new_msg.channel.id
 
@@ -603,7 +591,7 @@ class SpriteBot:
         add_author = False
         if len(msg_lines) > 1:
             try:
-                msg_args = parser.parse_args(msg_lines[1].split())
+                msg_args = self.parser.parse_args(msg_lines[1].split())
             except SystemExit:
                 await msg.delete()
                 await self.getChatChannel(msg.guild.id).send(msg.author.mention + " Invalid arguments used in submission post.\n`{0}`".format(msg.content))
@@ -641,7 +629,7 @@ class SpriteBot:
         new_revise = "New"
         if add_author:
             new_revise = "Revised Credit"
-        elif chosen_node.__dict__[asset_type+"_credit"].primary != "":
+        elif chosen_node.__dict__[asset_type + "_credit"].primary != "":
             new_revise = "Revised"
 
         # save and set the new sprite or portrait
@@ -731,8 +719,8 @@ class SpriteBot:
         file_name = "{0}-{1}{2}".format(asset_type, "-".join(full_idx), ext)
 
         new_link = await self.generateLink(file_data, file_name)
-        chosen_node.__dict__[asset_type+"_link"] = new_link
-        chosen_node.__dict__[asset_type+"_recolor_link"] = ""
+        chosen_node.__dict__[asset_type + "_link"] = new_link
+        chosen_node.__dict__[asset_type + "_recolor_link"] = ""
 
         mentions = ["<@!"+str(ii)+">" for ii in approvals]
         approve_msg = "{0} {1} approved by {2}: #{3:03d}: {4}".format(new_revise, asset_type, str(mentions), int(full_idx[0]), new_name_str)
@@ -744,8 +732,8 @@ class SpriteBot:
 
         # if this was non-shiny, set the complete flag to false for the shiny
         if not is_shiny and not add_author:
-            if shiny_node.__dict__[asset_type+"_credit"].primary != "":
-                shiny_node.__dict__[asset_type+"_complete"] = TrackerUtils.PHASE_INCOMPLETE
+            if shiny_node.__dict__[asset_type + "_credit"].primary != "":
+                shiny_node.__dict__[asset_type + "_complete"] = TrackerUtils.PHASE_INCOMPLETE
                 approve_msg += "\nNote: Shiny form now marked as {0} due to this change.".format(PHASES[TrackerUtils.PHASE_INCOMPLETE])
 
 
@@ -839,7 +827,7 @@ class SpriteBot:
 
                 try:
                     msg_lines = content.split('\n')
-                    msg_args = parser.parse_args(msg_lines[0].split())
+                    msg_args = self.parser.parse_args(msg_lines[0].split())
                 except SystemExit:
                     await self.sendError(traceback.format_exc())
                     return
@@ -1006,7 +994,7 @@ class SpriteBot:
                 return False
 
             try:
-                msg_args = parser.parse_args(msg.content.split())
+                msg_args = self.parser.parse_args(msg.content.split())
             except SystemExit:
                 await msg.delete()
                 await self.getChatChannel(msg.guild.id).send(msg.author.mention + " Invalid arguments used in submission post.\n`{0}`".format(msg.content))
@@ -1254,7 +1242,7 @@ class SpriteBot:
 
             cur_amt = 0
             try:
-                wait_msg = await client.wait_for('message', check=check, timeout=10.0)
+                wait_msg = await self.client.wait_for('message', check=check, timeout=10.0)
                 result_json = json.loads(wait_msg.content)
                 cur_amt = int(result_json["result"])
             except Exception as e:
@@ -1267,10 +1255,10 @@ class SpriteBot:
             resp = await channel.send("!tr {0} {1} {2}".format(msg.author.id, amt, msg.channel.id))
 
             try:
-                wait_msg = await client.wait_for('message', check=check, timeout=10.0)
+                wait_msg = await self.client.wait_for('message', check=check, timeout=10.0)
                 result_json = json.loads(wait_msg.content)
                 if result_json["status"] != "success":
-                    raise Exception() # TODO: what exception is this?
+                    raise Exception()  # TODO: what exception is this?
             except Exception as e:
                 await msg.channel.send(msg.author.mention + " Error taking guild points.")
                 return
@@ -1344,7 +1332,7 @@ class SpriteBot:
         if not self.config.use_bounties:
             await msg.channel.send(msg.author.mention + " " + MESSAGE_BOUNTIES_DISABLED)
             return
-        
+
         include_sprite = True
         include_portrait = True
 
@@ -1415,7 +1403,7 @@ class SpriteBot:
 
         posts = []
         over_dict = TrackerUtils.initSubNode("", True)
-        over_dict.subgroups = { full_idx[0] : chosen_node }
+        over_dict.subgroups = {full_idx[0]: chosen_node}
         self.getPostsFromDict(asset_type == 'sprite', asset_type == 'portrait', False, over_dict, posts, [])
         msgs_used, changed = await self.sendInfoPosts(msg.channel, posts, [], 0)
 
@@ -1464,7 +1452,7 @@ class SpriteBot:
 
         send_files = [discord.File(auto_recolor_file, return_name)]
         await msg.channel.send("{0} {1}\n{2}".format(msg.author.mention, " ".join(title), content),
-                                     files=send_files)
+                               files=send_files)
 
 
     def createCreditAttribution(self, mention):
@@ -1607,7 +1595,7 @@ class SpriteBot:
             await msg.channel.send(msg.author.mention + " Specify a user ID and Pokemon.")
             return
 
-        wanted_author = name_args[0]# self.extractBotId(name_args[0])
+        wanted_author = name_args[0]
         name_seq = [TrackerUtils.sanitizeName(i) for i in name_args[1:]]
         full_idx = TrackerUtils.findFullTrackerIdx(self.tracker, name_seq, 0)
         if full_idx is None:
@@ -1647,7 +1635,7 @@ class SpriteBot:
             await msg.channel.send(msg.author.mention + " Specify a user ID and Pokemon.")
             return
 
-        wanted_author = name_args[0]# self.extractBotId(name_args[0])
+        wanted_author = name_args[0]
         name_seq = [TrackerUtils.sanitizeName(i) for i in name_args[1:]]
         full_idx = TrackerUtils.findFullTrackerIdx(self.tracker, name_seq, 0)
         if full_idx is None:
@@ -1673,7 +1661,7 @@ class SpriteBot:
 
         # stage a post in submissions
         await self.postStagedSubmission(submit_channel, "--addauthor", full_idx, chosen_node, asset_type, author + "/" + wanted_author,
-                                                False, None, base_file, base_name, None)
+                                        False, None, base_file, base_name, None)
 
 
     async def getProfile(self, msg):
@@ -1759,7 +1747,7 @@ class SpriteBot:
         msg_mention = "<@!{0}>".format(msg.author.id)
 
         if len(args) == 0:
-            await msg.channel.send(msg.author.mention + " WARNING: This command will move your credits into an anonymous profile and be separated from your account. This cannot be undone.\n" \
+            await msg.channel.send(msg.author.mention + " WARNING: This command will move your credits into an anonymous profile and be separated from your account. This cannot be undone.\n"
                                                         "If you wish to proceed, rerun the command with your discord ID and username (with discriminator) as arguments.")
             return
         elif len(args) == 1:
@@ -1800,7 +1788,7 @@ class SpriteBot:
                     anon_num = anon_num + 1
 
                 if not new_name:
-                    raise Exception() # TODO: what is this exception?
+                    raise Exception()  # TODO: what is this exception?
 
                 new_credit = TrackerUtils.CreditEntry("", "")
                 new_credit.sprites = self.names[msg_mention].sprites
@@ -2222,13 +2210,13 @@ class SpriteBot:
         use_bounties = self.config.use_bounties
         if len(args) == 0:
             return_msg = "**Commands**\n" \
-                  f"`{prefix}sprite` - Get the Pokemon's sprite sheet\n" \
-                  f"`{prefix}portrait` - Get the Pokemon's portrait sheet\n" \
-                  f"`{prefix}recolorsprite` - Get the Pokemon's sprite sheet in a form for easy recoloring\n" \
-                  f"`{prefix}recolorportrait` - Get the Pokemon's portrait sheet in a form for easy recoloring\n" \
-                  f"`{prefix}autocolor` - Generates an automatic recolor of the Pokemon's portrait sheet\n" \
-                  f"`{prefix}listsprite` - List all sprites related to a Pokemon\n" \
-                  f"`{prefix}listportrait` - List all portraits related to a Pokemon\n"
+                         f"`{prefix}sprite` - Get the Pokemon's sprite sheet\n" \
+                         f"`{prefix}portrait` - Get the Pokemon's portrait sheet\n" \
+                         f"`{prefix}recolorsprite` - Get the Pokemon's sprite sheet in a form for easy recoloring\n" \
+                         f"`{prefix}recolorportrait` - Get the Pokemon's portrait sheet in a form for easy recoloring\n" \
+                         f"`{prefix}autocolor` - Generates an automatic recolor of the Pokemon's portrait sheet\n" \
+                         f"`{prefix}listsprite` - List all sprites related to a Pokemon\n" \
+                         f"`{prefix}listportrait` - List all portraits related to a Pokemon\n"
             if use_bounties:
                 return_msg += f"`{prefix}spritebounty` - Place a bounty on a sprite\n" \
                               f"`{prefix}portraitbounty` - Place a bounty on a portrait\n" \
@@ -2351,53 +2339,53 @@ class SpriteBot:
             elif base_arg == "spritebounty":
                 if use_bounties:
                     return_msg = "**Command Help**\n" \
-                                f"`{prefix}spritebounty <Pokemon Name> [Form Name] [Shiny] [Gender] <Points>`\n" \
-                                "Places a bounty on a missing or incomplete sprite, using your Guild Points.\n" \
-                                "`Pokemon Name` - Name of the Pokemon\n" \
-                                "`Form Name` - [Optional] Form name of the Pokemon\n" \
-                                "`Shiny` - [Optional] Specifies if you want the shiny sprite or not\n" \
-                                "`Gender` - [Optional] Specifies the gender of the Pokemon, for those with gender differences\n" \
-                                "`Points` - The number of guild points you wish to donate\n" \
-                                "**Examples**\n" \
-                                f"`{prefix}spritebounty Meowstic 1`\n" \
-                                f"`{prefix}spritebounty Meowstic 5`\n" \
-                                f"`{prefix}spritebounty Meowstic Shiny 1`\n" \
-                                f"`{prefix}spritebounty Meowstic Female 1`\n" \
-                                f"`{prefix}spritebounty Meowstic Shiny Female 1`\n" \
-                                f"`{prefix}spritebounty Diancie Mega 1`\n" \
-                                f"`{prefix}spritebounty Diancie Mega Shiny 1`"
+                                 f"`{prefix}spritebounty <Pokemon Name> [Form Name] [Shiny] [Gender] <Points>`\n" \
+                                 "Places a bounty on a missing or incomplete sprite, using your Guild Points.\n" \
+                                 "`Pokemon Name` - Name of the Pokemon\n" \
+                                 "`Form Name` - [Optional] Form name of the Pokemon\n" \
+                                 "`Shiny` - [Optional] Specifies if you want the shiny sprite or not\n" \
+                                 "`Gender` - [Optional] Specifies the gender of the Pokemon, for those with gender differences\n" \
+                                 "`Points` - The number of guild points you wish to donate\n" \
+                                 "**Examples**\n" \
+                                 f"`{prefix}spritebounty Meowstic 1`\n" \
+                                 f"`{prefix}spritebounty Meowstic 5`\n" \
+                                 f"`{prefix}spritebounty Meowstic Shiny 1`\n" \
+                                 f"`{prefix}spritebounty Meowstic Female 1`\n" \
+                                 f"`{prefix}spritebounty Meowstic Shiny Female 1`\n" \
+                                 f"`{prefix}spritebounty Diancie Mega 1`\n" \
+                                 f"`{prefix}spritebounty Diancie Mega Shiny 1`"
                 else:
                     return_msg = MESSAGE_BOUNTIES_DISABLED
             elif base_arg == "portraitbounty":
                 if use_bounties:
                     return_msg = "**Command Help**\n" \
-                                f"`{prefix}portraitbounty <Pokemon Name> [Form Name] [Shiny] [Gender] <Points>`\n" \
-                                "Places a bounty on a missing or incomplete portrait, using your Guild Points.\n" \
-                                "`Pokemon Name` - Name of the Pokemon\n" \
-                                "`Form Name` - [Optional] Form name of the Pokemon\n" \
-                                "`Shiny` - [Optional] Specifies if you want the shiny portrait or not\n" \
-                                "`Gender` - [Optional] Specifies the gender of the Pokemon, for those with gender differences\n" \
-                                "`Points` - The number of guild points you wish to donate\n" \
-                                "**Examples**\n" \
-                                f"`{prefix}portraitbounty Meowstic 1`\n" \
-                                f"`{prefix}portraitbounty Meowstic 5`\n" \
-                                f"`{prefix}portraitbounty Meowstic Shiny 1`\n" \
-                                f"`{prefix}portraitbounty Meowstic Female 1`\n" \
-                                f"`{prefix}portraitbounty Meowstic Shiny Female 1`\n" \
-                                f"`{prefix}portraitbounty Diancie Mega 1`\n" \
-                                f"`{prefix}portraitbounty Diancie Mega Shiny 1`"
+                                 f"`{prefix}portraitbounty <Pokemon Name> [Form Name] [Shiny] [Gender] <Points>`\n" \
+                                 "Places a bounty on a missing or incomplete portrait, using your Guild Points.\n" \
+                                 "`Pokemon Name` - Name of the Pokemon\n" \
+                                 "`Form Name` - [Optional] Form name of the Pokemon\n" \
+                                 "`Shiny` - [Optional] Specifies if you want the shiny portrait or not\n" \
+                                 "`Gender` - [Optional] Specifies the gender of the Pokemon, for those with gender differences\n" \
+                                 "`Points` - The number of guild points you wish to donate\n" \
+                                 "**Examples**\n" \
+                                 f"`{prefix}portraitbounty Meowstic 1`\n" \
+                                 f"`{prefix}portraitbounty Meowstic 5`\n" \
+                                 f"`{prefix}portraitbounty Meowstic Shiny 1`\n" \
+                                 f"`{prefix}portraitbounty Meowstic Female 1`\n" \
+                                 f"`{prefix}portraitbounty Meowstic Shiny Female 1`\n" \
+                                 f"`{prefix}portraitbounty Diancie Mega 1`\n" \
+                                 f"`{prefix}portraitbounty Diancie Mega Shiny 1`"
                 else:
                     return_msg = MESSAGE_BOUNTIES_DISABLED
             elif base_arg == "bounties":
                 if use_bounties:
                     return_msg = "**Command Help**\n" \
-                                f"`{prefix}bounties [Type]`\n" \
-                                "View the top sprites/portraits that have bounties placed on them.  " \
-                                "You will claim a bounty when you successfully submit that sprite/portrait.\n" \
-                                "`Type` - [Optional] Can be `sprite` or `portrait`\n" \
-                                "**Examples**\n" \
-                                f"`{prefix}bounties`\n" \
-                                f"`{prefix}bounties sprite`"
+                                 f"`{prefix}bounties [Type]`\n" \
+                                 "View the top sprites/portraits that have bounties placed on them.  " \
+                                 "You will claim a bounty when you successfully submit that sprite/portrait.\n" \
+                                 "`Type` - [Optional] Can be `sprite` or `portrait`\n" \
+                                 "**Examples**\n" \
+                                 f"`{prefix}bounties`\n" \
+                                 f"`{prefix}bounties sprite`"
                 else:
                     return_msg = MESSAGE_BOUNTIES_DISABLED
             elif base_arg == "profile":
@@ -2422,30 +2410,30 @@ class SpriteBot:
         prefix = self.config.servers[str(msg.guild.id)].prefix
         if len(args) == 0:
             return_msg = "**Approver Commands**\n" \
-                  f"`{prefix}add` - Adds a Pokemon or forme to the current list\n" \
-                  f"`{prefix}delete` - Deletes an empty Pokemon or forme\n" \
-                  f"`{prefix}rename` - Renames a Pokemon or forme\n" \
-                  f"`{prefix}addgender` - Adds the female sprite/portrait to the Pokemon\n" \
-                  f"`{prefix}deletegender` - Removes the female sprite/portrait from the Pokemon\n" \
-                  f"`{prefix}need` - Marks a sprite/portrait as needed\n" \
-                  f"`{prefix}dontneed` - Marks a sprite/portrait as unneeded\n" \
-                  f"`{prefix}movesprite` - Swaps the sprites for two Pokemon/formes\n" \
-                  f"`{prefix}moveportrait` - Swaps the portraits for two Pokemon/formes\n" \
-                  f"`{prefix}spritewip` - Sets the sprite status as Incomplete\n" \
-                  f"`{prefix}portraitwip` - Sets the portrait status as Incomplete\n" \
-                  f"`{prefix}spriteexists` - Sets the sprite status as Exists\n" \
-                  f"`{prefix}portraitexists` - Sets the portrait status as Exists\n" \
-                  f"`{prefix}spritefilled` - Sets the sprite status as Fully Featured\n" \
-                  f"`{prefix}portraitfilled` - Sets the portrait status as Fully Featured\n" \
-                  f"`{prefix}setspritecredit` - Sets the primary author of the sprite\n" \
-                  f"`{prefix}setportraitcredit` - Sets the primary author of the portrait\n" \
-                  f"`{prefix}addspritecredit` - Adds a new author to the credits of the sprite\n" \
-                  f"`{prefix}addportraitcredit` - Adds a new author to the credits of the portrait\n" \
-                  f"`{prefix}modreward` - Toggles whether a sprite/portrait will have a custom reward\n" \
-                  f"`{prefix}register` - Use with arguments to make absentee profiles\n" \
-                  f"`{prefix}transferprofile` - Transfers the credit from absentee profile to a real one\n" \
-                  f"`{prefix}clearcache` - Clears the image/zip links for a Pokemon/forme/shiny/gender\n" \
-                  f"Type `{prefix}staffhelp` with the name of a command to learn more about it."
+                         f"`{prefix}add` - Adds a Pokemon or forme to the current list\n" \
+                         f"`{prefix}delete` - Deletes an empty Pokemon or forme\n" \
+                         f"`{prefix}rename` - Renames a Pokemon or forme\n" \
+                         f"`{prefix}addgender` - Adds the female sprite/portrait to the Pokemon\n" \
+                         f"`{prefix}deletegender` - Removes the female sprite/portrait from the Pokemon\n" \
+                         f"`{prefix}need` - Marks a sprite/portrait as needed\n" \
+                         f"`{prefix}dontneed` - Marks a sprite/portrait as unneeded\n" \
+                         f"`{prefix}movesprite` - Swaps the sprites for two Pokemon/formes\n" \
+                         f"`{prefix}moveportrait` - Swaps the portraits for two Pokemon/formes\n" \
+                         f"`{prefix}spritewip` - Sets the sprite status as Incomplete\n" \
+                         f"`{prefix}portraitwip` - Sets the portrait status as Incomplete\n" \
+                         f"`{prefix}spriteexists` - Sets the sprite status as Exists\n" \
+                         f"`{prefix}portraitexists` - Sets the portrait status as Exists\n" \
+                         f"`{prefix}spritefilled` - Sets the sprite status as Fully Featured\n" \
+                         f"`{prefix}portraitfilled` - Sets the portrait status as Fully Featured\n" \
+                         f"`{prefix}setspritecredit` - Sets the primary author of the sprite\n" \
+                         f"`{prefix}setportraitcredit` - Sets the primary author of the portrait\n" \
+                         f"`{prefix}addspritecredit` - Adds a new author to the credits of the sprite\n" \
+                         f"`{prefix}addportraitcredit` - Adds a new author to the credits of the portrait\n" \
+                         f"`{prefix}modreward` - Toggles whether a sprite/portrait will have a custom reward\n" \
+                         f"`{prefix}register` - Use with arguments to make absentee profiles\n" \
+                         f"`{prefix}transferprofile` - Transfers the credit from absentee profile to a real one\n" \
+                         f"`{prefix}clearcache` - Clears the image/zip links for a Pokemon/forme/shiny/gender\n" \
+                         f"Type `{prefix}staffhelp` with the name of a command to learn more about it."
 
         else:
             base_arg = args[0]
@@ -2774,225 +2762,3 @@ class SpriteBot:
             else:
                 return_msg = "Unknown Command."
         await msg.channel.send(msg.author.mention + " {0}".format(return_msg))
-
-
-@client.event
-async def on_ready():
-    print('Logged in as')
-    print(client.user.name)
-    print(client.user.id)
-    global sprite_bot
-    await sprite_bot.checkAllSubmissions()
-    await sprite_bot.checkRestarted()
-    print('------')
-
-
-@client.event
-async def on_message(msg: discord.Message):
-    await client.wait_until_ready()
-    try:
-        if msg.guild is None:
-            return
-        # exclude self posts
-        if msg.author.id == sprite_bot.client.user.id:
-            return
-
-        content = msg.content
-        # only respond to the proper author
-        if msg.author.id == sprite_bot.config.root and content.startswith("!init"):
-            args = content[len("!"):].split(' ')
-            await sprite_bot.initServer(msg, args[1:])
-            return
-
-        # only respond to the proper guilds
-        guild_id_str = str(msg.guild.id)
-        if guild_id_str not in sprite_bot.config.servers:
-            return
-
-        server = sprite_bot.config.servers[guild_id_str]
-        prefix = server.prefix
-
-        if msg.channel.id == server.chat:
-            if not content.startswith(prefix):
-                return
-            args = content[len(prefix):].split(' ')
-
-            authorized = await sprite_bot.isAuthorized(msg.author, msg.guild)
-            base_arg = args[0].lower()
-            if base_arg == "help":
-                await sprite_bot.help(msg, args[1:])
-            elif base_arg == "staffhelp":
-                await sprite_bot.staffhelp(msg, args[1:])
-                # primary commands
-            elif base_arg == "listsprite":
-                await sprite_bot.listForms(msg, args[1:], "sprite")
-            elif base_arg == "sprite":
-                await sprite_bot.queryStatus(msg, args[1:], "sprite", False)
-            elif base_arg == "recolorsprite":
-                await sprite_bot.queryStatus(msg, args[1:], "sprite", True)
-            elif base_arg == "listportrait":
-                await sprite_bot.listForms(msg, args[1:], "portrait")
-            elif base_arg == "portrait":
-                await sprite_bot.queryStatus(msg, args[1:], "portrait", False)
-            elif base_arg == "recolorportrait":
-                await sprite_bot.queryStatus(msg, args[1:], "portrait", True)
-            elif base_arg == "spritecredit":
-                await sprite_bot.getCredit(msg, args[1:], "sprite")
-            elif base_arg == "portraitcredit":
-                await sprite_bot.getCredit(msg, args[1:], "portrait")
-            elif base_arg == "spritebounty":
-                await sprite_bot.placeBounty(msg, args[1:], "sprite")
-            elif base_arg == "portraitbounty":
-                await sprite_bot.placeBounty(msg, args[1:], "portrait")
-            elif base_arg == "bounties":
-                await sprite_bot.listBounties(msg, args[1:])
-            elif base_arg == "profile":
-                await sprite_bot.getProfile(msg)
-            elif base_arg == "register":
-                await sprite_bot.setProfile(msg, args[1:])
-            elif base_arg == "absentprofiles":
-                await sprite_bot.getAbsentProfiles(msg)
-            elif base_arg == "unregister":
-                await sprite_bot.deleteProfile(msg, args[1:])
-            elif base_arg == "autocolor":
-                await sprite_bot.tryAutoRecolor(msg, args[1:], "portrait")
-                # authorized commands
-            elif base_arg == "add" and authorized:
-                await sprite_bot.addSpeciesForm(msg, args[1:])
-            elif base_arg == "delete" and authorized:
-                await sprite_bot.removeSpeciesForm(msg, args[1:])
-            elif base_arg == "rename" and authorized:
-                await sprite_bot.renameSpeciesForm(msg, args[1:])
-            elif base_arg == "addgender" and authorized:
-                await sprite_bot.addGender(msg, args[1:])
-            elif base_arg == "deletegender" and authorized:
-                await sprite_bot.removeGender(msg, args[1:])
-            elif base_arg == "need" and authorized:
-                await sprite_bot.setNeed(msg, args[1:], True)
-            elif base_arg == "dontneed" and authorized:
-                await sprite_bot.setNeed(msg, args[1:], False)
-            elif base_arg == "movesprite" and authorized:
-                await sprite_bot.moveSlot(msg, args[1:], "sprite")
-            elif base_arg == "moveportrait" and authorized:
-                await sprite_bot.moveSlot(msg, args[1:], "portrait")
-            elif base_arg == "spritewip" and authorized:
-                await sprite_bot.completeSlot(msg, args[1:], "sprite", TrackerUtils.PHASE_INCOMPLETE)
-            elif base_arg == "portraitwip" and authorized:
-                await sprite_bot.completeSlot(msg, args[1:], "portrait", TrackerUtils.PHASE_INCOMPLETE)
-            elif base_arg == "spriteexists" and authorized:
-                await sprite_bot.completeSlot(msg, args[1:], "sprite", TrackerUtils.PHASE_EXISTS)
-            elif base_arg == "portraitexists" and authorized:
-                await sprite_bot.completeSlot(msg, args[1:], "portrait", TrackerUtils.PHASE_EXISTS)
-            elif base_arg == "spritefilled" and authorized:
-                await sprite_bot.completeSlot(msg, args[1:], "sprite", TrackerUtils.PHASE_FULL)
-            elif base_arg == "portraitfilled" and authorized:
-                await sprite_bot.completeSlot(msg, args[1:], "portrait", TrackerUtils.PHASE_FULL)
-            elif base_arg == "setspritecredit" and authorized:
-                await sprite_bot.resetCredit(msg, args[1:], "sprite")
-            elif base_arg == "setportraitcredit" and authorized:
-                await sprite_bot.resetCredit(msg, args[1:], "portrait")
-            elif base_arg == "addspritecredit" and authorized:
-                await sprite_bot.addCredit(msg, args[1:], "sprite")
-            elif base_arg == "addportraitcredit" and authorized:
-                await sprite_bot.addCredit(msg, args[1:], "portrait")
-            elif base_arg == "modreward" and authorized:
-                await sprite_bot.modSpeciesForm(msg, args[1:])
-            elif base_arg == "transferprofile" and authorized:
-                await sprite_bot.transferProfile(msg, args[1:])
-            elif base_arg == "clearcache" and authorized:
-                await sprite_bot.clearCache(msg, args[1:])
-                # root commands
-            elif base_arg == "rescan" and msg.author.id == sprite_bot.config.root:
-                await sprite_bot.rescan(msg)
-            elif base_arg == "unlockportrait" and msg.author.id == sprite_bot.config.root:
-                await sprite_bot.setLock(msg, args[1:], "portrait", False)
-            elif base_arg == "unlocksprite" and msg.author.id == sprite_bot.config.root:
-                await sprite_bot.setLock(msg, args[1:], "sprite", False)
-            elif base_arg == "lockportrait" and msg.author.id == sprite_bot.config.root:
-                await sprite_bot.setLock(msg, args[1:], "portrait", True)
-            elif base_arg == "locksprite" and msg.author.id == sprite_bot.config.root:
-                await sprite_bot.setLock(msg, args[1:], "sprite", True)
-            elif base_arg == "canon" and msg.author.id == sprite_bot.config.root:
-                await sprite_bot.setCanon(msg, args[1:], True)
-            elif base_arg == "noncanon" and msg.author.id == sprite_bot.config.root:
-                await sprite_bot.setCanon(msg, args[1:], False)
-            elif base_arg == "update" and msg.author.id == sprite_bot.config.root:
-                await sprite_bot.updateBot(msg)
-            elif base_arg == "forcepush" and msg.author.id == sprite_bot.config.root:
-                await sprite_bot.gitCommit("Tracker update from forced push.")
-                await sprite_bot.gitPush()
-                msg.channel.send(msg.author.mention + " Changes pushed.")
-            elif base_arg in ["gr", "tr", "checkr"]:
-                pass
-            else:
-                await msg.channel.send(msg.author.mention + " Unknown Command.")
-
-        elif msg.channel.id == sprite_bot.config.servers[guild_id_str].submit:
-            changed_tracker = await sprite_bot.pollSubmission(msg)
-            if changed_tracker:
-                sprite_bot.saveTracker()
-
-    except Exception as e:
-        await sprite_bot.sendError(traceback.format_exc())
-
-@client.event
-async def on_raw_reaction_add(payload):
-    await client.wait_until_ready()
-    try:
-        if payload.user_id == client.user.id:
-            return
-        guild_id_str = str(payload.guild_id)
-        if payload.channel_id == sprite_bot.config.servers[guild_id_str].submit:
-            msg = await client.get_channel(payload.channel_id).fetch_message(payload.message_id)
-            changed_tracker = await sprite_bot.pollSubmission(msg)
-            if changed_tracker:
-                sprite_bot.saveTracker()
-
-    except Exception as e:
-        await sprite_bot.sendError(traceback.format_exc())
-
-async def periodic_update_status():
-    await client.wait_until_ready()
-    global sprite_bot
-    last_date = ""
-    while not client.is_closed():
-        try:
-            if sprite_bot.changed:
-                sprite_bot.changed = False
-                for server_id in sprite_bot.config.servers:
-                    await sprite_bot.updatePost(sprite_bot.config.servers[server_id])
-
-            # check for push
-            cur_date = datetime.datetime.today().strftime('%Y-%m-%d')
-            if last_date != cur_date:
-                if last_date == "":
-                    await sprite_bot.gitCommit("Tracker update from restart.")
-                # update push
-                await sprite_bot.gitPush()
-                last_date = cur_date
-        except Exception as e:
-            await sprite_bot.sendError(traceback.format_exc())
-        await asyncio.sleep(10)
-
-sprite_bot = SpriteBot(scdir, client)
-
-client.loop.create_task(periodic_update_status())
-
-with open(os.path.join(scdir, TOKEN_FILE_PATH)) as token_file:
-    token = token_file.read()
-
-try:
-    client.run(token)
-except Exception as e:
-    trace = traceback.format_exc()
-    print(trace)
-
-
-if sprite_bot.need_restart:
-    # restart
-    args = sys.argv[:]
-    args.insert(0, sys.executable)
-    if sys.platform == 'win32':
-        args = ['"%s"' % arg for arg in args]
-
-    os.execv(sys.executable, args)

@@ -1,22 +1,10 @@
-import sys
 import os
 import re
 import shutil
-import math
-import struct
-import glob
-import time
-import urllib
-import urllib.request
-from PIL import Image, ImageDraw, ImageFont
 import datetime
 import json
-from io import BytesIO
-import zipfile
 import xml.etree.ElementTree as ET
-import xml.dom.minidom as minidom
-import utils as exUtils
-import Constants
+import spritebot.Constants as Constants
 
 
 MAX_SECONDARY_CREDIT = 2
@@ -65,7 +53,7 @@ class TrackerNode:
         temp_list = [i for i in node_dict]
         temp_list = sorted(temp_list)
 
-        main_dict = { }
+        main_dict = {}
         for key in temp_list:
             main_dict[key] = node_dict[key]
 
@@ -74,20 +62,20 @@ class TrackerNode:
         self.sprite_credit = CreditNode(node_dict["sprite_credit"])
         self.portrait_credit = CreditNode(node_dict["portrait_credit"])
 
-        sub_dict = { }
+        sub_dict = {}
         for key in self.subgroups:
             sub_dict[key] = TrackerNode(self.subgroups[key])
         self.subgroups = sub_dict
 
     def getDict(self):
-        node_dict = { }
+        node_dict = {}
         for k in self.__dict__:
             node_dict[k] = self.__dict__[k]
 
         node_dict["sprite_credit"] = self.sprite_credit.getDict()
         node_dict["portrait_credit"] = self.portrait_credit.getDict()
 
-        sub_dict = { }
+        sub_dict = {}
         for sub_idx in self.subgroups:
             sub_dict[sub_idx] = self.subgroups[sub_idx].getDict()
         node_dict["subgroups"] = sub_dict
@@ -99,20 +87,20 @@ class CreditNode:
         temp_list = [i for i in node_dict]
         temp_list = sorted(temp_list)
 
-        main_dict = { }
+        main_dict = {}
         for key in temp_list:
             main_dict[key] = node_dict[key]
 
         self.__dict__ = main_dict
 
     def getDict(self):
-        node_dict = { }
+        node_dict = {}
         for k in self.__dict__:
             node_dict[k] = self.__dict__[k]
         return node_dict
 
 def loadNameFile(name_path):
-    name_dict = { }
+    name_dict = {}
     first = True
     with open(name_path, encoding='utf-8') as txt:
         for line in txt:
@@ -124,14 +112,14 @@ def loadNameFile(name_path):
     return name_dict
 
 def initCreditDict():
-    credit_dict = { }
+    credit_dict = {}
     credit_dict["primary"] = ""
     credit_dict["secondary"] = []
     credit_dict["total"] = 0
     return credit_dict
 
 def initSubNode(name, canon):
-    sub_dict = { }
+    sub_dict = {}
     sub_dict["name"] = name
     sub_dict["canon"] = canon
     sub_dict["modreward"] = not canon
@@ -493,8 +481,8 @@ def createSpeciesNode(name):
     return sub_dict
 
 def clearSubmissions(node):
-    node.sprite_pending = { }
-    node.portrait_pending = { }
+    node.sprite_pending = {}
+    node.portrait_pending = {}
 
     for sub_idx in node.subgroups:
         clearSubmissions(node.subgroups[sub_idx])
@@ -670,14 +658,14 @@ def setCanon(dict, canon):
 String operations
 """
 def sanitizeName(str):
-    return re.sub("\W+", "_", str).title()
+    return re.sub("\\W+", "_", str).title()
 
 def sanitizeCredit(str):
     return re.sub("\t\n", "", str)
 
 
 def initTransferNode():
-    sub_dict = { }
+    sub_dict = {}
     sub_dict["name"] = ""
     sub_dict["usage"] = None
     sub_dict["alt"] = 0
@@ -712,23 +700,23 @@ class TransferNode:
         temp_list = [i for i in node_dict]
         temp_list = sorted(temp_list)
 
-        main_dict = { }
+        main_dict = {}
         for key in temp_list:
             main_dict[key] = node_dict[key]
 
         self.__dict__ = main_dict
 
-        sub_dict = { }
+        sub_dict = {}
         for key in self.subgroups:
             sub_dict[key] = TransferNode(self.subgroups[key])
         self.subgroups = sub_dict
 
     def getDict(self):
-        node_dict = { }
+        node_dict = {}
         for k in self.__dict__:
             node_dict[k] = self.__dict__[k]
 
-        sub_dict = { }
+        sub_dict = {}
         for sub_idx in self.subgroups:
             sub_dict[sub_idx] = self.subgroups[sub_idx].getDict()
         node_dict["subgroups"] = sub_dict
