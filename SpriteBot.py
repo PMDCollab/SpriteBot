@@ -2815,7 +2815,7 @@ async def on_message(msg: discord.Message):
         if msg.channel.id == server.chat:
             if not content.startswith(prefix):
                 return
-            args = content[len(prefix):].split(' ')
+            args = content[len(prefix):].split()
 
             authorized = await sprite_bot.isAuthorized(msg.author, msg.guild)
             base_arg = args[0].lower()
