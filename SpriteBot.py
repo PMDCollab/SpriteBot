@@ -1477,6 +1477,10 @@ class SpriteBot:
 
         return base_name
 
+    """
+    Base credit is used in the case of shinies.
+    It is the credit of the base sprite that should be added to the shiny credit.
+    """
     def createCreditBlock(self, credit, base_credit):
         author_arr = []
         author_arr.append(self.createCreditAttribution(credit.primary))
@@ -1636,7 +1640,7 @@ class SpriteBot:
         credit_data.primary = wanted_author
         TrackerUtils.updateCreditFromEntries(credit_data, credit_entries)
 
-        await msg.channel.send(msg.author.mention + " Credit display has been reset for {0} {1}:\n{2}".format(asset_type, " ".join(name_seq), self.createCreditBlock(credit_data)))
+        await msg.channel.send(msg.author.mention + " Credit display has been reset for {0} {1}:\n{2}".format(asset_type, " ".join(name_seq), self.createCreditBlock(credit_data, None)))
 
         self.saveTracker()
         self.changed = True
