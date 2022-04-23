@@ -1002,7 +1002,7 @@ class SpriteBot:
 
             if not name_valid:
                 await msg.delete()
-                await self.getChatChannel(msg.guild.id).send(msg.author.mention + " Invalid filename {0}. Do not change the filename from the original.".format(file_name))
+                await self.getChatChannel(msg.guild.id).send(msg.author.mention + " Invalid filename {0}. Do not change the filename from the original name given by !portrait or !sprite .".format(file_name))
                 return False
 
             try:
