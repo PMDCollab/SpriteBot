@@ -1193,11 +1193,34 @@ class SpriteBot:
         chosen_node_from = TrackerUtils.getNodeFromIdx(self.tracker, full_idx_from, 0)
         chosen_node_to = TrackerUtils.getNodeFromIdx(self.tracker, full_idx_to, 0)
 
-        if TrackerUtils.hasLock(chosen_node_from, asset_type, True):
-            await msg.channel.send(msg.author.mention + " Cannot move the locked Pokemon specified as source.")
+        try:
+            chosen_path_from = TrackerUtils.getDirFromIdx(self.config.path, asset_type, full_idx_from)
+            chosen_img_to_link = await self.retrieveLinkMsg(full_idx_to, chosen_node_to, asset_type, False)
+            if asset_type == "sprite":
+                chosen_img_from_link = await self.retrieveLinkMsg(full_idx_from, chosen_node_from, asset_type, False)
+                chosen_zip_from = SpriteUtils.getLinkZipGroup(chosen_img_from_link)
+                chosen_zip_to = SpriteUtils.getLinkZipGroup(chosen_img_to_link)
+                SpriteUtils.verifySpriteLock(chosen_node_from, chosen_path_from, chosen_zip_from, chosen_zip_to, False)
+            elif asset_type == "portrait":
+                chosen_img_to = SpriteUtils.getLinkImg(chosen_img_to_link)
+                SpriteUtils.verifyPortraitLock(chosen_node_from, chosen_path_from, chosen_img_to, False)
+        except SpriteUtils.SpriteVerifyError as e:
+            await msg.channel.send(msg.author.mention + " Cannot move the locked Pokemon specified as source:\n{0}".format(e.message))
             return
-        if TrackerUtils.hasLock(chosen_node_to, asset_type, True):
-            await msg.channel.send(msg.author.mention + " Cannot move the locked Pokemon specified as destination.")
+
+        try:
+            chosen_path_to = TrackerUtils.getDirFromIdx(self.config.path, asset_type, full_idx_to)
+            chosen_img_from_link = await self.retrieveLinkMsg(full_idx_from, chosen_node_from, asset_type, False)
+            if asset_type == "sprite":
+                chosen_img_to_link = await self.retrieveLinkMsg(full_idx_to, chosen_node_to, asset_type, False)
+                chosen_zip_to = SpriteUtils.getLinkZipGroup(chosen_img_to_link)
+                chosen_zip_from = SpriteUtils.getLinkZipGroup(chosen_img_from_link)
+                SpriteUtils.verifySpriteLock(chosen_node_to, chosen_path_to, chosen_zip_to, chosen_zip_from, False)
+            elif asset_type == "portrait":
+                chosen_img_from = SpriteUtils.getLinkImg(chosen_img_from_link)
+                SpriteUtils.verifyPortraitLock(chosen_node_to, chosen_path_to, chosen_img_from, False)
+        except SpriteUtils.SpriteVerifyError as e:
+            await msg.channel.send(msg.author.mention + " Cannot move the locked Pokemon specified as destination:\n{0}".format(e.message))
             return
 
         TrackerUtils.swapFolderPaths(self.config.path, self.tracker, asset_type, full_idx_from, full_idx_to)
