@@ -266,6 +266,15 @@ class SpriteBot:
     def getAuthorCol(self, author):
         return str(author.id) + "#" + author.name.replace("\t", "") + "#" + author.discriminator
 
+    def getFormattedCredit(self, name):
+        # TODO: make this a regex
+        if name.startswith("<@"):
+            if name.startswith("<@!"):
+                return name
+            else:
+                return "<@!{0}>".format(name[2:-1])
+        return TrackerUtils.sanitizeName(name.upper())
+
     def getPostCredit(self, mention):
         if mention == "":
             return "-"
@@ -1634,7 +1643,7 @@ class SpriteBot:
             await msg.channel.send(msg.author.mention + " Specify a user ID and Pokemon.")
             return
 
-        wanted_author = name_args[0]# self.extractBotId(name_args[0])
+        wanted_author = self.getFormattedCredit(name_args[0])
         name_seq = [TrackerUtils.sanitizeName(i) for i in name_args[1:]]
         full_idx = TrackerUtils.findFullTrackerIdx(self.tracker, name_seq, 0)
         if full_idx is None:
@@ -1674,7 +1683,7 @@ class SpriteBot:
             await msg.channel.send(msg.author.mention + " Specify a user ID and Pokemon.")
             return
 
-        wanted_author = name_args[0]# self.extractBotId(name_args[0])
+        wanted_author = self.getFormattedCredit(name_args[0])
         name_seq = [TrackerUtils.sanitizeName(i) for i in name_args[1:]]
         full_idx = TrackerUtils.findFullTrackerIdx(self.tracker, name_seq, 0)
         if full_idx is None:
@@ -1731,7 +1740,7 @@ class SpriteBot:
             if not await self.isAuthorized(msg.author, msg.guild):
                 await msg.channel.send(msg.author.mention + " Not authorized to create absent registration.")
                 return
-            msg_mention = args[0].upper()
+            msg_mention = self.getFormattedCredit(args[0])
             new_credit = TrackerUtils.CreditEntry(args[1], args[2])
         else:
             await msg.channel.send(msg.author.mention + " Invalid args")
@@ -1750,8 +1759,8 @@ class SpriteBot:
             await msg.channel.send(msg.author.mention + " Invalid args")
             return
 
-        from_name = args[0]
-        to_name = args[1]
+        from_name = self.getFormattedCredit(args[0])
+        to_name = self.getFormattedCredit(args[1])
         if from_name.startswith("<@!") or from_name == "CHUNSOFT":
             await msg.channel.send(msg.author.mention + " Only transfers from absent registrations are allowed.")
             return
@@ -1793,7 +1802,7 @@ class SpriteBot:
             if not await self.isAuthorized(msg.author, msg.guild):
                 await msg.channel.send(msg.author.mention + " Not authorized to delete registration.")
                 return
-            msg_mention = args[0].upper()
+            msg_mention = self.getFormattedCredit(args[0])
         elif len(args) == 2:
             did = str(msg.author.id)
             dname = msg.author.name + "#" + msg.author.discriminator
