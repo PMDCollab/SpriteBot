@@ -752,6 +752,11 @@ class SpriteBot:
         mentions = ["<@!"+str(ii)+">" for ii in approvals]
         approve_msg = "{0} {1} approved by {2}: #{3:03d}: {4}".format(new_revise, asset_type, str(mentions), int(full_idx[0]), new_name_str)
 
+        if len(diffs) > 0:
+            approve_msg += "\nChanges: {0}".format(", ".join(diffs))
+        else:
+            approve_msg += "\nNo Changes."
+
         # update completion to correct value
         chosen_node.__dict__[asset_type + "_complete"] = current_completion_file
         if current_completion_file != prev_completion_file:
