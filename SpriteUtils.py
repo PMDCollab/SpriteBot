@@ -1460,9 +1460,10 @@ def autoRecolor(prev_base_img, cur_base_img, shiny_path, asset_type):
         if len(shiny_palette) > 15:
             args.append("=" + str(len(shiny_palette)))
 
-    content = " ".join(args)
+    cmd_str = " ".join(args)
 
     # also add information about off-colors
+    content = ""
     color_content = ""
     for idx, color in enumerate(total_off_color):
         if len(color_content) > 1000:
@@ -1481,7 +1482,7 @@ def autoRecolor(prev_base_img, cur_base_img, shiny_path, asset_type):
 
     cur_shiny_img = insertPalette(cur_shiny_img)
 
-    return cur_shiny_img, content
+    return cur_shiny_img, cmd_str, content.strip()
 
 
 def colorToHex(color):

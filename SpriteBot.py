@@ -547,24 +547,24 @@ class SpriteBot:
             if recolor:
                 overcolor_img = SpriteUtils.removePalette(overcolor_img)
 
-        await self.postStagedSubmission(msg.channel, msg.content.replace('\n', ' '), full_idx, chosen_node, asset_type, author, recolor,
+        await self.postStagedSubmission(msg.channel, msg.content.replace('\n', ' '), "", full_idx, chosen_node, asset_type, author, recolor,
                                         diffs, return_file, return_name, overcolor_img)
 
         await msg.delete()
 
-    async def postStagedSubmission(self, channel, formatted_content, full_idx, chosen_node, asset_type, author, recolor,
+    async def postStagedSubmission(self, channel, cmd_str, formatted_content, full_idx, chosen_node, asset_type, author, recolor,
                                    diffs, return_file, return_name, overcolor_img):
 
         title = TrackerUtils.getIdxName(self.tracker, full_idx)
 
         send_files = [discord.File(return_file, return_name)]
-        add_msg = ""
 
         if diffs is not None and len(diffs) > 0:
-            add_msg += "\nChanges: {0}".format(", ".join(diffs))
+            diff_str = "Changes: {0}".format(", ".join(diffs))
         else:
-            add_msg += "\nNo Changes."
+            diff_str = "No Changes."
 
+        add_msg = ""
         if overcolor_img is not None:
             reduced_img = None
             if asset_type == "sprite":
@@ -582,8 +582,8 @@ class SpriteBot:
             if recolor or asset_type == "portrait":
                 orig_link = await self.retrieveLinkMsg(full_idx, chosen_node, asset_type, recolor)
                 add_msg += "\nCurrent Version: {0}".format(orig_link)
-        new_msg = await channel.send("{0} {1}\n{2}".format(author, " ".join(title), formatted_content + add_msg),
-                                     files=send_files)
+        new_msg = await channel.send("{0} {1}\n{2}\n{3}\n{4}".format(author, " ".join(title), cmd_str, diff_str,
+                                                                     formatted_content + add_msg), files=send_files)
 
         pending_dict = chosen_node.__dict__[asset_type+"_pending"]
         change_status = len(pending_dict) == 0
@@ -631,50 +631,14 @@ class SpriteBot:
                     return
 
         diffs = []
-        if asset_type == "sprite":
-            try:
-                # get the sprite zip and verify its contents
-                wan_zip = None
-                if recolor:
-                    wan_zip = SpriteUtils.getLinkImg(msg.attachments[0].url)
-                else:
-                    wan_zip = SpriteUtils.getLinkZipGroup(msg.attachments[0].url)
-
-                orig_zip_group = None
-
-                orig_idx = None
-                # if it's a shiny, get the original image
-                if TrackerUtils.isShinyIdx(full_idx):
-                    orig_idx = TrackerUtils.createShinyIdx(full_idx, False)
-                elif base_idx is not None:
-                    orig_idx = base_idx
-
-                if orig_idx is not None:
-                    orig_node = TrackerUtils.getNodeFromIdx(self.tracker, orig_idx, 0)
-
-                    if orig_node.__dict__[asset_type + "_credit"].primary == "":
-                        # this means there's no original portrait to base the recolor off of
-                        await self.returnMsgFile(msg, msg.author.mention + " Cannot submit a shiny when the original isn't finished.", asset_type)
-                        return False, None
-
-                    if recolor:
-                        orig_group_link = await self.retrieveLinkMsg(orig_idx, orig_node, asset_type, False)
-                        orig_zip_group = SpriteUtils.getLinkZipGroup(orig_group_link)
-
-                diffs = SpriteUtils.verifySpriteLock(chosen_node, chosen_path, orig_zip_group, wan_zip, recolor)
-            except Exception as e:
-                await self.returnMsgFile(msg, msg.author.mention + " A problem occurred reading submitted sprite.\n{0}".format(str(e)), asset_type)
-                raise e
-        elif asset_type == "portrait":
-            # get the portrait image and verify its contents
-            try:
-                img = SpriteUtils.getLinkImg(msg.attachments[0].url)
-                diffs = SpriteUtils.verifyPortraitLock(chosen_node, chosen_path, img, recolor)
-            except Exception as e:
-                await self.returnMsgFile(msg, msg.author.mention + " A problem occurred reading submitted portrait.\n{0}".format(str(e)), asset_type)
-                raise e
-
-
+        if len(msg_lines) > 2:
+            msg_changes = msg_lines[2]
+            if msg_changes.startswith("Changes: "):
+                diffs = msg_changes.replace("Changes: ", "").split(", ")
+            elif msg_changes != "No Changes.":
+                await self.getChatChannel(msg.guild.id).send(msg.author.mention + " This submission has invalid changes data. Contact staff.")
+                await msg.delete()
+                return
 
         is_shiny = TrackerUtils.isShinyIdx(full_idx)
         shiny_idx = None
@@ -866,8 +830,9 @@ class SpriteBot:
 
         self.changed = True
 
-        # autogenerate the shiny
+
         if not is_shiny and not add_author:
+            # remove all pending shinies
             pending = {}
             for pending_id in shiny_node.__dict__[asset_type+"_pending"]:
                 pending[pending_id] = shiny_node.__dict__[asset_type+"_pending"][pending_id]
@@ -884,23 +849,39 @@ class SpriteBot:
                 except Exception as e:
                     await self.sendError(traceback.format_exc())
 
+            # autogenerate the shiny
             if base_recolor_img is not None:
                 # auto-generate recolor link
                 base_link = await self.retrieveLinkMsg(full_idx, chosen_node, asset_type, True)
                 cur_recolor_img = SpriteUtils.getLinkImg(base_link)
                 # auto-generate the shiny recolor image, in file form
                 shiny_path = TrackerUtils.getDirFromIdx(self.config.path, asset_type, shiny_idx)
-                auto_recolor_img, content = SpriteUtils.autoRecolor(base_recolor_img, cur_recolor_img, shiny_path, asset_type)
+                auto_recolor_img, cmd_str, content = SpriteUtils.autoRecolor(base_recolor_img, cur_recolor_img, shiny_path, asset_type)
+
+                # compute the diff
+                auto_diffs = []
+                try:
+                    if asset_type == "sprite":
+                        orig_idx = TrackerUtils.createShinyIdx(full_idx, False)
+                        orig_node = TrackerUtils.getNodeFromIdx(self.tracker, orig_idx, 0)
+
+                        orig_group_link = await self.retrieveLinkMsg(orig_idx, orig_node, asset_type, False)
+                        orig_zip_group = SpriteUtils.getLinkZipGroup(orig_group_link)
+
+                        auto_diffs = SpriteUtils.verifySpriteLock(shiny_node, shiny_path, orig_zip_group, auto_recolor_img, True)
+                    elif asset_type == "portrait":
+                        auto_diffs = SpriteUtils.verifyPortraitLock(shiny_node, shiny_path, auto_recolor_img, True)
+                except Exception as e:
+                    return
+
                 # post it as a staged submission
                 return_name = "{0}-{1}{2}".format(asset_type + "_recolor", "-".join(shiny_idx), ".png")
-
                 auto_recolor_file = io.BytesIO()
                 auto_recolor_img.save(auto_recolor_file, format='PNG')
                 auto_recolor_file.seek(0)
 
                 try:
-                    msg_lines = content.split('\n')
-                    msg_args = parser.parse_args(msg_lines[0].split())
+                    msg_args = parser.parse_args(cmd_str.split())
                 except SystemExit:
                     await self.sendError(traceback.format_exc())
                     return
@@ -910,8 +891,8 @@ class SpriteBot:
                 if overcolor:
                     overcolor_img = SpriteUtils.removePalette(auto_recolor_img)
 
-                await self.postStagedSubmission(msg.channel, content, shiny_idx, shiny_node, asset_type, sender_info,
-                                                True, [], auto_recolor_file, return_name, overcolor_img)
+                await self.postStagedSubmission(msg.channel, cmd_str, content, shiny_idx, shiny_node, asset_type, sender_info,
+                                                True, auto_diffs, auto_recolor_file, return_name, overcolor_img)
 
 
 
@@ -1757,7 +1738,7 @@ class SpriteBot:
         base_file, base_name = SpriteUtils.getLinkData(base_link)
 
         # stage a post in submissions
-        await self.postStagedSubmission(submit_channel, "--addauthor", full_idx, chosen_node, asset_type, author + "/" + wanted_author,
+        await self.postStagedSubmission(submit_channel, "--addauthor", "", full_idx, chosen_node, asset_type, author + "/" + wanted_author,
                                                 False, None, base_file, base_name, None)
 
 
