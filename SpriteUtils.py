@@ -341,24 +341,24 @@ def compareSpriteRecolorDiff(orig_anim_img, shiny_anim_img, anim_name,
                     shiny_palette[shiny_color] = 0
                 shiny_palette[shiny_color] += 1
 
-def verifySpriteRecolor(msg_args, orig_zip, wan_zip, recolor, checkSilhouette):
+def verifySpriteRecolor(msg_args, precolor_zip, wan_zip, recolor, checkSilhouette):
     orig_palette = {}
     shiny_palette = {}
     trans_diff = {}
     black_diff = {}
 
     if recolor:
-        if orig_zip.size != wan_zip.size:
+        if precolor_zip.size != wan_zip.size:
             raise SpriteVerifyError(
-                "Recolor has dimensions {0} instead of {1}.".format(str(wan_zip.size), str(orig_zip.size)))
+                "Recolor has dimensions {0} instead of {1}.".format(str(wan_zip.size), str(precolor_zip.size)))
 
-        orig_zip = removePalette(orig_zip)
+        precolor_zip = removePalette(precolor_zip)
         wan_zip = removePalette(wan_zip)
-        compareSpriteRecolorDiff(orig_zip, wan_zip, "sheet",
+        compareSpriteRecolorDiff(precolor_zip, wan_zip, "sheet",
                                  trans_diff, black_diff, orig_palette, shiny_palette)
     else:
         try:
-            with zipfile.ZipFile(orig_zip, 'r') as zip:
+            with zipfile.ZipFile(precolor_zip, 'r') as zip:
                 with zipfile.ZipFile(wan_zip, 'r') as shiny_zip:
                     name_list = zip.namelist()
                     shiny_name_list = shiny_zip.namelist()
@@ -732,7 +732,7 @@ def verifySprite(msg_args, wan_zip):
     except zipfile.BadZipfile as e:
         raise SpriteVerifyError(str(e))
 
-def verifySpriteLock(dict, chosen_path, orig_zip, wan_zip, recolor):
+def verifySpriteLock(dict, chosen_path, precolor_zip, wan_zip, recolor):
     # make sure all locked sprites are the same as their original counterparts
     changed_files = []
 
@@ -741,10 +741,10 @@ def verifySpriteLock(dict, chosen_path, orig_zip, wan_zip, recolor):
         shiny_frames = None
         frame_mapping = None
         if recolor:
-            cmp_zip = orig_zip
+            cmp_zip = precolor_zip
             wan_zip = removePalette(wan_zip)
 
-            with zipfile.ZipFile(orig_zip, 'r') as opened_zip:
+            with zipfile.ZipFile(precolor_zip, 'r') as opened_zip:
                 frames, frame_mapping = getFramesAndMappings(opened_zip, True)
             frame_size = getFrameSizeFromFrames(frames)
 
@@ -1460,9 +1460,10 @@ def autoRecolor(prev_base_img, cur_base_img, shiny_path, asset_type):
         if len(shiny_palette) > 15:
             args.append("=" + str(len(shiny_palette)))
 
-    content = " ".join(args)
+    cmd_str = " ".join(args)
 
     # also add information about off-colors
+    content = ""
     color_content = ""
     for idx, color in enumerate(total_off_color):
         if len(color_content) > 1000:
@@ -1481,7 +1482,7 @@ def autoRecolor(prev_base_img, cur_base_img, shiny_path, asset_type):
 
     cur_shiny_img = insertPalette(cur_shiny_img)
 
-    return cur_shiny_img, content
+    return cur_shiny_img, cmd_str, content.strip()
 
 
 def colorToHex(color):
