@@ -559,6 +559,12 @@ class SpriteBot:
 
         send_files = [discord.File(return_file, return_name)]
         add_msg = ""
+
+        if diffs is not None and len(diffs) > 0:
+            add_msg += "\nChanges: {0}".format(", ".join(diffs))
+        else:
+            add_msg += "\nNo Changes."
+
         if overcolor_img is not None:
             reduced_img = None
             if asset_type == "sprite":
@@ -571,11 +577,6 @@ class SpriteBot:
             reduced_file.seek(0)
             send_files.append(discord.File(reduced_file, return_name.replace('.png', '_reduced.png')))
             add_msg += "\nReduced Color Preview included."
-
-        if diffs is not None and len(diffs) > 0:
-            add_msg += "\nChanges: {0}".format(", ".join(diffs))
-        else:
-            add_msg += "\nNo Changes."
 
         if chosen_node.__dict__[asset_type + "_credit"].primary != "":
             if recolor or asset_type == "portrait":
@@ -633,6 +634,10 @@ class SpriteBot:
             msg_changes = msg_lines[2]
             if msg_changes.startswith("Changes: "):
                 diffs = msg_changes.replace("Changes: ", "").split(", ")
+            elif msg_changes != "No Changes.":
+                await self.getChatChannel(msg.guild.id).send(msg.author.mention + " This submission has invalid changes data. Contact staff.")
+                await msg.delete()
+                return
 
 
         is_shiny = TrackerUtils.isShinyIdx(full_idx)
@@ -751,7 +756,6 @@ class SpriteBot:
 
         mentions = ["<@!"+str(ii)+">" for ii in approvals]
         approve_msg = "{0} {1} approved by {2}: #{3:03d}: {4}".format(new_revise, asset_type, str(mentions), int(full_idx[0]), new_name_str)
-
 
         if len(diffs) > 0:
             approve_msg += "\nChanges: {0}".format(", ".join(diffs))

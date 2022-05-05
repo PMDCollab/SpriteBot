@@ -1015,7 +1015,18 @@ def verifyPortraitLock(dict, chosen_path, img, recolor):
             png_name = os.path.join(chosen_path, emote_name + ".png")
 
             exists_old = os.path.exists(png_name)
-            exists_new = (first_pos[0] < img.size[0] and first_pos[1] < img.size[1])
+            exists_new = False
+            if first_pos[0] < img.size[0] and first_pos[1] < img.size[1]:
+                for mx in range(Constants.PORTRAIT_SIZE):
+                    for my in range(Constants.PORTRAIT_SIZE):
+                        cur_pos = (first_pos[0] + mx, first_pos[1] + my)
+                        cur_pixel = in_data[cur_pos[1] * img.size[0] + cur_pos[0]]
+                        if cur_pixel[3] > 0:
+                            exists_new = True
+                            break
+                    if exists_new:
+                        break
+
             if exists_old != exists_new:
                 violated = True
             elif not exists_old:
