@@ -608,6 +608,7 @@ class SpriteBot:
             return
 
         chosen_node = TrackerUtils.getNodeFromIdx(self.tracker, full_idx, 0)
+        chosen_path = TrackerUtils.getDirFromIdx(self.config.path, asset_type, full_idx)
 
         msg_lines = msg.content.split('\n')
         base_idx = None
@@ -630,14 +631,49 @@ class SpriteBot:
                     return
 
         diffs = []
-        if len(msg_lines) > 2:
-            msg_changes = msg_lines[2]
-            if msg_changes.startswith("Changes: "):
-                diffs = msg_changes.replace("Changes: ", "").split(", ")
-            elif msg_changes != "No Changes.":
-                await self.getChatChannel(msg.guild.id).send(msg.author.mention + " This submission has invalid changes data. Contact staff.")
-                await msg.delete()
-                return
+        if asset_type == "sprite":
+            try:
+                # get the sprite zip and verify its contents
+                wan_zip = None
+                if recolor:
+                    wan_zip = SpriteUtils.getLinkImg(msg.attachments[0].url)
+                else:
+                    wan_zip = SpriteUtils.getLinkZipGroup(msg.attachments[0].url)
+
+                orig_zip_group = None
+
+                orig_idx = None
+                # if it's a shiny, get the original image
+                if TrackerUtils.isShinyIdx(full_idx):
+                    orig_idx = TrackerUtils.createShinyIdx(full_idx, False)
+                elif base_idx is not None:
+                    orig_idx = base_idx
+
+                if orig_idx is not None:
+                    orig_node = TrackerUtils.getNodeFromIdx(self.tracker, orig_idx, 0)
+
+                    if orig_node.__dict__[asset_type + "_credit"].primary == "":
+                        # this means there's no original portrait to base the recolor off of
+                        await self.returnMsgFile(msg, msg.author.mention + " Cannot submit a shiny when the original isn't finished.", asset_type)
+                        return False, None
+
+                    if recolor:
+                        orig_group_link = await self.retrieveLinkMsg(orig_idx, orig_node, asset_type, False)
+                        orig_zip_group = SpriteUtils.getLinkZipGroup(orig_group_link)
+
+                diffs = SpriteUtils.verifySpriteLock(chosen_node, chosen_path, orig_zip_group, wan_zip, recolor)
+            except Exception as e:
+                await self.returnMsgFile(msg, msg.author.mention + " A problem occurred reading submitted sprite.\n{0}".format(str(e)), asset_type)
+                raise e
+        elif asset_type == "portrait":
+            # get the portrait image and verify its contents
+            try:
+                img = SpriteUtils.getLinkImg(msg.attachments[0].url)
+                diffs = SpriteUtils.verifyPortraitLock(chosen_node, chosen_path, img, recolor)
+            except Exception as e:
+                await self.returnMsgFile(msg, msg.author.mention + " A problem occurred reading submitted portrait.\n{0}".format(str(e)), asset_type)
+                raise e
+
 
 
         is_shiny = TrackerUtils.isShinyIdx(full_idx)
@@ -875,7 +911,7 @@ class SpriteBot:
                     overcolor_img = SpriteUtils.removePalette(auto_recolor_img)
 
                 await self.postStagedSubmission(msg.channel, content, shiny_idx, shiny_node, asset_type, sender_info,
-                                                True, None, auto_recolor_file, return_name, overcolor_img)
+                                                True, [], auto_recolor_file, return_name, overcolor_img)
 
 
 
@@ -1223,10 +1259,8 @@ class SpriteBot:
             chosen_path_from = TrackerUtils.getDirFromIdx(self.config.path, asset_type, full_idx_from)
             chosen_img_to_link = await self.retrieveLinkMsg(full_idx_to, chosen_node_to, asset_type, False)
             if asset_type == "sprite":
-                chosen_img_from_link = await self.retrieveLinkMsg(full_idx_from, chosen_node_from, asset_type, False)
-                chosen_zip_from = SpriteUtils.getLinkZipGroup(chosen_img_from_link)
                 chosen_zip_to = SpriteUtils.getLinkZipGroup(chosen_img_to_link)
-                SpriteUtils.verifySpriteLock(chosen_node_from, chosen_path_from, chosen_zip_from, chosen_zip_to, False)
+                SpriteUtils.verifySpriteLock(chosen_node_from, chosen_path_from, None, chosen_zip_to, False)
             elif asset_type == "portrait":
                 chosen_img_to = SpriteUtils.getLinkImg(chosen_img_to_link)
                 SpriteUtils.verifyPortraitLock(chosen_node_from, chosen_path_from, chosen_img_to, False)
@@ -1238,10 +1272,8 @@ class SpriteBot:
             chosen_path_to = TrackerUtils.getDirFromIdx(self.config.path, asset_type, full_idx_to)
             chosen_img_from_link = await self.retrieveLinkMsg(full_idx_from, chosen_node_from, asset_type, False)
             if asset_type == "sprite":
-                chosen_img_to_link = await self.retrieveLinkMsg(full_idx_to, chosen_node_to, asset_type, False)
-                chosen_zip_to = SpriteUtils.getLinkZipGroup(chosen_img_to_link)
                 chosen_zip_from = SpriteUtils.getLinkZipGroup(chosen_img_from_link)
-                SpriteUtils.verifySpriteLock(chosen_node_to, chosen_path_to, chosen_zip_to, chosen_zip_from, False)
+                SpriteUtils.verifySpriteLock(chosen_node_to, chosen_path_to, None, chosen_zip_from, False)
             elif asset_type == "portrait":
                 chosen_img_from = SpriteUtils.getLinkImg(chosen_img_from_link)
                 SpriteUtils.verifyPortraitLock(chosen_node_to, chosen_path_to, chosen_img_from, False)
