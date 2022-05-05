@@ -1054,15 +1054,16 @@ class SpriteBot:
             # after other args have been consumed, check for one more arg: if the submission was made in someone else's stead
             author = "<@!{0}>".format(msg.author.id)
             if msg_args.author is not None:
+                sanitized_author = self.getFormattedCredit(msg_args.author)
                 decline_msg = None
-                if msg_args.author not in self.names:
-                    decline_msg = "{0} does not have a profile.".format(msg_args.author)
+                if sanitized_author not in self.names:
+                    decline_msg = "{0} does not have a profile.".format(sanitized_author)
 
                 if decline_msg is not None:
                     await self.returnMsgFile(msg, msg.author.mention + " " + decline_msg, asset_type)
                     return False
 
-                author = "{0}/{1}".format(author, msg_args.author)
+                author = "{0}/{1}".format(author, sanitized_author)
 
             await self.stageSubmission(msg, full_idx, chosen_node, asset_type, author, recolor, diffs, overcolor)
             return True
