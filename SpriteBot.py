@@ -273,7 +273,7 @@ class SpriteBot:
                 return name
             else:
                 return "<@!{0}>".format(name[2:-1])
-        return TrackerUtils.sanitizeName(name.upper())
+        return TrackerUtils.sanitizeName(name).upper()
 
     def getPostCredit(self, mention):
         if mention == "":
