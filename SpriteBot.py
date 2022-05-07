@@ -1514,7 +1514,7 @@ class SpriteBot:
         cur_recolor_img = SpriteUtils.getLinkImg(base_link)
         # auto-generate the shiny recolor image, in file form
         shiny_path = TrackerUtils.getDirFromIdx(self.config.path, asset_type, shiny_idx)
-        auto_recolor_img, content = SpriteUtils.autoRecolor(cur_recolor_img, cur_recolor_img, shiny_path, asset_type)
+        auto_recolor_img, cmd_str, content = SpriteUtils.autoRecolor(cur_recolor_img, cur_recolor_img, shiny_path, asset_type)
         # post it as a staged submission
         return_name = "{0}-{1}{2}".format(asset_type + "_recolor", "-".join(shiny_idx), ".png")
 
@@ -1525,7 +1525,7 @@ class SpriteBot:
         title = TrackerUtils.getIdxName(self.tracker, full_idx)
 
         send_files = [discord.File(auto_recolor_file, return_name)]
-        await msg.channel.send("{0} {1}\n{2}".format(msg.author.mention, " ".join(title), content),
+        await msg.channel.send("{0} {1}\n{2}\n{3}".format(msg.author.mention, " ".join(title), cmd_str, content),
                                      files=send_files)
 
 
@@ -1649,8 +1649,14 @@ class SpriteBot:
         too_long = False
         if history:
             credit_entries = TrackerUtils.getFileCredits(gen_path)
-            for credit_id in credit_entries:
-                credit_line = "\t".join(credit_id)
+            for credit_entry in credit_entries:
+                credit_time = credit_entry[0]
+                credit_id = credit_entry[1]
+                credit_diff = credit_entry[2]
+                entry = self.names[credit_id]
+                if entry.name != '':
+                    credit_id = entry.name
+                credit_line = "{0}\t{1}\t{2}".format(credit_time, credit_id, credit_diff)
                 if len(credit_str) + len(credit_line) < 1950:
                     credit_str += '\n' + credit_line
                 else:
