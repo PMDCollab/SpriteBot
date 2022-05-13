@@ -713,7 +713,7 @@ class SpriteBot:
                 new_credit = False
                 break
 
-        TrackerUtils.appendCredits(gen_path, orig_author, "?")# ,".join(diffs))
+        TrackerUtils.appendCredits(gen_path, orig_author, ",".join(diffs))
         # add to universal names list and save if changed
         if orig_author not in self.names:
             self.names[orig_author] = TrackerUtils.CreditEntry("", "")
