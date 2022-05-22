@@ -568,37 +568,48 @@ def getDirFromIdx(base_path, asset_type, full_idx):
     full_arr = [base_path, asset_type] + full_idx
     return os.path.join(*full_arr)
 
-def moveTextureFiles(dir_from, dir_to):
+def moveNodeFiles(dir_from, dir_to, is_dir):
     cur_files = os.listdir(dir_from)
     for file in cur_files:
+        # exclude tmp as it is a special folder name for temp files
+        if file == "tmp":
+            continue
         full_base_path = os.path.join(dir_from, file)
-        if not os.path.isdir(full_base_path):
+        if os.path.isdir(full_base_path) == is_dir:
             shutil.move(full_base_path, os.path.join(dir_to, file))
 
-def swapNodeFeatures(node_from, node_to, asset_type, recursive):
+
+def swapNodeMiscFeatures(node_from, node_to):
+    for key in node_from.__dict__:
+        if key.startswith("sprite"):
+            pass
+        elif key.startswith("portrait"):
+            pass
+        elif key == "subgroups":
+            pass
+        else:
+            tmp = node_to.__dict__[key]
+            node_to.__dict__[key] = node_from.__dict__[key]
+            node_from.__dict__[key] = tmp
+
+def swapNodeAssetFeatures(node_from, node_to, asset_type):
     for key in node_from.__dict__:
         if key.startswith(asset_type):
             tmp = node_to.__dict__[key]
             node_to.__dict__[key] = node_from.__dict__[key]
             node_from.__dict__[key] = tmp
 
-    if recursive:
-        for subgroup in node_from.subgroups:
-            if subgroup not in node_to.subgroups:
-                node_to.subgroups[subgroup] = createFormNode(node_from.subgroups[subgroup].name, node_to.canon)
-        for subgroup in node_to.subgroups:
-            if subgroup not in node_from.subgroups:
-                node_from.subgroups[subgroup] = createFormNode(node_to.subgroups[subgroup].name, node_from.canon)
-
-        for subgroup in node_from.subgroups:
-            swapNodeFeatures(node_from.subgroups[subgroup], node_to.subgroups[subgroup], asset_type, recursive)
 
 def swapFolderPaths(base_path, tracker, asset_type, full_idx_from, full_idx_to):
 
+    # swap the nodes in tracker, don't do it recursively
     chosen_node_from = getNodeFromIdx(tracker, full_idx_from, 0)
-    gen_path_from = getDirFromIdx(base_path, asset_type, full_idx_from)
-
     chosen_node_to = getNodeFromIdx(tracker, full_idx_to, 0)
+
+    swapNodeAssetFeatures(chosen_node_from, chosen_node_to, asset_type)
+
+    # prepare to swap textures
+    gen_path_from = getDirFromIdx(base_path, asset_type, full_idx_from)
     gen_path_to = getDirFromIdx(base_path, asset_type, full_idx_to)
 
     if not os.path.exists(gen_path_from):
@@ -610,15 +621,46 @@ def swapFolderPaths(base_path, tracker, asset_type, full_idx_from, full_idx_to):
     # move textures to a temp folder
     gen_path_tmp = os.path.join(gen_path_from, "tmp")
     os.makedirs(gen_path_tmp, exist_ok=True)
-    moveTextureFiles(gen_path_from, gen_path_tmp)
+    moveNodeFiles(gen_path_from, gen_path_tmp, False)
 
     # swap the folders
-    moveTextureFiles(gen_path_to, gen_path_from)
-    moveTextureFiles(gen_path_tmp, gen_path_to)
+    moveNodeFiles(gen_path_to, gen_path_from, False)
+    moveNodeFiles(gen_path_tmp, gen_path_to, False)
     shutil.rmtree(gen_path_tmp)
 
-    # swap the nodes in tracker, don't do it recursively
-    swapNodeFeatures(chosen_node_from, chosen_node_to, asset_type, False)
+
+def swapAllSubNodes(base_path, tracker, full_idx_from, full_idx_to):
+    # swap the subnode objects
+    chosen_node_from = getNodeFromIdx(tracker, full_idx_from, 0)
+    chosen_node_to = getNodeFromIdx(tracker, full_idx_to, 0)
+
+    tmp = chosen_node_from.subgroups
+    chosen_node_from.subgroups = chosen_node_to.subgroups
+    chosen_node_to.subgroups = tmp
+
+    # swap the subfolders for each asset
+    asset_types = ["sprite", "portrait"]
+
+    for asset_type in asset_types:
+        gen_path_from = getDirFromIdx(base_path, asset_type, full_idx_from)
+        gen_path_to = getDirFromIdx(base_path, asset_type, full_idx_to)
+
+        if not os.path.exists(gen_path_from):
+            os.makedirs(gen_path_from, exist_ok=True)
+
+        if not os.path.exists(gen_path_to):
+            os.makedirs(gen_path_to, exist_ok=True)
+
+        # move dirs to a temp folder
+        gen_path_tmp = os.path.join(gen_path_from, "tmp")
+        os.makedirs(gen_path_tmp, exist_ok=True)
+        moveNodeFiles(gen_path_from, gen_path_tmp, True)
+
+        # swap the folders
+        moveNodeFiles(gen_path_to, gen_path_from, True)
+        moveNodeFiles(gen_path_tmp, gen_path_to, True)
+        shutil.rmtree(gen_path_tmp)
+
 
 def hasLock(dict, asset_type, recursive):
     for file in dict.__dict__[asset_type + "_files"]:

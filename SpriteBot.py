@@ -1210,6 +1210,104 @@ class SpriteBot:
         self.saveTracker()
         self.changed = True
 
+    async def moveSlotRecursive(self, msg, name_args):
+        try:
+            delim_idx = name_args.index("->")
+        except:
+            await msg.channel.send(msg.author.mention + " Command needs to separate the source and destination with `->`.")
+            return
+
+        name_args_from = name_args[:delim_idx]
+        name_args_to = name_args[delim_idx+1:]
+
+        if len(name_args_from) > 2 or len(name_args_to) > 2:
+            await msg.channel.send(msg.author.mention + " Can move only species or form.")
+            return
+
+        name_seq_from = [TrackerUtils.sanitizeName(i) for i in name_args_from]
+        full_idx_from = TrackerUtils.findFullTrackerIdx(self.tracker, name_seq_from, 0)
+        if full_idx_from is None:
+            await msg.channel.send(msg.author.mention + " No such Pokemon specified as source.")
+            return
+
+        name_seq_to = [TrackerUtils.sanitizeName(i) for i in name_args_to]
+        full_idx_to = TrackerUtils.findFullTrackerIdx(self.tracker, name_seq_to, 0)
+        if full_idx_to is None:
+            await msg.channel.send(msg.author.mention + " No such Pokemon specified as destination.")
+            return
+
+        chosen_node_from = TrackerUtils.getNodeFromIdx(self.tracker, full_idx_from, 0)
+        chosen_node_to = TrackerUtils.getNodeFromIdx(self.tracker, full_idx_to, 0)
+
+        explicit_idx_from = full_idx_from.copy()
+        if len(explicit_idx_from) < 2:
+            explicit_idx_from.append("0000")
+        explicit_idx_to = full_idx_to.copy()
+        if len(explicit_idx_to) < 2:
+            explicit_idx_to.append("0000")
+
+        explicit_node_from = TrackerUtils.getNodeFromIdx(self.tracker, full_idx_from, 0)
+        explicit_node_to = TrackerUtils.getNodeFromIdx(self.tracker, full_idx_to, 0)
+
+        # check the main nodes
+        try:
+            await self.checkMoveLock(full_idx_from, chosen_node_from, full_idx_to, chosen_node_to, "sprite")
+            await self.checkMoveLock(full_idx_from, chosen_node_from, full_idx_to, chosen_node_to, "portrait")
+        except SpriteUtils.SpriteVerifyError as e:
+            await msg.channel.send(msg.author.mention + " Cannot move the locked Pokemon specified as source:\n{0}".format(e.message))
+            return
+
+        try:
+            await self.checkMoveLock(full_idx_to, chosen_node_to, full_idx_from, chosen_node_from, "sprite")
+            await self.checkMoveLock(full_idx_to, chosen_node_to, full_idx_from, chosen_node_from, "portrait")
+        except SpriteUtils.SpriteVerifyError as e:
+            await msg.channel.send(msg.author.mention + " Cannot move the locked Pokemon specified as source:\n{0}".format(e.message))
+            return
+
+        # check the subnodes
+        for sub_idx in explicit_node_from.subgroups:
+            sub_node = explicit_node_from.subgroups[sub_idx]
+            if TrackerUtils.hasLock(sub_node, "sprite", True) or TrackerUtils.hasLock(sub_node, "portrait", True):
+                await msg.channel.send(msg.author.mention + " Cannot move the locked subgroup specified as source.")
+                return
+        for sub_idx in explicit_node_to.subgroups:
+            sub_node = explicit_node_to.subgroups[sub_idx]
+            if TrackerUtils.hasLock(sub_node, "sprite", True) or TrackerUtils.hasLock(sub_node, "portrait", True):
+                await msg.channel.send(msg.author.mention + " Cannot move the locked subgroup specified as source.")
+                return
+
+        # perform the swap
+        TrackerUtils.swapFolderPaths(self.config.path, self.tracker, "sprite", full_idx_from, full_idx_to)
+        TrackerUtils.swapFolderPaths(self.config.path, self.tracker, "portrait", full_idx_from, full_idx_to)
+        TrackerUtils.swapNodeMiscFeatures(chosen_node_from, chosen_node_to)
+
+        # then, swap the subnodes
+        TrackerUtils.swapAllSubNodes(self.config.path, self.tracker, explicit_idx_from, explicit_idx_to)
+
+        await msg.channel.send(msg.author.mention + " Swapped {0} with {1}.".format(" ".join(name_seq_from), " ".join(name_seq_to)))
+        # if the source is empty in sprite and portrait, and its subunits are empty in sprite and portrait
+        # remind to delete
+        if not TrackerUtils.isDataPopulated(chosen_node_from):
+            await msg.channel.send(msg.author.mention + " {0} is now empty. Use `!delete` if it is no longer needed.".format(" ".join(name_seq_to)))
+        if not TrackerUtils.isDataPopulated(chosen_node_to):
+            await msg.channel.send(msg.author.mention + " {0} is now empty. Use `!delete` if it is no longer needed.".format(" ".join(name_seq_from)))
+
+        self.saveTracker()
+        self.changed = True
+
+
+
+    async def checkMoveLock(self, full_idx_from, chosen_node_from, full_idx_to, chosen_node_to, asset_type):
+
+        chosen_path_from = TrackerUtils.getDirFromIdx(self.config.path, asset_type, full_idx_from)
+        chosen_img_to_link = await self.retrieveLinkMsg(full_idx_to, chosen_node_to, asset_type, False)
+        if asset_type == "sprite":
+            chosen_zip_to = SpriteUtils.getLinkZipGroup(chosen_img_to_link)
+            SpriteUtils.verifySpriteLock(chosen_node_from, chosen_path_from, None, chosen_zip_to, False)
+        elif asset_type == "portrait":
+            chosen_img_to = SpriteUtils.getLinkImg(chosen_img_to_link)
+            SpriteUtils.verifyPortraitLock(chosen_node_from, chosen_path_from, chosen_img_to, False)
+
 
     async def moveSlot(self, msg, name_args, asset_type):
         try:
@@ -1236,31 +1334,19 @@ class SpriteBot:
         chosen_node_from = TrackerUtils.getNodeFromIdx(self.tracker, full_idx_from, 0)
         chosen_node_to = TrackerUtils.getNodeFromIdx(self.tracker, full_idx_to, 0)
 
+
         try:
-            chosen_path_from = TrackerUtils.getDirFromIdx(self.config.path, asset_type, full_idx_from)
-            chosen_img_to_link = await self.retrieveLinkMsg(full_idx_to, chosen_node_to, asset_type, False)
-            if asset_type == "sprite":
-                chosen_zip_to = SpriteUtils.getLinkZipGroup(chosen_img_to_link)
-                SpriteUtils.verifySpriteLock(chosen_node_from, chosen_path_from, None, chosen_zip_to, False)
-            elif asset_type == "portrait":
-                chosen_img_to = SpriteUtils.getLinkImg(chosen_img_to_link)
-                SpriteUtils.verifyPortraitLock(chosen_node_from, chosen_path_from, chosen_img_to, False)
+            await self.checkMoveLock(full_idx_from, chosen_node_from, full_idx_to, chosen_node_to, asset_type)
         except SpriteUtils.SpriteVerifyError as e:
             await msg.channel.send(msg.author.mention + " Cannot move the locked Pokemon specified as source:\n{0}".format(e.message))
             return
 
         try:
-            chosen_path_to = TrackerUtils.getDirFromIdx(self.config.path, asset_type, full_idx_to)
-            chosen_img_from_link = await self.retrieveLinkMsg(full_idx_from, chosen_node_from, asset_type, False)
-            if asset_type == "sprite":
-                chosen_zip_from = SpriteUtils.getLinkZipGroup(chosen_img_from_link)
-                SpriteUtils.verifySpriteLock(chosen_node_to, chosen_path_to, None, chosen_zip_from, False)
-            elif asset_type == "portrait":
-                chosen_img_from = SpriteUtils.getLinkImg(chosen_img_from_link)
-                SpriteUtils.verifyPortraitLock(chosen_node_to, chosen_path_to, chosen_img_from, False)
+            await self.checkMoveLock(full_idx_to, chosen_node_to, full_idx_from, chosen_node_from, asset_type)
         except SpriteUtils.SpriteVerifyError as e:
-            await msg.channel.send(msg.author.mention + " Cannot move the locked Pokemon specified as destination:\n{0}".format(e.message))
+            await msg.channel.send(msg.author.mention + " Cannot move the locked Pokemon specified as source:\n{0}".format(e.message))
             return
+
 
         TrackerUtils.swapFolderPaths(self.config.path, self.tracker, asset_type, full_idx_from, full_idx_to)
 
@@ -2540,6 +2626,7 @@ class SpriteBot:
                   f"`{prefix}dontneed` - Marks a sprite/portrait as unneeded\n" \
                   f"`{prefix}movesprite` - Swaps the sprites for two Pokemon/formes\n" \
                   f"`{prefix}moveportrait` - Swaps the portraits for two Pokemon/formes\n" \
+                  f"`{prefix}move` - Swaps the sprites, portraits, and names for two Pokemon/formes\n" \
                   f"`{prefix}spritewip` - Sets the sprite status as Incomplete\n" \
                   f"`{prefix}portraitwip` - Sets the portrait status as Incomplete\n" \
                   f"`{prefix}spriteexists` - Sets the sprite status as Exists\n" \
@@ -2671,6 +2758,20 @@ class SpriteBot:
                              f"`{prefix}moveportrait Zoroark Alternate -> Zoroark`\n" \
                              f"`{prefix}moveportrait Missingno_ Kleavor -> Kleavor`\n" \
                              f"`{prefix}moveportrait Minior Blue -> Minior Indigo`"
+            elif base_arg == "move":
+                return_msg = "**Command Help**\n" \
+                             f"`{prefix}move <Pokemon Name> [Pokemon Form] -> <Pokemon Name 2> [Pokemon Form 2]`\n" \
+                             "Swaps the name, sprites, and portraits of one slot with another.  " \
+                             "This can only be done with Pokemon or formes, and the swap is recursive to shiny/genders.  " \
+                             "Good for promoting alternates to main, temp Pokemon to newly revealed dex numbers, " \
+                             "or just fixing mistakes.\n" \
+                             "`Pokemon Name` - Name of the Pokemon\n" \
+                             "`Form Name` - [Optional] Form name of the Pokemon\n" \
+                             "**Examples**\n" \
+                             f"`{prefix}move Escavalier -> Accelgor`\n" \
+                             f"`{prefix}move Zoroark Alternate -> Zoroark`\n" \
+                             f"`{prefix}move Missingno_ Kleavor -> Kleavor`\n" \
+                             f"`{prefix}move Minior Blue -> Minior Indigo`"
             elif base_arg == "spritewip":
                 return_msg = "**Command Help**\n" \
                              f"`{prefix}spritewip <Pokemon Name> [Form Name] [Shiny] [Gender]`\n" \
@@ -2988,6 +3089,8 @@ async def on_message(msg: discord.Message):
                 await sprite_bot.moveSlot(msg, args[1:], "sprite")
             elif base_arg == "moveportrait" and authorized:
                 await sprite_bot.moveSlot(msg, args[1:], "portrait")
+            elif base_arg == "move" and authorized:
+                await sprite_bot.moveSlotRecursive(msg, args[1:])
             elif base_arg == "spritewip" and authorized:
                 await sprite_bot.completeSlot(msg, args[1:], "sprite", TrackerUtils.PHASE_INCOMPLETE)
             elif base_arg == "portraitwip" and authorized:
