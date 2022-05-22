@@ -1239,6 +1239,10 @@ class SpriteBot:
         chosen_node_from = TrackerUtils.getNodeFromIdx(self.tracker, full_idx_from, 0)
         chosen_node_to = TrackerUtils.getNodeFromIdx(self.tracker, full_idx_to, 0)
 
+        if chosen_node_from == chosen_node_to:
+            await msg.channel.send(msg.author.mention + " Cannot move to the same location.")
+            return
+
         explicit_idx_from = full_idx_from.copy()
         if len(explicit_idx_from) < 2:
             explicit_idx_from.append("0000")
@@ -1275,6 +1279,10 @@ class SpriteBot:
             if TrackerUtils.hasLock(sub_node, "sprite", True) or TrackerUtils.hasLock(sub_node, "portrait", True):
                 await msg.channel.send(msg.author.mention + " Cannot move the locked subgroup specified as source.")
                 return
+
+        # clear caches
+        TrackerUtils.clearCache(chosen_node_from, True)
+        TrackerUtils.clearCache(chosen_node_to, True)
 
         # perform the swap
         TrackerUtils.swapFolderPaths(self.config.path, self.tracker, "sprite", full_idx_from, full_idx_to)
@@ -1334,6 +1342,9 @@ class SpriteBot:
         chosen_node_from = TrackerUtils.getNodeFromIdx(self.tracker, full_idx_from, 0)
         chosen_node_to = TrackerUtils.getNodeFromIdx(self.tracker, full_idx_to, 0)
 
+        if chosen_node_from == chosen_node_to:
+            await msg.channel.send(msg.author.mention + " Cannot move to the same location.")
+            return
 
         try:
             await self.checkMoveLock(full_idx_from, chosen_node_from, full_idx_to, chosen_node_to, asset_type)
@@ -1347,6 +1358,9 @@ class SpriteBot:
             await msg.channel.send(msg.author.mention + " Cannot move the locked Pokemon specified as source:\n{0}".format(e.message))
             return
 
+        # clear caches
+        TrackerUtils.clearCache(chosen_node_from, True)
+        TrackerUtils.clearCache(chosen_node_to, True)
 
         TrackerUtils.swapFolderPaths(self.config.path, self.tracker, asset_type, full_idx_from, full_idx_to)
 
@@ -1540,11 +1554,9 @@ class SpriteBot:
             return
         chosen_node = TrackerUtils.getNodeFromIdx(self.tracker, full_idx, 0)
 
-        # set to complete
-        chosen_node.sprite_link = ""
-        chosen_node.portrait_link = ""
-        chosen_node.sprite_recolor_link = ""
-        chosen_node.portrait_recolor_link = ""
+        TrackerUtils.clearCache(chosen_node, True)
+
+        self.saveTracker()
 
         await msg.channel.send(msg.author.mention + " Cleared links for #{0:03d}: {1}.".format(int(full_idx[0]), " ".join(name_seq)))
 
