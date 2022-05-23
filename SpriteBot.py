@@ -1265,7 +1265,7 @@ class SpriteBot:
             await self.checkMoveLock(full_idx_to, chosen_node_to, full_idx_from, chosen_node_from, "sprite")
             await self.checkMoveLock(full_idx_to, chosen_node_to, full_idx_from, chosen_node_from, "portrait")
         except SpriteUtils.SpriteVerifyError as e:
-            await msg.channel.send(msg.author.mention + " Cannot move the locked Pokemon specified as source:\n{0}".format(e.message))
+            await msg.channel.send(msg.author.mention + " Cannot move the locked Pokemon specified as destination:\n{0}".format(e.message))
             return
 
         # check the subnodes
@@ -1277,7 +1277,7 @@ class SpriteBot:
         for sub_idx in explicit_node_to.subgroups:
             sub_node = explicit_node_to.subgroups[sub_idx]
             if TrackerUtils.hasLock(sub_node, "sprite", True) or TrackerUtils.hasLock(sub_node, "portrait", True):
-                await msg.channel.send(msg.author.mention + " Cannot move the locked subgroup specified as source.")
+                await msg.channel.send(msg.author.mention + " Cannot move the locked subgroup specified as destination.")
                 return
 
         # clear caches
@@ -1346,6 +1346,13 @@ class SpriteBot:
             await msg.channel.send(msg.author.mention + " Cannot move to the same location.")
             return
 
+        if not chosen_node_from.__dict__[asset_type + "_required"]:
+            await msg.channel.send(msg.author.mention + " Cannot move when source {0} is unneeded.".format(asset_type))
+            return
+        if not chosen_node_to.__dict__[asset_type + "_required"]:
+            await msg.channel.send(msg.author.mention + " Cannot move when destination {0} is unneeded.".format(asset_type))
+            return
+
         try:
             await self.checkMoveLock(full_idx_from, chosen_node_from, full_idx_to, chosen_node_to, asset_type)
         except SpriteUtils.SpriteVerifyError as e:
@@ -1355,7 +1362,7 @@ class SpriteBot:
         try:
             await self.checkMoveLock(full_idx_to, chosen_node_to, full_idx_from, chosen_node_from, asset_type)
         except SpriteUtils.SpriteVerifyError as e:
-            await msg.channel.send(msg.author.mention + " Cannot move the locked Pokemon specified as source:\n{0}".format(e.message))
+            await msg.channel.send(msg.author.mention + " Cannot move the locked Pokemon specified as destination:\n{0}".format(e.message))
             return
 
         # clear caches
