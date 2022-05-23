@@ -2095,7 +2095,7 @@ class SpriteBot:
                                        " {2} already exists within #{0:03d}: {1}!".format(int(species_idx), species_name, form_name))
                 return
 
-            if form_name == "Shiny" or form_name == "Female":
+            if form_name == "Shiny" or form_name == "Male" or form_name == "Female":
                 await msg.channel.send(msg.author.mention + " Invalid form name!")
                 return
 
@@ -2289,7 +2289,7 @@ class SpriteBot:
         self.changed = True
 
     async def addGender(self, msg, args):
-        if len(args) < 2 or len(args) > 3:
+        if len(args) < 3 or len(args) > 4:
             await msg.channel.send(msg.author.mention + " Invalid number of args!")
             return
 
@@ -2298,6 +2298,14 @@ class SpriteBot:
             await msg.channel.send(msg.author.mention + " Must specify sprite or portrait!")
             return
 
+        gender_name = args[-1].title()
+        if gender_name != "Male" and gender_name != "Female":
+            await msg.channel.send(msg.author.mention + " Must specify male or female!")
+            return
+        other_gender = "Male"
+        if gender_name == "Male":
+            other_gender = "Female"
+
         species_name = TrackerUtils.sanitizeName(args[1])
         species_idx = TrackerUtils.findSlotIdx(self.tracker, species_name)
         if species_idx is None:
@@ -2305,15 +2313,18 @@ class SpriteBot:
             return
 
         species_dict = self.tracker[species_idx]
-        if len(args) == 2:
+        if len(args) == 3:
             # check against already existing
-            if TrackerUtils.genderDiffExists(species_dict.subgroups["0000"], asset_type):
+            if TrackerUtils.genderDiffExists(species_dict.subgroups["0000"], asset_type, gender_name):
                 await msg.channel.send(msg.author.mention + " Gender difference already exists for #{0:03d}: {1}!".format(int(species_idx), species_name))
                 return
+            if TrackerUtils.genderDiffExists(species_dict.subgroups["0000"], "sprite", other_gender) or \
+                    TrackerUtils.genderDiffExists(species_dict.subgroups["0000"], "portrait", other_gender):
+                await msg.channel.send(msg.author.mention + " Gender difference already exists for the other gender of #{0:03d}: {1}!".format(int(species_idx), species_name))
+                return
 
-            TrackerUtils.createGenderDiff(species_dict.subgroups["0000"], asset_type)
-            await msg.channel.send(msg.author.mention +
-                " Added gender difference to #{0:03d}: {1}! ({2})".format(int(species_idx), species_name, asset_type))
+            TrackerUtils.createGenderDiff(species_dict.subgroups["0000"], asset_type, gender_name)
+            await msg.channel.send(msg.author.mention + " Added gender difference to #{0:03d}: {1}! ({2})".format(int(species_idx), species_name, asset_type))
         else:
 
             form_name = TrackerUtils.sanitizeName(args[2])
@@ -2324,12 +2335,16 @@ class SpriteBot:
 
             # check against data population
             form_dict = species_dict.subgroups[form_idx]
-            if TrackerUtils.genderDiffExists(form_dict, asset_type):
+            if TrackerUtils.genderDiffExists(form_dict, asset_type, gender_name):
                 await msg.channel.send(msg.author.mention +
                     " Gender difference already exists for #{0:03d}: {1} {2}!".format(int(species_idx), species_name, form_name))
                 return
+            if TrackerUtils.genderDiffExists(form_dict, "sprite", gender_name) or \
+                    TrackerUtils.genderDiffExists(form_dict, "portrait", gender_name):
+                await msg.channel.send(msg.author.mention + " Gender difference already exists for other gender of #{0:03d}: {1} {2}!".format(int(species_idx), species_name, form_name))
+                return
 
-            TrackerUtils.createGenderDiff(form_dict, asset_type)
+            TrackerUtils.createGenderDiff(form_dict, asset_type, gender_name)
             await msg.channel.send(msg.author.mention +
                 " Added gender difference to #{0:03d}: {1} {2}! ({3})".format(int(species_idx), species_name, form_name, asset_type))
 
@@ -2356,7 +2371,8 @@ class SpriteBot:
         species_dict = self.tracker[species_idx]
         if len(args) == 2:
             # check against not existing
-            if not TrackerUtils.genderDiffExists(species_dict.subgroups["0000"], asset_type):
+            if not TrackerUtils.genderDiffExists(species_dict.subgroups["0000"], asset_type, "Male") and \
+                    not TrackerUtils.genderDiffExists(species_dict.subgroups["0000"], asset_type, "Female"):
                 await msg.channel.send(msg.author.mention + " Gender difference doesnt exist for #{0:03d}: {1}!".format(int(species_idx), species_name))
                 return
 
@@ -2377,7 +2393,8 @@ class SpriteBot:
 
             # check against not existing
             form_dict = species_dict.subgroups[form_idx]
-            if not TrackerUtils.genderDiffExists(form_dict, asset_type):
+            if not TrackerUtils.genderDiffExists(form_dict, asset_type, "Male") and \
+                    not TrackerUtils.genderDiffExists(form_dict, asset_type, "Female"):
                 await msg.channel.send(msg.author.mention +
                     " Gender difference doesn't exist for #{0:03d}: {1} {2}!".format(int(species_idx), species_name, form_name))
                 return
@@ -2690,27 +2707,27 @@ class SpriteBot:
                              f"`{prefix}rename Vulpix Aloha Alola`"
             elif base_arg == "addgender":
                 return_msg = "**Command Help**\n" \
-                             f"`{prefix}addgender <Pokemon Name> [Pokemon Form] <Asset Type>`\n" \
-                             "Adds a slot for the female version of the species, or form of the species.\n" \
+                             f"`{prefix}addgender <Asset Type> <Pokemon Name> [Pokemon Form] <Male or Female>`\n" \
+                             "Adds a slot for the male/female version of the species, or form of the species.\n" \
+                             "`Asset Type` - \"sprite\" or \"portrait\"\n" \
                              "`Pokemon Name` - Name of the Pokemon\n" \
                              "`Form Name` - [Optional] Form name of the Pokemon\n" \
-                             "`Asset Type` - \"sprite\" or \"portrait\"\n" \
                              "**Examples**\n" \
-                             f"`{prefix}addgender Venusaur Sprite`\n" \
-                             f"`{prefix}addgender Steelix Portrait`\n" \
-                             f"`{prefix}addgender Raichu Alola Sprite`"
+                             f"`{prefix}addgender Sprite Venusaur Female`\n" \
+                             f"`{prefix}addgender Portrait Steelix Female`\n" \
+                             f"`{prefix}addgender Sprite Raichu Alola Male`"
             elif base_arg == "deletegender":
                 return_msg = "**Command Help**\n" \
-                             f"`{prefix}deletegender <Pokemon Name> [Pokemon Form] <Asset Type>`\n" \
-                             "Removes the slot for the female version of the species, or form of the species.  " \
+                             f"`{prefix}deletegender <Asset Type> <Pokemon Name> [Pokemon Form]`\n" \
+                             "Removes the slot for the male/female version of the species, or form of the species.  " \
                              "Only works if empty.\n" \
+                             "`Asset Type` - \"sprite\" or \"portrait\"\n" \
                              "`Pokemon Name` - Name of the Pokemon\n" \
                              "`Form Name` - [Optional] Form name of the Pokemon\n" \
-                             "`Asset Type` - \"sprite\" or \"portrait\"\n" \
                              "**Examples**\n" \
-                             f"`{prefix}deletegender Venusaur Sprite`\n" \
-                             f"`{prefix}deletegender Steelix Portrait`\n" \
-                             f"`{prefix}deletegender Raichu Alola Sprite`"
+                             f"`{prefix}deletegender Sprite Venusaur`\n" \
+                             f"`{prefix}deletegender Portrait Steelix`\n" \
+                             f"`{prefix}deletegender Sprite Raichu Alola`"
             elif base_arg == "need":
                 return_msg = "**Command Help**\n" \
                              f"`{prefix}need <Asset Type> <Pokemon Name> [Pokemon Form] [Shiny]`\n" \

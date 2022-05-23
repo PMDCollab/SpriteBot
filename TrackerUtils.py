@@ -405,66 +405,77 @@ def getStatsFromFilename(filename):
     full_idx = name_idx[1:]
     return True, full_idx, asset_type, recolor == "recolor"
 
-def genderDiffExists(form_dict, asset_type):
+def genderDiffExists(form_dict, asset_type, gender):
     if "0000" not in form_dict.subgroups:
         return False
     normal_dict = form_dict.subgroups["0000"].subgroups
-    female_idx = findSlotIdx(normal_dict, "Female")
-    if female_idx is None:
-        return False
-    female_dict = normal_dict[female_idx]
 
-    return female_dict.__dict__[asset_type + "_required"]
+    gender_idx = findSlotIdx(normal_dict, gender)
+    if gender_idx is not None:
+        gender_dict = normal_dict[gender_idx]
+        if gender_dict.__dict__[asset_type + "_required"]:
+            return True
+
+    return False
 
 def genderDiffPopulated(form_dict, asset_type):
     if "0000" not in form_dict.subgroups:
         return False
     normal_dict = form_dict.subgroups["0000"].subgroups
-    female_idx = findSlotIdx(normal_dict, "Female")
-    if female_idx is None:
-        return False
-    female_dict = normal_dict[female_idx]
 
-    return female_dict.__dict__[asset_type + "_credit"].primary != ""
+    genders = ["Male", "Female"]
+    for gender in genders:
+        gender_idx = findSlotIdx(normal_dict, gender)
+        if gender_idx is not None:
+            gender_dict = normal_dict[gender_idx]
+            if gender_dict.__dict__[asset_type + "_credit"].primary != "":
+                return True
 
-def createGenderDiff(form_dict, asset_type):
+    return False
+
+def createGenderDiff(form_dict, asset_type, gender_name):
     if "0000" not in form_dict.subgroups:
         form_dict.subgroups["0000"] = initSubNode("", form_dict.canon)
     normal_dict = form_dict.subgroups["0000"]
-    createShinyGenderDiff(normal_dict, asset_type)
+    createShinyGenderDiff(normal_dict, asset_type, gender_name)
 
     shiny_dict = form_dict.subgroups["0001"]
-    createShinyGenderDiff(shiny_dict, asset_type)
+    createShinyGenderDiff(shiny_dict, asset_type, gender_name)
 
-def createShinyGenderDiff(color_dict, asset_type):
-    female_idx = findSlotIdx(color_dict.subgroups, "Female")
-    if female_idx is None:
-        female_dict = initSubNode("Female", color_dict.canon)
-        color_dict.subgroups["0002"] = female_dict
+def createShinyGenderDiff(color_dict, asset_type, gender_name):
+    gender_idx = findSlotIdx(color_dict.subgroups, gender_name)
+    if gender_idx is None:
+        gender_dict = initSubNode(gender_name, color_dict.canon)
+        if gender_name == "Male":
+            color_dict.subgroups["0001"] = gender_dict
+        else:
+            color_dict.subgroups["0002"] = gender_dict
     else:
-        female_dict = color_dict.subgroups[female_idx]
-    female_dict.__dict__[asset_type + "_required"] = True
+        gender_dict = color_dict.subgroups[gender_idx]
+    gender_dict.__dict__[asset_type + "_required"] = True
 
 
 def removeGenderDiff(form_dict, asset_type):
     normal_dict = form_dict.subgroups["0000"]
-    nothing_left = removeColorGenderDiff(normal_dict, asset_type)
+    nothing_left = removeColorGenderDiff(normal_dict, asset_type, "Male")
+    nothing_left &= removeColorGenderDiff(normal_dict, asset_type, "Female")
     if nothing_left:
         del form_dict.subgroups["0000"]
 
     shiny_dict = form_dict.subgroups["0001"]
-    removeColorGenderDiff(shiny_dict, asset_type)
+    removeColorGenderDiff(shiny_dict, asset_type, "Male")
+    removeColorGenderDiff(shiny_dict, asset_type, "Female")
 
-def removeColorGenderDiff(color_dict, asset_type):
+def removeColorGenderDiff(color_dict, asset_type, gender):
     # return whether or not the gender was fully deleted
-    female_idx = findSlotIdx(color_dict.subgroups, "Female")
-    if female_idx is None:
+    gender_idx = findSlotIdx(color_dict.subgroups, gender)
+    if gender_idx is None:
         return True
 
-    female_dict = color_dict.subgroups[female_idx]
-    female_dict.__dict__[asset_type + "_required"] = False
-    if not female_dict.__dict__["sprite_required"] and not female_dict.__dict__["portrait_required"]:
-        del color_dict.subgroups[female_idx]
+    gender_dict = color_dict.subgroups[gender_idx]
+    gender_dict.__dict__[asset_type + "_required"] = False
+    if not gender_dict.__dict__["sprite_required"] and not gender_dict.__dict__["portrait_required"]:
+        del color_dict.subgroups[gender_idx]
         return True
 
     return False
