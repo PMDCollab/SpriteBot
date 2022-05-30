@@ -575,7 +575,7 @@ def renameFileCredits(species_path, old_name, new_name):
                     entry[1] = new_name
             with open(fullPath, 'w', encoding='utf-8') as txt:
                 for entry in id_list:
-                    txt.write(entry[0] + "\t" + entry[1] + "\n" + entry[2])
+                    txt.write(entry[0] + "\t" + entry[1] + "\t" + entry[2] + "\n")
 
 def getDirFromIdx(base_path, asset_type, full_idx):
     full_arr = [base_path, asset_type] + full_idx
