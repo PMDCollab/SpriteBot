@@ -46,6 +46,8 @@ def getFileCredits(path):
     return id_list
 
 def appendCredits(path, id, diff):
+    if diff == '':
+        diff = '"'
     with open(os.path.join(path, "credits.txt"), 'a+', encoding='utf-8') as txt:
         txt.write("{0}\t{1}\t{2}\n".format(str(datetime.datetime.utcnow()), id, diff))
 
