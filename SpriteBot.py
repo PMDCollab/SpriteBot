@@ -1303,6 +1303,7 @@ class SpriteBot:
         self.saveTracker()
         self.changed = True
 
+        await self.gitCommit("Swapped {0} with {1} recursively".format(" ".join(name_seq_from), " ".join(name_seq_to)))
 
 
     async def checkMoveLock(self, full_idx_from, chosen_node_from, full_idx_to, chosen_node_to, asset_type):
@@ -1381,6 +1382,8 @@ class SpriteBot:
 
         self.saveTracker()
         self.changed = True
+
+        await self.gitCommit("Swapped {0} with {1}".format(" ".join(name_seq_from), " ".join(name_seq_to)))
 
     async def placeBounty(self, msg, name_args, asset_type):
         if not self.config.use_bounties:
@@ -1939,6 +1942,8 @@ class SpriteBot:
         self.saveNames()
         self.changed = True
 
+        await self.gitCommit("Moved account {0} to {1}".format(from_name, to_name))
+
     async def deleteProfile(self, msg, args):
         msg_mention = "<@!{0}>".format(msg.author.id)
 
@@ -2014,6 +2019,8 @@ class SpriteBot:
         self.saveTracker()
         self.saveNames()
         self.changed = True
+
+        await self.gitCommit("Deleted account {0}".format(msg_mention))
 
 
 
