@@ -437,7 +437,7 @@ def verifySpriteRecolor(msg_args, precolor_zip, wan_zip, recolor, checkSilhouett
             else:
                 with zipfile.ZipFile(wan_zip, 'r') as shiny_zip:
                     combinedImg, _ = getCombinedImg(shiny_zip, True)
-            reduced_img = simple_quant(combinedImg)
+            reduced_img = simple_quant(combinedImg, 16)
             raise SpriteVerifyError("The sprite has {0} non-transparent colors with only 15 allowed.\n"
                                     "If this is acceptable, include `--colors {0}` in the message."
                                     "  Otherwise reduce colors for the sprite.".format(len(shiny_palette)), reduced_img)
@@ -492,7 +492,7 @@ def verifyPortraitRecolor(msg_args, orig_img, img, recolor):
 
     if len(overpalette) > 0:
         if not msg_args.overcolor:
-            reduced_img = simple_quant_portraits(img)
+            reduced_img = simple_quant_portraits(img, 15)
             rogue_emotes = [getEmotionFromTilePos(a) for a in overpalette]
             raise SpriteVerifyError("Some emotions have over 15 colors.\n" \
                    "If this is acceptable, include `--overcolor` in the message.  Otherwise reduce colors for emotes:\n" \
@@ -725,7 +725,7 @@ def verifySprite(msg_args, wan_zip):
             if msg_args.colors != len(palette):
                 with zipfile.ZipFile(wan_zip, 'r') as zip:
                     combinedImg, _ = getCombinedImg(zip, True)
-                    reduced_img = simple_quant(combinedImg)
+                    reduced_img = simple_quant(combinedImg, 16)
                 raise SpriteVerifyError("The sprite has {0} non-transparent colors with only 15 allowed.\n"
                                         "If this is acceptable, include `--colors {0}` in the message."
                                         "  Otherwise reduce colors for the sprite.".format(len(palette)), reduced_img)
@@ -968,7 +968,7 @@ def verifyPortrait(msg_args, img):
                             (emote_loc[0] + 1) * Constants.PORTRAIT_SIZE, (emote_loc[1] + 1) * Constants.PORTRAIT_SIZE)
                 portrait_img = reduced_img.crop(crop_pos)
 
-                reduced_portrait = simple_quant(portrait_img)
+                reduced_portrait = simple_quant(portrait_img, 15)
                 reduced_img.paste(reduced_portrait, crop_pos)
 
             rogue_emotes = [getEmotionFromTilePos(a) for a in overpalette]
@@ -1543,20 +1543,20 @@ def simple_quant_portraits(img):
                         (xx + 1) * Constants.PORTRAIT_SIZE, (yy + 1) * Constants.PORTRAIT_SIZE)
             portrait_img = img.crop(crop_pos)
 
-            reduced_portrait = simple_quant(portrait_img)
+            reduced_portrait = simple_quant(portrait_img, 15)
             reduced_img.paste(reduced_portrait, crop_pos)
     return reduced_img
 
-def simple_quant(img: Image.Image) -> Image.Image:
+def simple_quant(img: Image.Image, colors) -> Image.Image:
     """
-    Simple single-palette image quantization. Reduces to 15 colors and adds one transparent color at index 0.
+    Simple single-palette image quantization. Reduces to specified number of colors and adds one transparent color at index 0.
     The transparent (alpha=0) pixels in the input image are converted to that color.
     If you need to do tiled multi-palette quantization, use Tilequant instead!
     """
     if img.mode != 'RGBA':
         img = img.convert('RGBA')
     transparency_map = [px[3] == 0 for px in img.getdata()]
-    qimg = img.quantize(15, dither=0).convert('RGBA')
+    qimg = img.quantize(colors, dither=0).convert('RGBA')
     # Shift up all pixel values by 1 and add the transparent pixels
     pixels = qimg.load()
     k = 0
