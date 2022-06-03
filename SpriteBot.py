@@ -15,7 +15,7 @@ import argparse
 import Constants
 
 # Housekeeping for login information
-TOKEN_FILE_PATH = 'token.txt'
+TOKEN_FILE_PATH = 'discord_token.txt'
 NAME_FILE_PATH = 'credit_names.txt'
 INFO_FILE_PATH = 'README.md'
 CONFIG_FILE_PATH = 'config.json'
