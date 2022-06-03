@@ -438,6 +438,7 @@ def verifySpriteRecolor(msg_args, precolor_zip, wan_zip, recolor, checkSilhouett
                 with zipfile.ZipFile(wan_zip, 'r') as shiny_zip:
                     combinedImg, _ = getCombinedImg(shiny_zip, True)
             reduced_img = simple_quant(combinedImg, 16)
+            reduced_img = insertPalette(reduced_img)
             raise SpriteVerifyError("The sprite has {0} non-transparent colors with only 15 allowed.\n"
                                     "If this is acceptable, include `--colors {0}` in the message."
                                     "  Otherwise reduce colors for the sprite.".format(len(shiny_palette)), reduced_img)
@@ -492,7 +493,9 @@ def verifyPortraitRecolor(msg_args, orig_img, img, recolor):
 
     if len(overpalette) > 0:
         if not msg_args.overcolor:
-            reduced_img = simple_quant_portraits(img, 15)
+            reduced_img = simple_quant_portraits(img, overpalette)
+            if recolor:
+                reduced_img = insertPalette(reduced_img)
             rogue_emotes = [getEmotionFromTilePos(a) for a in overpalette]
             raise SpriteVerifyError("Some emotions have over 15 colors.\n" \
                    "If this is acceptable, include `--overcolor` in the message.  Otherwise reduce colors for emotes:\n" \
@@ -962,14 +965,7 @@ def verifyPortrait(msg_args, img):
 
     if len(overpalette) > 0:
         if not msg_args.overcolor:
-            reduced_img = img.copy()
-            for emote_loc in overpalette:
-                crop_pos = (emote_loc[0] * Constants.PORTRAIT_SIZE, emote_loc[1] * Constants.PORTRAIT_SIZE,
-                            (emote_loc[0] + 1) * Constants.PORTRAIT_SIZE, (emote_loc[1] + 1) * Constants.PORTRAIT_SIZE)
-                portrait_img = reduced_img.crop(crop_pos)
-
-                reduced_portrait = simple_quant(portrait_img, 15)
-                reduced_img.paste(reduced_portrait, crop_pos)
+            reduced_img = simple_quant_portraits(img, overpalette)
 
             rogue_emotes = [getEmotionFromTilePos(a) for a in overpalette]
             raise SpriteVerifyError("Some emotions have over 15 colors.\n" \
@@ -1532,19 +1528,16 @@ def preparePortraitRecolor(path):
 
 
 
-def simple_quant_portraits(img):
-    reduced_img = Image.new('RGBA', img.size, (0, 0, 0, 0))
-    img_tile_size = (img.size[0] // Constants.PORTRAIT_SIZE, img.size[1] // Constants.PORTRAIT_SIZE)
-    for xx in range(Constants.PORTRAIT_TILE_X):
-        for yy in range(Constants.PORTRAIT_TILE_Y):
-            if xx >= img_tile_size[0] or yy >= img_tile_size[1]:
-                continue
-            crop_pos = (xx * Constants.PORTRAIT_SIZE, yy * Constants.PORTRAIT_SIZE,
-                        (xx + 1) * Constants.PORTRAIT_SIZE, (yy + 1) * Constants.PORTRAIT_SIZE)
-            portrait_img = img.crop(crop_pos)
+def simple_quant_portraits(img, overpalette):
+    reduced_img = img.copy()
+    for emote_loc in overpalette:
+        crop_pos = (emote_loc[0] * Constants.PORTRAIT_SIZE, emote_loc[1] * Constants.PORTRAIT_SIZE,
+                    (emote_loc[0] + 1) * Constants.PORTRAIT_SIZE, (emote_loc[1] + 1) * Constants.PORTRAIT_SIZE)
+        portrait_img = reduced_img.crop(crop_pos)
 
-            reduced_portrait = simple_quant(portrait_img, 15)
-            reduced_img.paste(reduced_portrait, crop_pos)
+        reduced_portrait = simple_quant(portrait_img, 15)
+        reduced_img.paste(reduced_portrait, crop_pos)
+
     return reduced_img
 
 def simple_quant(img: Image.Image, colors) -> Image.Image:
