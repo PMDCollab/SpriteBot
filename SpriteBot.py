@@ -202,6 +202,7 @@ class SpriteBot:
         if self.config.push and self.commits > 0:
             origin = self.repo.remotes.origin
             origin.push()
+            self.commits = 0
 
     async def updateBot(self, msg):
         resp_ch = self.getChatChannel(msg.guild.id)
@@ -3213,7 +3214,7 @@ async def on_raw_reaction_add(payload):
 async def periodic_update_status():
     await client.wait_until_ready()
     global sprite_bot
-    last_date = ""
+    updates = 0
     while not client.is_closed():
         try:
             if sprite_bot.changed:
@@ -3222,16 +3223,15 @@ async def periodic_update_status():
                     await sprite_bot.updatePost(sprite_bot.config.servers[server_id])
 
             # check for push
-            cur_date = datetime.datetime.today().strftime('%Y-%m-%d')
-            if last_date != cur_date:
-                if last_date == "":
+            if updates % 360 == 0:
+                if updates == 0:
                     await sprite_bot.gitCommit("Tracker update from restart.")
                 # update push
                 await sprite_bot.gitPush()
-                last_date = cur_date
         except Exception as e:
             await sprite_bot.sendError(traceback.format_exc())
         await asyncio.sleep(10)
+        updates += 1
 
 sprite_bot = SpriteBot(scdir, client)
 
