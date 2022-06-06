@@ -230,6 +230,43 @@ def updateCreditFromEntries(credit_data, credit_entries):
             if len(credit_data.secondary) >= MAX_SECONDARY_CREDIT:
                 break
 
+def fillSingleDiff(path, asset_type):
+    credits = getFileCredits(path)
+    # only do it for a credit size of 1 for now
+    if len(credits) == 1:
+        cur_credit = credits[-1]
+        if cur_credit[2] == "?":
+            changes = {}
+            if asset_type == "sprite":
+                # list all anims added
+                tree = ET.parse(os.path.join(path, Constants.MULTI_SHEET_XML))
+                root = tree.getroot()
+                anims_node = root.find('Anims')
+                for anim_node in anims_node.iter('Anim'):
+                    name = anim_node.find('Name').text
+                    changes[name] = True
+
+                for anim in Constants.ACTIONS:
+                    if os.path.exists(os.path.join(path, anim + "-Anim.png")):
+                        changes[anim] = True
+            else:
+                # list all emotions found
+                for emotion in Constants.EMOTIONS:
+                    if os.path.exists(os.path.join(path, emotion + ".png")):
+                        changes[emotion] = True
+                    if os.path.exists(os.path.join(path, emotion + "^.png")):
+                        changes[emotion + "^"] = True
+            change_list = []
+            for change in changes:
+                change_list.append(change)
+
+            with open(os.path.join(path, "credits.txt"), 'w', encoding='utf-8') as txt:
+                txt.write(cur_credit[0] + "\t" + cur_credit[1] + "\t" + ",".join(change_list) + "\n")
+
+    for inFile in os.listdir(path):
+        fullPath = os.path.join(path, inFile)
+        if os.path.isdir(fullPath):
+            fillSingleDiff(fullPath, asset_type)
 
 
 def fileSystemToJson(dict, species_path, prefix, tier):
