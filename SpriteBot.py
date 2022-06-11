@@ -934,6 +934,8 @@ class SpriteBot:
         # make sure they are re-added
         for server in self.config.servers:
             ch_id = self.config.servers[server].submit
+            if ch_id == 0:
+                continue
             msgs = []
             channel = self.client.get_channel(ch_id)
             async for message in channel.history(limit=None):
@@ -1857,6 +1859,10 @@ class SpriteBot:
             return
 
         chat_id = self.config.servers[str(msg.guild.id)].submit
+        if chat_id == 0:
+            await msg.channel.send(msg.author.mention + " This server does not support submissions.")
+            return
+
         submit_channel = self.client.get_channel(chat_id)
         author = "<@!{0}>".format(msg.author.id)
 
