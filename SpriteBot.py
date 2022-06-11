@@ -365,6 +365,10 @@ class SpriteBot:
         if user.id == self.config.root:
             return True
         guild_id_str = str(guild.id)
+
+        if self.config.servers[guild_id_str].approval == 0:
+            return False
+
         approve_role = guild.get_role(self.config.servers[guild_id_str].approval)
 
         try:
@@ -2027,29 +2031,44 @@ class SpriteBot:
 
     async def initServer(self, msg, args):
 
-        if len(args) != 5:
-            await msg.channel.send(msg.author.mention + " Args not equal to 5!")
-            return
 
-        if len(msg.channel_mentions) != 3:
-            await msg.channel.send(msg.author.mention + " Bad channel args!")
-            return
+        if len(args) == 3:
+            if len(msg.channel_mentions) != 2:
+                await msg.channel.send(msg.author.mention + " Bad channel args!")
+                return
 
-        if len(msg.role_mentions) != 1:
-            await msg.channel.send(msg.author.mention + " Bad role args!")
+            info_ch = msg.channel_mentions[0]
+            bot_ch = msg.channel_mentions[1]
+            submit_ch = None
+            reviewer_role = None
+
+        elif len(args) == 5:
+            if msg.author.id != sprite_bot.config.root:
+                await msg.channel.send(msg.author.mention + " Bad channel args!")
+                return
+
+            if len(msg.channel_mentions) != 3:
+                await msg.channel.send(msg.author.mention + " Bad channel args!")
+                return
+
+            if len(msg.role_mentions) != 1:
+                await msg.channel.send(msg.author.mention + " Bad role args!")
+                return
+
+            info_ch = msg.channel_mentions[0]
+            bot_ch = msg.channel_mentions[1]
+            submit_ch = msg.channel_mentions[2]
+            reviewer_role = msg.role_mentions[0]
+        else:
+            await msg.channel.send(msg.author.mention + " Args not equal to 3 or 5!")
             return
 
         prefix = args[0]
-        info_ch = msg.channel_mentions[0]
-        bot_ch = msg.channel_mentions[1]
-        submit_ch = msg.channel_mentions[2]
-        reviewer_role = msg.role_mentions[0]
-
         init_guild = msg.guild
+
 
         info_perms = info_ch.permissions_for(init_guild.me)
         bot_perms = bot_ch.permissions_for(init_guild.me)
-        submit_perms = submit_ch.permissions_for(init_guild.me)
 
         if not info_perms.send_messages or not info_perms.read_messages:
             await msg.channel.send(msg.author.mention + " Bad channel perms for info!")
@@ -2059,16 +2078,22 @@ class SpriteBot:
             await msg.channel.send(msg.author.mention + " Bad channel perms for chat!")
             return
 
-        if not submit_perms.send_messages or not submit_perms.read_messages or not submit_perms.manage_messages:
-            await msg.channel.send(msg.author.mention + " Bad channel perms for submit!")
-            return
+        if submit_ch is not None:
+            submit_perms = submit_ch.permissions_for(init_guild.me)
+            if not submit_perms.send_messages or not submit_perms.read_messages or not submit_perms.manage_messages:
+                await msg.channel.send(msg.author.mention + " Bad channel perms for submit!")
+                return
 
         new_server = BotServer()
         new_server.prefix = prefix
         new_server.info = info_ch.id
         new_server.chat = bot_ch.id
-        new_server.submit = submit_ch.id
-        new_server.approval = reviewer_role.id
+        if submit_ch is not None:
+            new_server.submit = submit_ch.id
+            new_server.approval = reviewer_role.id
+        else:
+            new_server.submit = 0
+            new_server.approval = 0
         self.config.servers[str(init_guild.id)] = new_server
 
         self.saveConfig()
