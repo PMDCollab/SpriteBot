@@ -466,6 +466,19 @@ def verifyPortraitRecolor(msg_args, orig_img, img, recolor):
                 base_str = "Recolor has `{0}` colors compared to the original.\nIf this was intended, resubmit and specify `--colormod {0}` in the message."
                 raise SpriteVerifyError(base_str.format(palette_diff))
 
+    overpalette = getPortraitOverpalette(img)
+
+    if len(overpalette) > 0:
+        if not msg_args.overcolor:
+            reduced_img = simple_quant_portraits(img, overpalette)
+            if recolor:
+                reduced_img = insertPalette(reduced_img)
+            rogue_emotes = [getEmotionFromTilePos(a) for a in overpalette]
+            raise SpriteVerifyError("Some emotions have over 15 colors.\n" \
+                   "If this is acceptable, include `--overcolor` in the message.  Otherwise reduce colors for emotes:\n" \
+                   "{0}".format(str(rogue_emotes)[:1900]), reduced_img)
+
+def getPortraitOverpalette(img):
     palette_counts = {}
     in_data = img.getdata()
     img_tile_size = (img.size[0] // Constants.PORTRAIT_SIZE, img.size[1] // Constants.PORTRAIT_SIZE)
@@ -491,15 +504,8 @@ def verifyPortraitRecolor(msg_args, orig_img, img, recolor):
         if palette_counts[emote_loc] > 15:
             overpalette[emote_loc] = palette_counts[emote_loc]
 
-    if len(overpalette) > 0:
-        if not msg_args.overcolor:
-            reduced_img = simple_quant_portraits(img, overpalette)
-            if recolor:
-                reduced_img = insertPalette(reduced_img)
-            rogue_emotes = [getEmotionFromTilePos(a) for a in overpalette]
-            raise SpriteVerifyError("Some emotions have over 15 colors.\n" \
-                   "If this is acceptable, include `--overcolor` in the message.  Otherwise reduce colors for emotes:\n" \
-                   "{0}".format(str(rogue_emotes)[:1900]), reduced_img)
+    return overpalette
+
 
 def getEmotionFromTilePos(tile_pos):
     rogue_idx = tile_pos[1] * Constants.PORTRAIT_TILE_X + tile_pos[0]

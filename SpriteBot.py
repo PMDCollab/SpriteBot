@@ -573,9 +573,10 @@ class SpriteBot:
         if overcolor_img is not None:
             reduced_img = None
             if asset_type == "sprite":
-                reduced_img = SpriteUtils.simple_quant(overcolor_img)
+                reduced_img = SpriteUtils.simple_quant(overcolor_img, 16)
             elif asset_type == "portrait":
-                reduced_img = SpriteUtils.simple_quant_portraits(overcolor_img)
+                overpalette = SpriteUtils.getPortraitOverpalette(overcolor_img)
+                reduced_img = SpriteUtils.simple_quant_portraits(overcolor_img, overpalette)
 
             reduced_file = io.BytesIO()
             reduced_img.save(reduced_file, format='PNG')
