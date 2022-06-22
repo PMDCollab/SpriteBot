@@ -14,6 +14,7 @@
 #
 #  You should have received a copy of the GNU General Public License
 #  along with SkyTemple.  If not, see <https://www.gnu.org/licenses/>.
+from typing import List, Set, Dict, Tuple, Optional
 
 class MultipleOffsetError(Exception):
     def __init__(self, message):
@@ -21,7 +22,7 @@ class MultipleOffsetError(Exception):
         super().__init__(self.message)
 
 
-def centerBounds(bounds, center):
+def centerBounds(bounds: Tuple[int, int, int, int], center: Tuple[int, int]):
     minX = min(bounds[0] - center[0], center[0] - bounds[2])
     minY = min(bounds[1] - center[1], center[1] - bounds[3])
 
@@ -30,7 +31,7 @@ def centerBounds(bounds, center):
     return addToBounds((minX, minY, maxX, maxY), center, False)
 
 
-def roundUpBox(minBox):
+def roundUpBox(minBox: Tuple[int, int, int, int]):
     width = minBox[2] - minBox[0]
     height = minBox[3] - minBox[1]
     newWidth = roundUpToMult(width, 8)
@@ -40,21 +41,21 @@ def roundUpBox(minBox):
     return startX, startY, startX + newWidth, startY + newHeight
 
 
-def addToBounds(bounds, add, sub=False):
+def addToBounds(bounds: Tuple[int, int, int, int], add: Tuple[int, int], sub: bool = False):
     mult = 1
     if sub:
         mult = -1
     return (bounds[0] + add[0] * mult, bounds[1] + add[1] * mult, bounds[2] + add[0] * mult, bounds[3] + add[1] * mult)
 
 
-def addLoc(loc1, loc2, sub=False):
+def addLoc(loc1: Tuple[int, int], loc2: Tuple[int, int], sub: bool = False):
     mult = 1
     if sub:
         mult = -1
     return (loc1[0] + loc2[0] * mult, loc1[1] + loc2[1] * mult)
 
 
-def getCoveredBounds(inImg, max_box=None):
+def getCoveredBounds(inImg, max_box: Tuple[int, int, int, int] = None):
     if max_box is None:
         max_box = (0, 0, inImg.size[0], inImg.size[1])
     minX, minY = inImg.size
@@ -83,7 +84,7 @@ def addToPalette(palette, img):
             palette[color] = True
 
 
-def getOffsetFromRGB(img, bounds, black, r, g, b, white):
+def getOffsetFromRGB(img, bounds: Tuple[int, int, int, int], black: bool, r: bool, g: bool, b: bool, white: bool):
     datas = img.getdata()
     results = [None] * 5
     for i in range(bounds[0], bounds[2]):
@@ -118,17 +119,17 @@ def getOffsetFromRGB(img, bounds, black, r, g, b, white):
     return results
 
 
-def combineExtents(extent1, extent2):
+def combineExtents(extent1: Tuple[int, int, int, int], extent2: Tuple[int, int, int, int]):
     return min(extent1[0], extent2[0]), min(extent1[1], extent2[1]), \
            max(extent1[2], extent2[2]), max(extent1[3], extent2[3])
 
 
-def roundUpToMult(inInt, inMult):
+def roundUpToMult(inInt: int, inMult: int):
     subInt = inInt - 1
     div = subInt // inMult
     return (div + 1) * inMult
 
-def imgsEqual(img1, img2, flip=False):
+def imgsEqual(img1, img2, flip: bool = False):
     if img1.size[0] != img2.size[0] or img1.size[1] != img2.size[1]:
         return False
     data_1 = img1.getdata()
@@ -146,7 +147,7 @@ def imgsEqual(img1, img2, flip=False):
     return True
 
 
-def offsetsEqual(offset1, offset2, imgWidth, flip=False):
+def offsetsEqual(offset1, offset2, imgWidth: int, flip: bool = False):
     if flip:
         center = (imgWidth - offset2.center[0] - 1, offset2.center[1])
         head = (imgWidth - offset2.head[0] - 1, offset2.head[1])
