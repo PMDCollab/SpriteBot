@@ -2467,7 +2467,8 @@ class SpriteBot:
                   f"`{prefix}portrait` - Get the Pokemon's portrait sheet\n" \
                   f"`{prefix}recolorsprite` - Get the Pokemon's sprite sheet in a form for easy recoloring\n" \
                   f"`{prefix}recolorportrait` - Get the Pokemon's portrait sheet in a form for easy recoloring\n" \
-                  f"`{prefix}autocolor` - Generates an automatic recolor of the Pokemon's portrait sheet\n" \
+                  f"`{prefix}autocolorsprite` - Generates an automatic recolor of the Pokemon's sprite sheet\n" \
+                  f"`{prefix}autocolorportrait` - Generates an automatic recolor of the Pokemon's portrait sheet\n" \
                   f"`{prefix}listsprite` - List all sprites related to a Pokemon\n" \
                   f"`{prefix}listportrait` - List all portraits related to a Pokemon\n"
             if use_bounties:
@@ -2546,19 +2547,32 @@ class SpriteBot:
                              f"`{prefix}recolorportrait Pikachu`\n" \
                              f"`{prefix}recolorportrait Pikachu Female`\n" \
                              f"`{prefix}recolorportrait Shaymin Sky`"
-            elif base_arg == "autocolor":
+            elif base_arg == "autocolorsprite":
                 return_msg = "**Command Help**\n" \
                              f"`{prefix}autocolor <Pokemon Name> [Form Name] [Gender]`\n" \
-                             "Generates an automatic shiny of a Pokemon's portrait sheet, in recolor form. " \
+                             "Generates an automatic shiny of a Pokemon's sprite sheet, in recolor form. " \
                              "Meant to be used as a starting point to assist in manual recoloring. " \
-                             "Works best on portraits with multiple emotions, where the shiny has only one.\n" \
+                             "Works best on sprite with multiple animations, where the shiny has only a few.\n" \
                              "`Pokemon Name` - Name of the Pokemon\n" \
                              "`Form Name` - [Optional] Form name of the Pokemon\n" \
                              "`Gender` - [Optional] Specifies the gender of the Pokemon, for those with gender differences\n" \
                              "**Examples**\n" \
-                             f"`{prefix}recolorportrait Pikachu`\n" \
-                             f"`{prefix}recolorportrait Pikachu Female`\n" \
-                             f"`{prefix}recolorportrait Shaymin Sky`"
+                             f"`{prefix}autocolorsprite Pikachu`\n" \
+                             f"`{prefix}autocolorsprite Pikachu Female`\n" \
+                             f"`{prefix}autocolorsprite Shaymin Sky`"
+            elif base_arg == "autocolorportrait":
+                return_msg = "**Command Help**\n" \
+                             f"`{prefix}autocolor <Pokemon Name> [Form Name] [Gender]`\n" \
+                             "Generates an automatic shiny of a Pokemon's portrait sheet, in recolor form. " \
+                             "Meant to be used as a starting point to assist in manual recoloring. " \
+                             "Works best on portrait with multiple emotions, where the shiny has only a few.\n" \
+                             "`Pokemon Name` - Name of the Pokemon\n" \
+                             "`Form Name` - [Optional] Form name of the Pokemon\n" \
+                             "`Gender` - [Optional] Specifies the gender of the Pokemon, for those with gender differences\n" \
+                             "**Examples**\n" \
+                             f"`{prefix}autocolorportrait Pikachu`\n" \
+                             f"`{prefix}autocolorportrait Pikachu Female`\n" \
+                             f"`{prefix}autocolorportrait Shaymin Sky`"
             elif base_arg == "spritecredit":
                 return_msg = "**Command Help**\n" \
                              f"`{prefix}spritecredit <Pokemon Name> [Form Name] [Shiny] [Gender]`\n" \
@@ -3144,8 +3158,10 @@ async def on_message(msg: discord.Message):
                 await sprite_bot.getAbsentProfiles(msg)
             elif base_arg == "unregister":
                 await sprite_bot.deleteProfile(msg, args[1:])
-            elif base_arg == "autocolor":
+            elif base_arg == "autocolorportrait":
                 await sprite_bot.tryAutoRecolor(msg, args[1:], "portrait")
+            elif base_arg == "autocolorsprite":
+                await sprite_bot.tryAutoRecolor(msg, args[1:], "sprite")
                 # authorized commands
             elif base_arg == "add" and authorized:
                 await sprite_bot.addSpeciesForm(msg, args[1:])
