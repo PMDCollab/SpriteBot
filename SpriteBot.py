@@ -2149,6 +2149,8 @@ class SpriteBot:
             canon = True
             if re.search(r"_?Alternate\d*$", form_name):
                 canon = False
+            if re.search(r"_?Starter\d*$", form_name):
+                canon = False
             if re.search(r"_?Altcolor\d*$", form_name):
                 canon = False
             if re.search(r"_?Beta\d*$", form_name):
