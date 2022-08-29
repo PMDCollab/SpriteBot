@@ -562,7 +562,11 @@ class SpriteBot:
 
         title = TrackerUtils.getIdxName(self.tracker, full_idx)
 
-        send_files = [discord.File(return_file, return_name)]
+        return_copy = io.BytesIO()
+        return_copy.write(return_file.read())
+        return_copy.seek(0)
+        return_file.seek(0)
+        send_files = [discord.File(return_copy, return_name)]
 
         if diffs is not None and len(diffs) > 0:
             diff_str = "Changes: {0}".format(", ".join(diffs))
