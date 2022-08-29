@@ -570,6 +570,14 @@ class SpriteBot:
             diff_str = "No Changes."
 
         add_msg = ""
+        if not recolor and asset_type == "sprite":
+            preview_img = SpriteUtils.getCombinedZipImg(return_file)
+            preview_file = io.BytesIO()
+            preview_img.save(preview_file, format='PNG')
+            preview_file.seek(0)
+            send_files.append(discord.File(preview_file, return_name.replace('.zip', '.png')))
+            add_msg += "\nPreview included."
+
         if overcolor_img is not None:
             reduced_img = None
             if asset_type == "sprite":

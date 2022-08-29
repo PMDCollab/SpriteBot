@@ -159,6 +159,11 @@ def getLinkImg(url):
 
     return img
 
+def getCombinedZipImg(zip_data):
+    with zipfile.ZipFile(zip_data, 'r') as shiny_zip:
+        combinedImg, _ = getCombinedImg(shiny_zip, True)
+        return combinedImg
+
 def verifyZipFile(zip, file_name):
     try:
         info = zip.getinfo(file_name)
