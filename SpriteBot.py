@@ -575,7 +575,7 @@ class SpriteBot:
             preview_file = io.BytesIO()
             preview_img.save(preview_file, format='PNG')
             preview_file.seek(0)
-            send_files.append(discord.File(return_file, return_name.replace('.zip', '.png')))
+            send_files.append(discord.File(preview_file, return_name.replace('.zip', '.png')))
             add_msg += "\nPreview included."
 
         if overcolor_img is not None:
