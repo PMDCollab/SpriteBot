@@ -44,8 +44,14 @@ parser.add_argument('--colors', type=int)
 parser.add_argument('--author')
 parser.add_argument('--addauthor', nargs='?', const=True, default=False)
 
+class MyClient(discord.Client):
+    async def setup_hook(self):
+        asyncio.create_task(periodic_update_status())
+
 # The Discord client.
-client = discord.Client()
+intent = discord.Intents.default()
+intent.message_content = True
+client = MyClient(intents=intent)
 
 class BotServer:
 
@@ -3273,6 +3279,7 @@ async def on_raw_reaction_add(payload):
     except Exception as e:
         await sprite_bot.sendError(traceback.format_exc())
 
+
 async def periodic_update_status():
     await client.wait_until_ready()
     global sprite_bot
@@ -3297,7 +3304,7 @@ async def periodic_update_status():
 
 sprite_bot = SpriteBot(scdir, client)
 
-client.loop.create_task(periodic_update_status())
+#client.loop.create_task(periodic_update_status())
 
 with open(os.path.join(scdir, TOKEN_FILE_PATH)) as token_file:
     token = token_file.read()
