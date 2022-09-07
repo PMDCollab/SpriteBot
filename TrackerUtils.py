@@ -359,6 +359,16 @@ def iterateTracker(tracker_dict, func, full_idx):
         iterateTracker(sub_dict, func, full_idx)
         full_idx.pop()
 
+def isTrackerIdxEqual(idx1, idx2):
+    if len(idx1) != len(idx2):
+        return False
+
+    for ii in range(len(idx1)):
+        if idx1[ii] != idx2[ii]:
+            return False
+
+    return True
+
 def findFullTrackerIdx(tracker_dict, name_args, depth):
     # base case
     if depth >= len(name_args):

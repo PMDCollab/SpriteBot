@@ -1085,8 +1085,14 @@ class SpriteBot:
                 name_seq = [TrackerUtils.sanitizeName(i) for i in msg_args.base]
                 base_idx = TrackerUtils.findFullTrackerIdx(self.tracker, name_seq, 0)
                 if base_idx is None:
+                    await msg.delete()
                     await self.getChatChannel(msg.guild.id).send(msg.author.mention + " No such Pokemon to base this sprite off.")
                     return
+                if TrackerUtils.isTrackerIdxEqual(base_idx, full_idx):
+                    await msg.delete()
+                    await self.getChatChannel(msg.guild.id).send(msg.author.mention + " Cannot base on the same Pokemon.")
+                    return
+
 
             overcolor = msg_args.overcolor
             # at this point, we confirm the file name is valid, now check the contents
@@ -3303,8 +3309,6 @@ async def periodic_update_status():
         updates += 1
 
 sprite_bot = SpriteBot(scdir, client)
-
-#client.loop.create_task(periodic_update_status())
 
 with open(os.path.join(scdir, TOKEN_FILE_PATH)) as token_file:
     token = token_file.read()
