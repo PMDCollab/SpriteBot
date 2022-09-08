@@ -146,6 +146,23 @@ def imgsEqual(img1, img2, flip: bool = False):
 
     return True
 
+def imgsLineartEqual(img1, img2, flip: bool = False):
+    if img1.size[0] != img2.size[0] or img1.size[1] != img2.size[1]:
+        return False
+    data_1 = img1.getdata()
+    data_2 = img2.getdata()
+    for xx in range(img1.size[0]):
+        for yy in range(img1.size[1]):
+            idx1 = xx + yy * img1.size[0]
+            x2 = xx
+            if flip:
+                x2 = img1.size[0] - 1 - xx
+            idx2 = x2 + yy * img1.size[0]
+            if (data_1[idx1] == (0, 0, 0, 255)) != (data_2[idx2] == (0, 0, 0, 255)):
+                return False
+
+    return True
+
 
 def offsetsEqual(offset1, offset2, imgWidth: int, flip: bool = False):
     if flip:

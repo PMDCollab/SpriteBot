@@ -667,15 +667,16 @@ class SpriteBot:
         is_shiny = TrackerUtils.isShinyIdx(full_idx)
         shiny_idx = None
         shiny_node = None
-        base_recolor_img = None
+        base_recolor_file = None
         if not is_shiny:
             shiny_idx = TrackerUtils.createShinyIdx(full_idx, True)
             shiny_node = TrackerUtils.getNodeFromIdx(self.tracker, shiny_idx, 0)
 
-            if shiny_node.__dict__[asset_type + "_complete"] > TrackerUtils.PHASE_INCOMPLETE:
+            # the shiny may be marked as incomplete, so we should check for an author at all
+            if shiny_node.__dict__[asset_type+"_credit"].primary != "":
                 # get recolor data
-                base_link = await self.retrieveLinkMsg(full_idx, chosen_node, asset_type, True)
-                base_recolor_img = SpriteUtils.getLinkImg(base_link)
+                base_link = await self.retrieveLinkMsg(full_idx, chosen_node, asset_type, False)
+                base_recolor_file, _ = SpriteUtils.getLinkFile(base_link, asset_type)
 
         # get the name of the slot that it was written to
         new_name = TrackerUtils.getIdxName(self.tracker, full_idx)
@@ -874,13 +875,10 @@ class SpriteBot:
                     await self.sendError(traceback.format_exc())
 
             # autogenerate the shiny
-            if base_recolor_img is not None:
-                # auto-generate recolor link
-                base_link = await self.retrieveLinkMsg(full_idx, chosen_node, asset_type, True)
-                cur_recolor_img = SpriteUtils.getLinkImg(base_link)
+            if base_recolor_file is not None:
                 # auto-generate the shiny recolor image, in file form
                 shiny_path = TrackerUtils.getDirFromIdx(self.config.path, asset_type, shiny_idx)
-                auto_recolor_img, cmd_str, content = SpriteUtils.autoRecolor(base_recolor_img, cur_recolor_img, shiny_path, asset_type)
+                auto_recolor_img, cmd_str, content = SpriteUtils.autoRecolor(base_recolor_file, gen_path, shiny_path, asset_type)
 
                 # compute the diff
                 auto_diffs = []
@@ -1092,7 +1090,6 @@ class SpriteBot:
                     await msg.delete()
                     await self.getChatChannel(msg.guild.id).send(msg.author.mention + " Cannot base on the same Pokemon.")
                     return
-
 
             overcolor = msg_args.overcolor
             # at this point, we confirm the file name is valid, now check the contents
@@ -1650,11 +1647,14 @@ class SpriteBot:
             await msg.channel.send(msg.author.mention + " Can't recolor a Pokemon that doesn't have a shiny {0}.".format(asset_type))
             return
 
-        base_link = await self.retrieveLinkMsg(full_idx, chosen_node, asset_type, True)
-        cur_recolor_img = SpriteUtils.getLinkImg(base_link)
+        base_link = await self.retrieveLinkMsg(full_idx, chosen_node, asset_type, False)
+        cur_recolor_file, _ = SpriteUtils.getLinkFile(base_link, asset_type)
+        base_recolor_link = await self.retrieveLinkMsg(full_idx, chosen_node, asset_type, True)
+        cur_recolor_img = SpriteUtils.getLinkImg(base_recolor_link)
+        base_path = TrackerUtils.getDirFromIdx(self.config.path, asset_type, full_idx)
         # auto-generate the shiny recolor image, in file form
         shiny_path = TrackerUtils.getDirFromIdx(self.config.path, asset_type, shiny_idx)
-        auto_recolor_img, cmd_str, content = SpriteUtils.autoRecolor(cur_recolor_img, cur_recolor_img, shiny_path, asset_type)
+        auto_recolor_img, cmd_str, content = SpriteUtils.autoRecolor(cur_recolor_file, base_path, shiny_path, asset_type)
         # post it as a staged submission
         return_name = "{0}-{1}{2}".format(asset_type + "_recolor", "-".join(shiny_idx), ".png")
 
