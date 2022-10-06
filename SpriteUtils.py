@@ -159,6 +159,11 @@ def getLinkImg(url):
 
     return img
 
+def getCombinedZipImg(zip_data):
+    with zipfile.ZipFile(zip_data, 'r') as shiny_zip:
+        combinedImg, _ = getCombinedImg(shiny_zip, True)
+        return combinedImg
+
 def verifyZipFile(zip, file_name):
     try:
         info = zip.getinfo(file_name)
@@ -466,6 +471,19 @@ def verifyPortraitRecolor(msg_args, orig_img, img, recolor):
                 base_str = "Recolor has `{0}` colors compared to the original.\nIf this was intended, resubmit and specify `--colormod {0}` in the message."
                 raise SpriteVerifyError(base_str.format(palette_diff))
 
+    overpalette = getPortraitOverpalette(img)
+
+    if len(overpalette) > 0:
+        if not msg_args.overcolor:
+            reduced_img = simple_quant_portraits(img, overpalette)
+            if recolor:
+                reduced_img = insertPalette(reduced_img)
+            rogue_emotes = [getEmotionFromTilePos(a) for a in overpalette]
+            raise SpriteVerifyError("Some emotions have over 15 colors.\n" \
+                   "If this is acceptable, include `--overcolor` in the message.  Otherwise reduce colors for emotes:\n" \
+                   "{0}".format(str(rogue_emotes)[:1900]), reduced_img)
+
+def getPortraitOverpalette(img):
     palette_counts = {}
     in_data = img.getdata()
     img_tile_size = (img.size[0] // Constants.PORTRAIT_SIZE, img.size[1] // Constants.PORTRAIT_SIZE)
@@ -491,15 +509,8 @@ def verifyPortraitRecolor(msg_args, orig_img, img, recolor):
         if palette_counts[emote_loc] > 15:
             overpalette[emote_loc] = palette_counts[emote_loc]
 
-    if len(overpalette) > 0:
-        if not msg_args.overcolor:
-            reduced_img = simple_quant_portraits(img, overpalette)
-            if recolor:
-                reduced_img = insertPalette(reduced_img)
-            rogue_emotes = [getEmotionFromTilePos(a) for a in overpalette]
-            raise SpriteVerifyError("Some emotions have over 15 colors.\n" \
-                   "If this is acceptable, include `--overcolor` in the message.  Otherwise reduce colors for emotes:\n" \
-                   "{0}".format(str(rogue_emotes)[:1900]), reduced_img)
+    return overpalette
+
 
 def getEmotionFromTilePos(tile_pos):
     rogue_idx = tile_pos[1] * Constants.PORTRAIT_TILE_X + tile_pos[0]
@@ -1301,14 +1312,46 @@ def prepareSpriteRecolor(path):
     combinedImg, _ = getCombinedImg(path, False)
     return insertPalette(combinedImg)
 
-def getRecolorMap(img, shinyImg, frame_size):
+def getSpriteRecolorMap(frames, shiny_frames):
     color_tbl = {}
     img_tbl = []
 
-    if img.size != shinyImg.size:
-        newShiny = Image.new('RGBA', img.size, (0, 0, 0, 0))
-        newShiny.paste(shinyImg, (0,0), shinyImg)
-        shinyImg = newShiny
+    for frame_tex in frames:
+        for shiny_tex in shiny_frames:
+            if exUtils.imgsLineartEqual(frame_tex, shiny_tex, False):
+                img_tbl.append((frame_tex, shiny_tex))
+                break
+
+    color_lookup = {}
+
+    # only do a color mapping for frames that have been known to fit
+    for frame_tex, shiny_tex in img_tbl:
+        datas = frame_tex.getdata()
+        shinyDatas = shiny_tex.getdata()
+        for idx in range(len(datas)):
+            color = datas[idx]
+            shinyColor = shinyDatas[idx]
+            if color[3] != 255 or shinyColor[3] != 255:
+                continue
+            if color not in color_lookup:
+                color_lookup[color] = {}
+            if shinyColor not in color_lookup[color]:
+                color_lookup[color][shinyColor] = 0
+            color_lookup[color][shinyColor] += 1
+
+    # sort by most common mapping
+    for color in color_lookup:
+        map_to = []
+        for shinyColor in color_lookup[color]:
+            map_to.append((shinyColor, color_lookup[color][shinyColor]))
+        map_to = sorted(map_to, key=lambda stat: stat[1], reverse=True)
+        color_tbl[color] = map_to
+
+    return color_tbl, img_tbl
+
+def getPortraitRecolorMap(img, shinyImg, frame_size):
+    color_tbl = {}
+    img_tbl = []
 
     for yy in range(0, img.size[1], frame_size[1]):
         for xx in range(0, img.size[0], frame_size[0]):
@@ -1376,42 +1419,69 @@ def getRecoloredTex(color_tbl, img_tbl, frame_tex):
     shiny_tex.putdata(shiny_datas)
     return shiny_tex, off_color_tbl
 
-def autoRecolor(prev_base_img, cur_base_img, shiny_path, asset_type):
-    prev_base_img = removePalette(prev_base_img)
-    cur_base_img = removePalette(cur_base_img)
-    prev_shiny_img = None
-    frame_size = (0,0)
+def updateOffColorTable(total_off_color, off_color_tbl):
+    for color in off_color_tbl:
+        if color not in total_off_color:
+            total_off_color[color] = {}
+        sub_color = total_off_color[color]
+        colors_to = off_color_tbl[color]
+        for color_to, count in colors_to:
+            if color_to not in sub_color:
+                sub_color[color_to] = 0
+            sub_color[color_to] += count
+
+def autoRecolor(prev_base_file, cur_base_path, shiny_path, asset_type):
+    cur_shiny_img = None
+    total_off_color = {}
     if asset_type == "sprite":
-        prev_shiny_img, frame_size = getCombinedImg(shiny_path, False)
+        with zipfile.ZipFile(prev_base_file, 'r') as prev_base_zip:
+            prev_frames, _ = getFramesAndMappings(prev_base_zip, True)
+        prev_frames_only = [x[0] for x in prev_frames]
+        frames, _ = getFramesAndMappings(cur_base_path, False)
+        shiny_frames, _ = getFramesAndMappings(shiny_path, False)
+        shiny_frames_only = [x[0] for x in shiny_frames]
+        color_tbl, img_tbl = getSpriteRecolorMap(prev_frames_only, shiny_frames_only)
+
+        frame_size = getFrameSizeFromFrames(frames)
+
+        max_size = int(math.ceil(math.sqrt(len(frames))))
+        cur_base_img = Image.new('RGBA', (frame_size[0] * max_size, frame_size[1] * max_size), (0, 0, 0, 0))
+        cur_shiny_img = Image.new('RGBA', (frame_size[0] * max_size, frame_size[1] * max_size), (0, 0, 0, 0))
+
+        for idx, frame_pair in enumerate(frames):
+            frame = frame_pair[0]
+            recolored_frame, off_color_tbl = getRecoloredTex(color_tbl, img_tbl, frame)
+            updateOffColorTable(total_off_color, off_color_tbl)
+
+            diffPos = (frame_size[0] // 2 - frame.size[0] // 2, frame_size[1] // 2 - frame.size[1] // 2)
+            xx = idx % max_size
+            yy = idx // max_size
+            tilePos = (xx * frame_size[0], yy * frame_size[1])
+            cur_base_img.paste(frame, (tilePos[0] + diffPos[0], tilePos[1] + diffPos[1]), frame)
+            cur_shiny_img.paste(recolored_frame, (tilePos[0] + diffPos[0], tilePos[1] + diffPos[1]), recolored_frame)
 
     elif asset_type == "portrait":
+        prev_base_img = Image.open(prev_base_file).convert("RGBA")
         prev_shiny_img = preparePortraitImage(shiny_path)
+
+        cur_base_img = preparePortraitImage(cur_base_path)
         frame_size = (Constants.PORTRAIT_SIZE, Constants.PORTRAIT_SIZE)
+        color_tbl, img_tbl = getPortraitRecolorMap(prev_base_img, prev_shiny_img, frame_size)
 
-    color_tbl, img_tbl = getRecolorMap(prev_base_img, prev_shiny_img, frame_size)
+        cur_shiny_img = Image.new('RGBA', cur_base_img.size, (0, 0, 0, 0))
+        for yy in range(0, cur_base_img.size[1], frame_size[1]):
+            for xx in range(0, cur_base_img.size[0], frame_size[0]):
+                tile_bounds = (xx, yy, xx + frame_size[0], yy + frame_size[1])
+                bounds = exUtils.getCoveredBounds(cur_base_img, tile_bounds)
+                if bounds[0] >= bounds[2]:
+                    continue
+                abs_bounds = exUtils.addToBounds(bounds, (xx, yy))
+                frame_tex = cur_base_img.crop(abs_bounds)
+                shiny_tex, off_color_tbl = getRecoloredTex(color_tbl, img_tbl, frame_tex)
+                updateOffColorTable(total_off_color, off_color_tbl)
 
-    cur_shiny_img = Image.new('RGBA', cur_base_img.size, (0, 0, 0, 0))
-    total_off_color = {}
-    for yy in range(0, cur_base_img.size[1], frame_size[1]):
-        for xx in range(0, cur_base_img.size[0], frame_size[0]):
-            tile_bounds = (xx, yy, xx + frame_size[0], yy + frame_size[1])
-            bounds = exUtils.getCoveredBounds(cur_base_img, tile_bounds)
-            if bounds[0] >= bounds[2]:
-                continue
-            abs_bounds = exUtils.addToBounds(bounds, (xx, yy))
-            frame_tex = cur_base_img.crop(abs_bounds)
-            shiny_tex, off_color_tbl = getRecoloredTex(color_tbl, img_tbl, frame_tex)
-            cur_shiny_img.paste(shiny_tex, (abs_bounds[0], abs_bounds[1]), shiny_tex)
+                cur_shiny_img.paste(shiny_tex, (abs_bounds[0], abs_bounds[1]), shiny_tex)
 
-            for color in off_color_tbl:
-                if color not in total_off_color:
-                    total_off_color[color] = {}
-                sub_color = total_off_color[color]
-                colors_to = off_color_tbl[color]
-                for color_to, count in colors_to:
-                    if color_to not in sub_color:
-                        sub_color[color_to] = 0
-                    sub_color[color_to] += count
 
     # check the shiny against needed tags
     # check against colors compared to original

@@ -44,8 +44,14 @@ parser.add_argument('--colors', type=int)
 parser.add_argument('--author')
 parser.add_argument('--addauthor', nargs='?', const=True, default=False)
 
+class MyClient(discord.Client):
+    async def setup_hook(self):
+        asyncio.create_task(periodic_update_status())
+
 # The Discord client.
-client = discord.Client()
+intent = discord.Intents.default()
+intent.message_content = True
+client = MyClient(intents=intent)
 
 class BotServer:
 
@@ -365,6 +371,10 @@ class SpriteBot:
         if user.id == self.config.root:
             return True
         guild_id_str = str(guild.id)
+
+        if self.config.servers[guild_id_str].approval == 0:
+            return False
+
         approve_role = guild.get_role(self.config.servers[guild_id_str].approval)
 
         try:
@@ -558,7 +568,11 @@ class SpriteBot:
 
         title = TrackerUtils.getIdxName(self.tracker, full_idx)
 
-        send_files = [discord.File(return_file, return_name)]
+        return_copy = io.BytesIO()
+        return_copy.write(return_file.read())
+        return_copy.seek(0)
+        return_file.seek(0)
+        send_files = [discord.File(return_copy, return_name)]
 
         if diffs is not None and len(diffs) > 0:
             diff_str = "Changes: {0}".format(", ".join(diffs))
@@ -566,12 +580,21 @@ class SpriteBot:
             diff_str = "No Changes."
 
         add_msg = ""
+        if not recolor and asset_type == "sprite":
+            preview_img = SpriteUtils.getCombinedZipImg(return_file)
+            preview_file = io.BytesIO()
+            preview_img.save(preview_file, format='PNG')
+            preview_file.seek(0)
+            send_files.append(discord.File(preview_file, return_name.replace('.zip', '.png')))
+            add_msg += "\nPreview included."
+
         if overcolor_img is not None:
             reduced_img = None
             if asset_type == "sprite":
-                reduced_img = SpriteUtils.simple_quant(overcolor_img)
+                reduced_img = SpriteUtils.simple_quant(overcolor_img, 16)
             elif asset_type == "portrait":
-                reduced_img = SpriteUtils.simple_quant_portraits(overcolor_img)
+                overpalette = SpriteUtils.getPortraitOverpalette(overcolor_img)
+                reduced_img = SpriteUtils.simple_quant_portraits(overcolor_img, overpalette)
 
             reduced_file = io.BytesIO()
             reduced_img.save(reduced_file, format='PNG')
@@ -644,15 +667,16 @@ class SpriteBot:
         is_shiny = TrackerUtils.isShinyIdx(full_idx)
         shiny_idx = None
         shiny_node = None
-        base_recolor_img = None
+        base_recolor_file = None
         if not is_shiny:
             shiny_idx = TrackerUtils.createShinyIdx(full_idx, True)
             shiny_node = TrackerUtils.getNodeFromIdx(self.tracker, shiny_idx, 0)
 
-            if shiny_node.__dict__[asset_type + "_complete"] > TrackerUtils.PHASE_INCOMPLETE:
+            # the shiny may be marked as incomplete, so we should check for an author at all
+            if shiny_node.__dict__[asset_type+"_credit"].primary != "":
                 # get recolor data
-                base_link = await self.retrieveLinkMsg(full_idx, chosen_node, asset_type, True)
-                base_recolor_img = SpriteUtils.getLinkImg(base_link)
+                base_link = await self.retrieveLinkMsg(full_idx, chosen_node, asset_type, False)
+                base_recolor_file, _ = SpriteUtils.getLinkFile(base_link, asset_type)
 
         # get the name of the slot that it was written to
         new_name = TrackerUtils.getIdxName(self.tracker, full_idx)
@@ -851,13 +875,10 @@ class SpriteBot:
                     await self.sendError(traceback.format_exc())
 
             # autogenerate the shiny
-            if base_recolor_img is not None:
-                # auto-generate recolor link
-                base_link = await self.retrieveLinkMsg(full_idx, chosen_node, asset_type, True)
-                cur_recolor_img = SpriteUtils.getLinkImg(base_link)
+            if base_recolor_file is not None:
                 # auto-generate the shiny recolor image, in file form
                 shiny_path = TrackerUtils.getDirFromIdx(self.config.path, asset_type, shiny_idx)
-                auto_recolor_img, cmd_str, content = SpriteUtils.autoRecolor(base_recolor_img, cur_recolor_img, shiny_path, asset_type)
+                auto_recolor_img, cmd_str, content = SpriteUtils.autoRecolor(base_recolor_file, gen_path, shiny_path, asset_type)
 
                 # compute the diff
                 auto_diffs = []
@@ -930,6 +951,8 @@ class SpriteBot:
         # make sure they are re-added
         for server in self.config.servers:
             ch_id = self.config.servers[server].submit
+            if ch_id == 0:
+                continue
             msgs = []
             channel = self.client.get_channel(ch_id)
             async for message in channel.history(limit=None):
@@ -1060,7 +1083,12 @@ class SpriteBot:
                 name_seq = [TrackerUtils.sanitizeName(i) for i in msg_args.base]
                 base_idx = TrackerUtils.findFullTrackerIdx(self.tracker, name_seq, 0)
                 if base_idx is None:
+                    await msg.delete()
                     await self.getChatChannel(msg.guild.id).send(msg.author.mention + " No such Pokemon to base this sprite off.")
+                    return
+                if TrackerUtils.isTrackerIdxEqual(base_idx, full_idx):
+                    await msg.delete()
+                    await self.getChatChannel(msg.guild.id).send(msg.author.mention + " Cannot base on the same Pokemon.")
                     return
 
             overcolor = msg_args.overcolor
@@ -1619,11 +1647,14 @@ class SpriteBot:
             await msg.channel.send(msg.author.mention + " Can't recolor a Pokemon that doesn't have a shiny {0}.".format(asset_type))
             return
 
-        base_link = await self.retrieveLinkMsg(full_idx, chosen_node, asset_type, True)
-        cur_recolor_img = SpriteUtils.getLinkImg(base_link)
+        base_link = await self.retrieveLinkMsg(full_idx, chosen_node, asset_type, False)
+        cur_recolor_file, _ = SpriteUtils.getLinkFile(base_link, asset_type)
+        base_recolor_link = await self.retrieveLinkMsg(full_idx, chosen_node, asset_type, True)
+        cur_recolor_img = SpriteUtils.getLinkImg(base_recolor_link)
+        base_path = TrackerUtils.getDirFromIdx(self.config.path, asset_type, full_idx)
         # auto-generate the shiny recolor image, in file form
         shiny_path = TrackerUtils.getDirFromIdx(self.config.path, asset_type, shiny_idx)
-        auto_recolor_img, cmd_str, content = SpriteUtils.autoRecolor(cur_recolor_img, cur_recolor_img, shiny_path, asset_type)
+        auto_recolor_img, cmd_str, content = SpriteUtils.autoRecolor(cur_recolor_file, base_path, shiny_path, asset_type)
         # post it as a staged submission
         return_name = "{0}-{1}{2}".format(asset_type + "_recolor", "-".join(shiny_idx), ".png")
 
@@ -1853,6 +1884,10 @@ class SpriteBot:
             return
 
         chat_id = self.config.servers[str(msg.guild.id)].submit
+        if chat_id == 0:
+            await msg.channel.send(msg.author.mention + " This server does not support submissions.")
+            return
+
         submit_channel = self.client.get_channel(chat_id)
         author = "<@!{0}>".format(msg.author.id)
 
@@ -2027,29 +2062,44 @@ class SpriteBot:
 
     async def initServer(self, msg, args):
 
-        if len(args) != 5:
-            await msg.channel.send(msg.author.mention + " Args not equal to 5!")
-            return
 
-        if len(msg.channel_mentions) != 3:
-            await msg.channel.send(msg.author.mention + " Bad channel args!")
-            return
+        if len(args) == 3:
+            if len(msg.channel_mentions) != 2:
+                await msg.channel.send(msg.author.mention + " Bad channel args!")
+                return
 
-        if len(msg.role_mentions) != 1:
-            await msg.channel.send(msg.author.mention + " Bad role args!")
+            info_ch = msg.channel_mentions[0]
+            bot_ch = msg.channel_mentions[1]
+            submit_ch = None
+            reviewer_role = None
+
+        elif len(args) == 5:
+            if msg.author.id != sprite_bot.config.root:
+                await msg.channel.send(msg.author.mention + " Bad channel args!")
+                return
+
+            if len(msg.channel_mentions) != 3:
+                await msg.channel.send(msg.author.mention + " Bad channel args!")
+                return
+
+            if len(msg.role_mentions) != 1:
+                await msg.channel.send(msg.author.mention + " Bad role args!")
+                return
+
+            info_ch = msg.channel_mentions[0]
+            bot_ch = msg.channel_mentions[1]
+            submit_ch = msg.channel_mentions[2]
+            reviewer_role = msg.role_mentions[0]
+        else:
+            await msg.channel.send(msg.author.mention + " Args not equal to 3 or 5!")
             return
 
         prefix = args[0]
-        info_ch = msg.channel_mentions[0]
-        bot_ch = msg.channel_mentions[1]
-        submit_ch = msg.channel_mentions[2]
-        reviewer_role = msg.role_mentions[0]
-
         init_guild = msg.guild
+
 
         info_perms = info_ch.permissions_for(init_guild.me)
         bot_perms = bot_ch.permissions_for(init_guild.me)
-        submit_perms = submit_ch.permissions_for(init_guild.me)
 
         if not info_perms.send_messages or not info_perms.read_messages:
             await msg.channel.send(msg.author.mention + " Bad channel perms for info!")
@@ -2059,16 +2109,22 @@ class SpriteBot:
             await msg.channel.send(msg.author.mention + " Bad channel perms for chat!")
             return
 
-        if not submit_perms.send_messages or not submit_perms.read_messages or not submit_perms.manage_messages:
-            await msg.channel.send(msg.author.mention + " Bad channel perms for submit!")
-            return
+        if submit_ch is not None:
+            submit_perms = submit_ch.permissions_for(init_guild.me)
+            if not submit_perms.send_messages or not submit_perms.read_messages or not submit_perms.manage_messages:
+                await msg.channel.send(msg.author.mention + " Bad channel perms for submit!")
+                return
 
         new_server = BotServer()
         new_server.prefix = prefix
         new_server.info = info_ch.id
         new_server.chat = bot_ch.id
-        new_server.submit = submit_ch.id
-        new_server.approval = reviewer_role.id
+        if submit_ch is not None:
+            new_server.submit = submit_ch.id
+            new_server.approval = reviewer_role.id
+        else:
+            new_server.submit = 0
+            new_server.approval = 0
         self.config.servers[str(init_guild.id)] = new_server
 
         self.saveConfig()
@@ -2116,6 +2172,8 @@ class SpriteBot:
 
             canon = True
             if re.search(r"_?Alternate\d*$", form_name):
+                canon = False
+            if re.search(r"_?Starter\d*$", form_name):
                 canon = False
             if re.search(r"_?Altcolor\d*$", form_name):
                 canon = False
@@ -2435,7 +2493,8 @@ class SpriteBot:
                   f"`{prefix}portrait` - Get the Pokemon's portrait sheet\n" \
                   f"`{prefix}recolorsprite` - Get the Pokemon's sprite sheet in a form for easy recoloring\n" \
                   f"`{prefix}recolorportrait` - Get the Pokemon's portrait sheet in a form for easy recoloring\n" \
-                  f"`{prefix}autocolor` - Generates an automatic recolor of the Pokemon's portrait sheet\n" \
+                  f"`{prefix}autocolorsprite` - Generates an automatic recolor of the Pokemon's sprite sheet\n" \
+                  f"`{prefix}autocolorportrait` - Generates an automatic recolor of the Pokemon's portrait sheet\n" \
                   f"`{prefix}listsprite` - List all sprites related to a Pokemon\n" \
                   f"`{prefix}listportrait` - List all portraits related to a Pokemon\n"
             if use_bounties:
@@ -2514,19 +2573,32 @@ class SpriteBot:
                              f"`{prefix}recolorportrait Pikachu`\n" \
                              f"`{prefix}recolorportrait Pikachu Female`\n" \
                              f"`{prefix}recolorportrait Shaymin Sky`"
-            elif base_arg == "autocolor":
+            elif base_arg == "autocolorsprite":
                 return_msg = "**Command Help**\n" \
                              f"`{prefix}autocolor <Pokemon Name> [Form Name] [Gender]`\n" \
-                             "Generates an automatic shiny of a Pokemon's portrait sheet, in recolor form. " \
+                             "Generates an automatic shiny of a Pokemon's sprite sheet, in recolor form. " \
                              "Meant to be used as a starting point to assist in manual recoloring. " \
-                             "Works best on portraits with multiple emotions, where the shiny has only one.\n" \
+                             "Works best on sprite with multiple animations, where the shiny has only a few.\n" \
                              "`Pokemon Name` - Name of the Pokemon\n" \
                              "`Form Name` - [Optional] Form name of the Pokemon\n" \
                              "`Gender` - [Optional] Specifies the gender of the Pokemon, for those with gender differences\n" \
                              "**Examples**\n" \
-                             f"`{prefix}recolorportrait Pikachu`\n" \
-                             f"`{prefix}recolorportrait Pikachu Female`\n" \
-                             f"`{prefix}recolorportrait Shaymin Sky`"
+                             f"`{prefix}autocolorsprite Pikachu`\n" \
+                             f"`{prefix}autocolorsprite Pikachu Female`\n" \
+                             f"`{prefix}autocolorsprite Shaymin Sky`"
+            elif base_arg == "autocolorportrait":
+                return_msg = "**Command Help**\n" \
+                             f"`{prefix}autocolor <Pokemon Name> [Form Name] [Gender]`\n" \
+                             "Generates an automatic shiny of a Pokemon's portrait sheet, in recolor form. " \
+                             "Meant to be used as a starting point to assist in manual recoloring. " \
+                             "Works best on portrait with multiple emotions, where the shiny has only a few.\n" \
+                             "`Pokemon Name` - Name of the Pokemon\n" \
+                             "`Form Name` - [Optional] Form name of the Pokemon\n" \
+                             "`Gender` - [Optional] Specifies the gender of the Pokemon, for those with gender differences\n" \
+                             "**Examples**\n" \
+                             f"`{prefix}autocolorportrait Pikachu`\n" \
+                             f"`{prefix}autocolorportrait Pikachu Female`\n" \
+                             f"`{prefix}autocolorportrait Shaymin Sky`"
             elif base_arg == "spritecredit":
                 return_msg = "**Command Help**\n" \
                              f"`{prefix}spritecredit <Pokemon Name> [Form Name] [Shiny] [Gender]`\n" \
@@ -3112,8 +3184,10 @@ async def on_message(msg: discord.Message):
                 await sprite_bot.getAbsentProfiles(msg)
             elif base_arg == "unregister":
                 await sprite_bot.deleteProfile(msg, args[1:])
-            elif base_arg == "autocolor":
+            elif base_arg == "autocolorportrait":
                 await sprite_bot.tryAutoRecolor(msg, args[1:], "portrait")
+            elif base_arg == "autocolorsprite":
+                await sprite_bot.tryAutoRecolor(msg, args[1:], "sprite")
                 # authorized commands
             elif base_arg == "add" and authorized:
                 await sprite_bot.addSpeciesForm(msg, args[1:])
@@ -3211,6 +3285,7 @@ async def on_raw_reaction_add(payload):
     except Exception as e:
         await sprite_bot.sendError(traceback.format_exc())
 
+
 async def periodic_update_status():
     await client.wait_until_ready()
     global sprite_bot
@@ -3234,8 +3309,6 @@ async def periodic_update_status():
         updates += 1
 
 sprite_bot = SpriteBot(scdir, client)
-
-client.loop.create_task(periodic_update_status())
 
 with open(os.path.join(scdir, TOKEN_FILE_PATH)) as token_file:
     token = token_file.read()
