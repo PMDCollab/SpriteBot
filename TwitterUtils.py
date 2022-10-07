@@ -1,3 +1,6 @@
+import io
+import time
+
 import requests
 from requests_oauthlib import OAuth1
 import tweepy
@@ -16,8 +19,6 @@ with open(os.path.join(scdir, TOKEN_FILE_PATH)) as token_file:
     access_token = token[2]
     access_token_secret = token[3]
 
-test_img = Image.open(os.path.join(scdir, "Test.png")).convert("RGBA")
-
 def init_twitter():
     # Authenticate to Twitter
     auth = tweepy.OAuthHandler(consumer_key, consumer_secret)
@@ -33,18 +34,48 @@ def init_twitter():
     #    print("Authentication Error: " + str(ex))
     #    return None
 
-def post_image(api, text, img):
+def post_image(api, text, img_name, img):
     try:
-        media = api.media_upload(filename=os.path.join(scdir, "Test.png"))
-        status = api.update_status(text, media_ids=[media.media_id])
+        fileData = io.BytesIO()
+        img.save(fileData, format='PNG')
+        fileData.seek(0)
+        media = api.media_upload(filename=img_name, file=fileData)
+        status = api.update_status(status=text, media_ids=[media.media_id])
         print(str(status))
     except Exception as ex:
         print("Failed to post image: " + str(ex))
 
+def reply_mentions(api, since_id):
+    new_since_id = since_id
+    for tweet in tweepy.Cursor(api.mentions_timeline, since_id=since_id).items():
+        new_since_id = max(tweet.id, new_since_id)
 
-#tw_api = init_twitter()
+        name_args = tweet.text.lower().split()
+        img = Image.open(os.path.join(scdir, "Test.png")).convert("RGBA")#get_requested_img(name_args)
+        img_name = "portrait_test" # node.Name
 
-#post_image(tw_api, "Automated test with image", test_img)
+        fileData = io.BytesIO()
+        img.save(fileData, format='PNG')
+        fileData.seek(0)
+        media = api.media_upload(filename=img_name, file=fileData)
+        status = api.update_status(
+            status="@" + tweet.user.screen_name + " Test: Pikachu, Chunsoft",
+            media_ids=[media.media_id],
+            in_reply_to_status_id=tweet.id,
+        )
+        print(str(status))
+    return new_since_id
+
+tw_api = init_twitter()
+
+#test_img = Image.open(os.path.join(scdir, "Test.png")).convert("RGBA")
+#post_image(tw_api, "Automated test with image 3", "test_alcremie", test_img)
+
+since_id = 1
+while True:
+    since_id = reply_mentions(tw_api, since_id)
+    time.sleep(60)
+
 
 
 def test_request(text, img, consumer_key, consumer_secret, access_token, access_token_secret):
