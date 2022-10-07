@@ -25,6 +25,32 @@ PHASE_EXISTS = 1
 PHASE_FULL = 2
 
 
+def getStatusEmoji(chosen_node, asset_type):
+    pending = chosen_node.__dict__[asset_type+"_pending"]
+    added = chosen_node.__dict__[asset_type + "_credit"].primary != ""
+    complete = chosen_node.__dict__[asset_type+"_complete"]
+    required = chosen_node.__dict__[asset_type+"_required"]
+    if complete > PHASE_EXISTS: # star
+        return "\u2B50"
+    elif len(pending) > 0:
+        if complete > PHASE_INCOMPLETE:  # interrobang
+            return "\u2049"
+        else:  # question
+            return "\u2754"
+    elif added:
+        if len(pending) > 0:  # interrobang
+            return "\u2049"
+        else:
+            if complete > PHASE_INCOMPLETE:  # checkmark
+                return "\u2705"
+            else:  # white circle
+                return "\u26AA"
+    else:
+        if required:  # X mark
+            return "\u274C"
+        else:  # black circle
+            return "\u26AB"
+
 def getCreditEntries(path):
     credits = getFileCredits(path)
 

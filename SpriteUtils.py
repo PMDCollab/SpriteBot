@@ -128,6 +128,24 @@ def removePalette(inImg):
     imgCrop = inImg.crop((0,1,inImg.size[0], inImg.size[1]))
     return imgCrop.convert("RGBA")
 
+def thumbnailFileImg(inFile):
+    # expand the image to fit a twitter preview
+    # truncate the second half if there exists one
+    img = Image.open(inFile).convert("RGBA")
+    img = img.crop((0, 0, Constants.PORTRAIT_SIZE * Constants.PORTRAIT_TILE_X, Constants.PORTRAIT_SIZE * Constants.PORTRAIT_TILE_Y // 2))
+    # crop out the whitespace
+    img = img.crop(exUtils.getCoveredBounds(img))
+    length = img.size[0]
+    factor = 400 // length
+    new_size = (img.size[0] * factor, img.size[1] * factor)
+    # expand to 400px wide at most
+    img = img.resize(new_size, resample=Image.NEAREST)
+
+    file_data = BytesIO()
+    img.save(file_data, format='PNG')
+    file_data.seek(0)
+    return file_data
+
 def getLinkData(url):
     full_path, ext = os.path.splitext(url)
     _, file = os.path.split(full_path)

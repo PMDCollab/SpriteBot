@@ -7,6 +7,7 @@ import asyncio
 import json
 import SpriteUtils
 import TrackerUtils
+import TwitterUtils
 import datetime
 import git
 import sys
@@ -78,6 +79,8 @@ class BotConfig:
         self.path = ""
         self.root = 0
         self.push = False
+        self.twitter = False
+        self.last_tw_mention = 0
         self.points = 0
         self.error_ch = 0
         self.points_ch = 0
@@ -117,6 +120,12 @@ class SpriteBot:
         self.need_restart = False
         with open(os.path.join(self.path, CONFIG_FILE_PATH)) as f:
             self.config = BotConfig(json.load(f))
+
+        # init twitter
+        if self.config.twitter:
+            self.tw_api = TwitterUtils.init_twitter(scdir)
+
+        # init portrait constants
         with open(os.path.join(self.config.path, SPRITE_CONFIG_FILE_PATH)) as f:
             sprite_config = json.load(f)
             Constants.PORTRAIT_SIZE = sprite_config['portrait_size']
@@ -244,31 +253,6 @@ class SpriteBot:
         chat_id = self.config.servers[str(guild_id)].chat
         return self.client.get_channel(chat_id)
 
-    def getStatusEmoji(self, chosen_node, asset_type):
-        pending = chosen_node.__dict__[asset_type+"_pending"]
-        added = chosen_node.__dict__[asset_type + "_credit"].primary != ""
-        complete = chosen_node.__dict__[asset_type+"_complete"]
-        required = chosen_node.__dict__[asset_type+"_required"]
-        if complete > TrackerUtils.PHASE_EXISTS: # star
-            return "\u2B50"
-        elif len(pending) > 0:
-            if complete > TrackerUtils.PHASE_INCOMPLETE:  # interrobang
-                return "\u2049"
-            else:  # question
-                return "\u2754"
-        elif added:
-            if len(pending) > 0:  # interrobang
-                return "\u2049"
-            else:
-                if complete > TrackerUtils.PHASE_INCOMPLETE:  # checkmark
-                    return "\u2705"
-                else:  # white circle
-                    return "\u26AA"
-        else:
-            if required:  # X mark
-                return "\u274C"
-            else:  # black circle
-                return "\u26AB"
 
     def getAuthorCol(self, author):
         return str(author.id) + "#" + author.name.replace("\t", "") + "#" + author.discriminator
@@ -319,9 +303,9 @@ class SpriteBot:
 
             # status
             if include_sprite:
-                post += self.getStatusEmoji(tracker_dict, "sprite")
+                post += TrackerUtils.getStatusEmoji(tracker_dict, "sprite")
             if include_portrait:
-                post += self.getStatusEmoji(tracker_dict, "portrait")
+                post += TrackerUtils.getStatusEmoji(tracker_dict, "portrait")
             # name
             post += " `#" + "{:03d}".format(dexnum) + "`: `" + name_str + "` "
 
@@ -348,7 +332,7 @@ class SpriteBot:
             post = asset_type.title() + " of "
 
             # status
-            post += self.getStatusEmoji(tracker_dict, asset_type)
+            post += TrackerUtils.getStatusEmoji(tracker_dict, asset_type)
             # name
             post += " `#" + "{:03d}".format(dexnum) + "`: `" + name_str + "` "
 
@@ -916,6 +900,13 @@ class SpriteBot:
                 await self.postStagedSubmission(msg.channel, cmd_str, content, shiny_idx, shiny_node, asset_type, sender_info,
                                                 True, auto_diffs, auto_recolor_file, return_name, overcolor_img)
 
+        if self.config.twitter and asset_type == "portrait":
+            status = TrackerUtils.getStatusEmoji(chosen_node, asset_type)
+            tw_msg = "{5} #{3:03d}: {4}\n{0} {1} by {2}".format(new_revise,
+                                                            asset_type,
+                                                            self.createCreditAttribution(orig_author, True),
+                                                            int(full_idx[0]), new_name_str, status)
+            TwitterUtils.post_image(self.tw_api, tw_msg, new_link)
 
 
     async def submissionDeclined(self, msg, orig_sender, declines):
@@ -1225,7 +1216,7 @@ class SpriteBot:
 
         # if the node has no credit, fail
         if chosen_node.__dict__[asset_type + "_credit"].primary == "" and phase > TrackerUtils.PHASE_INCOMPLETE:
-            status = self.getStatusEmoji(chosen_node, asset_type)
+            status = TrackerUtils.getStatusEmoji(chosen_node, asset_type)
             await msg.channel.send(msg.author.mention +
                                    " {0} #{1:03d}: {2} has no data and cannot be marked {3}.".format(status, int(full_idx[0]), " ".join(name_seq), phase_str))
             return
@@ -1233,7 +1224,7 @@ class SpriteBot:
         # set to complete
         chosen_node.__dict__[asset_type + "_complete"] = phase
 
-        status = self.getStatusEmoji(chosen_node, asset_type)
+        status = TrackerUtils.getStatusEmoji(chosen_node, asset_type)
         await msg.channel.send(msg.author.mention + " {0} #{1:03d}: {2} marked as {3}.".format(status, int(full_idx[0]), " ".join(name_seq), phase_str))
 
         self.saveTracker()
@@ -1436,7 +1427,7 @@ class SpriteBot:
             return
         chosen_node = TrackerUtils.getNodeFromIdx(self.tracker, full_idx, 0)
 
-        status = self.getStatusEmoji(chosen_node, asset_type)
+        status = TrackerUtils.getStatusEmoji(chosen_node, asset_type)
         if chosen_node.__dict__[asset_type + "_complete"] >= TrackerUtils.PHASE_FULL:
             await msg.channel.send(msg.author.mention + " {0} #{1:03d} {2} is fully featured and cannot have a bounty.".format(status, int(full_idx[0]), " ".join(name_seq)))
             return
@@ -1530,7 +1521,7 @@ class SpriteBot:
             return
         chosen_node.__dict__[asset_type + "_files"][file_name] = lock_state
 
-        status = self.getStatusEmoji(chosen_node, asset_type)
+        status = TrackerUtils.getStatusEmoji(chosen_node, asset_type)
 
         lock_str = "unlocked"
         if lock_state:
@@ -1669,7 +1660,23 @@ class SpriteBot:
                                      files=send_files)
 
 
-    def createCreditAttribution(self, mention):
+    def createCreditAttribution(self, mention, plainName):
+        if plainName:
+            base_name = "{0}".format(mention)
+            if mention in self.names:
+                if self.names[mention].name != "":
+                    base_name = self.names[mention].name
+            return base_name
+        else:
+            base_name = "`{0}`".format(mention)
+            if mention in self.names:
+                if self.names[mention].name != "":
+                    base_name = self.names[mention].name
+                if self.names[mention].contact != "":
+                    return "{0} `{1}`".format(base_name, self.names[mention].contact)
+            return base_name
+
+    def getBestCreditName(self, mention):
         base_name = "`{0}`".format(mention)
         if mention in self.names:
             if self.names[mention].name != "":
@@ -1683,22 +1690,21 @@ class SpriteBot:
     Base credit is used in the case of shinies.
     It is the credit of the base sprite that should be added to the shiny credit.
     """
-    def createCreditBlock(self, credit, base_credit):
+    def createCreditBlock(self, credit, base_credit, plainName):
         author_arr = []
-        author_arr.append(self.createCreditAttribution(credit.primary))
+        author_arr.append(self.createCreditAttribution(credit.primary, plainName))
         for author in credit.secondary:
-            author_arr.append(self.createCreditAttribution(author))
+            author_arr.append(self.createCreditAttribution(author, plainName))
         if base_credit is not None:
-            attr = self.createCreditAttribution(base_credit.primary)
+            attr = self.createCreditAttribution(base_credit.primary, plainName)
             if attr not in author_arr:
                 author_arr.append(attr)
             for author in credit.secondary:
-                attr = self.createCreditAttribution(author)
+                attr = self.createCreditAttribution(author, plainName)
                 if attr not in author_arr:
                     author_arr.append(attr)
 
-
-        block = "Authors: {0}".format(", ".join(author_arr))
+        block = "By: {0}".format(", ".join(author_arr))
         credit_diff = credit.total - len(author_arr)
         if credit_diff > 0:
             block += " +{0} more".format(credit_diff)
@@ -1724,7 +1730,7 @@ class SpriteBot:
         chosen_node = TrackerUtils.getNodeFromIdx(self.tracker, full_idx, 0)
         # post the statuses
         response = msg.author.mention + " "
-        status = self.getStatusEmoji(chosen_node, asset_type)
+        status = TrackerUtils.getStatusEmoji(chosen_node, asset_type)
         response += "{0} #{1:03d}: {2}".format(status, int(full_idx[0]), " ".join(name_seq))
 
         if chosen_node.__dict__[asset_type + "_required"]:
@@ -1740,7 +1746,7 @@ class SpriteBot:
                 else:
                     credit = chosen_node.__dict__[asset_type + "_credit"]
                     base_credit = None
-                    response += "\n" + self.createCreditBlock(credit, base_credit)
+                    response += "\n" + self.createCreditBlock(credit, base_credit, False)
                     if len(credit.secondary) + 1 < credit.total:
                         response += "\nRun `!{0}credit {1}` for full credit.".format(asset_type, " ".join(name_seq))
                 if recolor and not recolor_shiny:
@@ -1782,7 +1788,7 @@ class SpriteBot:
         gen_path = TrackerUtils.getDirFromIdx(self.config.path, asset_type, full_idx)
 
         response = msg.author.mention + " "
-        status = self.getStatusEmoji(chosen_node, asset_type)
+        status = TrackerUtils.getStatusEmoji(chosen_node, asset_type)
         response += "Full credit for {0} #{1:03d}: {2}".format(status, int(full_idx[0]), " ".join(name_seq))
 
         credit_str = ""
@@ -1855,7 +1861,7 @@ class SpriteBot:
         credit_data.primary = wanted_author
         TrackerUtils.updateCreditFromEntries(credit_data, credit_entries)
 
-        await msg.channel.send(msg.author.mention + " Credit display has been reset for {0} {1}:\n{2}".format(asset_type, " ".join(name_seq), self.createCreditBlock(credit_data, None)))
+        await msg.channel.send(msg.author.mention + " Credit display has been reset for {0} {1}:\n{2}".format(asset_type, " ".join(name_seq), self.createCreditBlock(credit_data, None, False)))
 
         self.saveTracker()
         self.changed = True
@@ -3303,6 +3309,15 @@ async def periodic_update_status():
                     await sprite_bot.gitCommit("Tracker update from restart.")
                 # update push
                 await sprite_bot.gitPush()
+
+            # twitter updates
+            if sprite_bot.config.twitter:
+                if updates % 6 == 0:
+                    # check for mentions
+                    old_mention = max(1, sprite_bot.config.last_tw_mention)
+                    sprite_bot.config.last_tw_mention = await TwitterUtils.reply_mentions(sprite_bot, sprite_bot.tw_api, old_mention)
+                    if sprite_bot.config.last_tw_mention != old_mention:
+                        sprite_bot.saveConfig()
         except Exception as e:
             await sprite_bot.sendError(traceback.format_exc())
         await asyncio.sleep(10)

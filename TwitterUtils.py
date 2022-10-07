@@ -5,86 +5,100 @@ import requests
 from requests_oauthlib import OAuth1
 import tweepy
 import os
-
-from PIL import Image
+import SpriteUtils
+import TrackerUtils
 
 TOKEN_FILE_PATH = 'twitter_token.txt'
 
-scdir = os.path.dirname(os.path.abspath(__file__))
+def init_twitter(scdir):
+    with open(os.path.join(scdir, TOKEN_FILE_PATH)) as token_file:
+        token = token_file.read().split('\n')
+        consumer_key = token[0]
+        consumer_secret = token[1]
+        access_token = token[2]
+        access_token_secret = token[3]
 
-with open(os.path.join(scdir, TOKEN_FILE_PATH)) as token_file:
-    token = token_file.read().split('\n')
-    consumer_key = token[0]
-    consumer_secret = token[1]
-    access_token = token[2]
-    access_token_secret = token[3]
-
-def init_twitter():
     # Authenticate to Twitter
     auth = tweepy.OAuthHandler(consumer_key, consumer_secret)
     auth.set_access_token(access_token, access_token_secret)
     api = tweepy.API(auth)
 
     return api
-    #try:
-    #    api.verify_credentials()
-    #    print("Authentication Successful")
-    #    return api
-    #except Exception as ex:
-    #    print("Authentication Error: " + str(ex))
-    #    return None
 
-def post_image(api, text, img_name, img):
-    try:
-        fileData = io.BytesIO()
-        img.save(fileData, format='PNG')
-        fileData.seek(0)
-        media = api.media_upload(filename=img_name, file=fileData)
-        status = api.update_status(status=text, media_ids=[media.media_id])
-        print(str(status))
-    except Exception as ex:
-        print("Failed to post image: " + str(ex))
+def post_image(api, text, chosen_link):
+    asset_type = "portrait"
+    base_file, base_name = SpriteUtils.getLinkFile(chosen_link, asset_type)
+    base_file = SpriteUtils.thumbnailFileImg(base_file)
+    media = api.media_upload(filename=base_name, file=base_file)
+    status = api.update_status(status=text, media_ids=[media.media_id])
+    print(str(status))
 
-def reply_mentions(api, since_id):
+def post_tweet(api, orig_tweet, msg, media_ids):
+    if orig_tweet:
+        status = api.update_status(
+            status="@" + orig_tweet.user.screen_name + " " + msg,
+            media_ids=media_ids,
+            in_reply_to_status_id=orig_tweet.id,
+        )
+    else:
+        status = api.update_status(
+            status=msg,
+            media_ids=media_ids,
+        )
+
+    print(str(status))
+
+async def query_tweet(sprite_bot, api, tracker, tweet, name_args):
+    asset_type = "portrait"
+
+    if len(name_args) == 0:
+        post_tweet(api, tweet, "Specify a Pokemon.", [])
+        return
+
+    name_seq = [TrackerUtils.sanitizeName(i) for i in name_args]
+    full_idx = TrackerUtils.findFullTrackerIdx(tracker, name_seq, 0)
+    if full_idx is None:
+        post_tweet(api, tweet, "No such Pokemon.", [])
+        return
+
+    chosen_node = TrackerUtils.getNodeFromIdx(tracker, full_idx, 0)
+    # post the statuses
+    response = ""
+    status = TrackerUtils.getStatusEmoji(chosen_node, asset_type)
+    response += "{0} #{1:03d}: {2}".format(status, int(full_idx[0]), " ".join(name_seq))
+
+    if chosen_node.__dict__[asset_type + "_required"]:
+        file_exists = chosen_node.__dict__[asset_type + "_credit"].primary != ""
+        if not file_exists:
+            post_tweet(api, tweet, "This Pokemon doesn't have a {0}.".format(asset_type), [])
+            return
+        else:
+            credit = chosen_node.__dict__[asset_type + "_credit"]
+            base_credit = None
+            response += "\n" + sprite_bot.createCreditBlock(credit, base_credit, True)
+
+        chosen_link = await sprite_bot.retrieveLinkMsg(full_idx, chosen_node, asset_type, False)
+        base_file, base_name = SpriteUtils.getLinkFile(chosen_link, asset_type)
+        base_file = SpriteUtils.thumbnailFileImg(base_file)
+        media = api.media_upload(filename=base_name, file=base_file)
+
+        post_tweet(api, tweet, response, [media.media_id])
+    else:
+        response += " does not need a {0}.".format(asset_type)
+        post_tweet(api, tweet, response, [])
+
+
+async def reply_mentions(sprite_bot, api, since_id):
+    # TODO: remove reference to spritebot
     new_since_id = since_id
     for tweet in tweepy.Cursor(api.mentions_timeline, since_id=since_id).items():
         new_since_id = max(tweet.id, new_since_id)
 
-        name_args = tweet.text.lower().split()
-        img = Image.open(os.path.join(scdir, "Test.png")).convert("RGBA")#get_requested_img(name_args)
-        img_name = "portrait_test" # node.Name
+        name_args = tweet.text.split()
+        for ii in range(len(name_args)):
+            if "@" in name_args[-ii]:
+                del name_args[-ii]
 
-        fileData = io.BytesIO()
-        img.save(fileData, format='PNG')
-        fileData.seek(0)
-        media = api.media_upload(filename=img_name, file=fileData)
-        status = api.update_status(
-            status="@" + tweet.user.screen_name + " Test: Pikachu, Chunsoft",
-            media_ids=[media.media_id],
-            in_reply_to_status_id=tweet.id,
-        )
-        print(str(status))
+        await query_tweet(sprite_bot, api, sprite_bot.tracker, tweet, name_args)
+
     return new_since_id
-
-tw_api = init_twitter()
-
-#test_img = Image.open(os.path.join(scdir, "Test.png")).convert("RGBA")
-#post_image(tw_api, "Automated test with image 3", "test_alcremie", test_img)
-
-since_id = 1
-while True:
-    since_id = reply_mentions(tw_api, since_id)
-    time.sleep(60)
-
-
-
-def test_request(text, img, consumer_key, consumer_secret, access_token, access_token_secret):
-    payload = { "text": text }
-    url = "https://api.twitter.com/2/tweets"
-    auth = OAuth1(consumer_key, consumer_secret, access_token, access_token_secret)
-    request = requests.post(
-        auth=auth, url=url, json=payload, headers={"Content-Type": "application/json"}
-    )
-    return request
-
-#test_request("Automated Image Test", test_img, consumer_key, consumer_secret, access_token, access_token_secret)
