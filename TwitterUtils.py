@@ -31,7 +31,7 @@ def post_image(api, text, chosen_link):
     base_file = SpriteUtils.thumbnailFileImg(base_file)
     media = api.media_upload(filename=base_name, file=base_file)
     status = api.update_status(status=text, media_ids=[media.media_id])
-    print(str(status))
+    # print(str(status))
 
 def post_tweet(api, orig_tweet, msg, media_ids):
     if orig_tweet:
@@ -46,7 +46,7 @@ def post_tweet(api, orig_tweet, msg, media_ids):
             media_ids=media_ids,
         )
 
-    print(str(status))
+    # print(str(status))
 
 async def query_tweet(sprite_bot, api, tracker, tweet, name_args):
     asset_type = "portrait"
