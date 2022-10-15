@@ -231,7 +231,7 @@ class SpriteBot:
         self.config.update_ch = resp_ch.id
         self.config.update_msg = resp.id
         self.saveConfig()
-        await self.client.logout()
+        await self.client.close()
 
     async def checkRestarted(self):
         if self.config.update_ch != 0 and self.config.update_msg != 0:
