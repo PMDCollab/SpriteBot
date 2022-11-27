@@ -9,6 +9,7 @@ import SpriteUtils
 import TrackerUtils
 
 TOKEN_FILE_PATH = 'twitter_token.txt'
+TWITTER_RE = 'https://twitter.com/'
 
 def init_twitter(scdir):
     with open(os.path.join(scdir, TOKEN_FILE_PATH)) as token_file:

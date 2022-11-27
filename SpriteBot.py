@@ -1,5 +1,6 @@
 import os
 import io
+
 import discord
 import urllib
 import traceback
@@ -1662,10 +1663,15 @@ class SpriteBot:
 
     def createCreditAttribution(self, mention, plainName):
         if plainName:
+            # "plainName" actually refers to "twitter-ready name"
+            # TODO: rename this variable or refactor it as a separate flag
             base_name = "{0}".format(mention)
             if mention in self.names:
                 if self.names[mention].name != "":
                     base_name = self.names[mention].name
+                if self.names[mention].contact != "":
+                    if self.names[mention].contact.startswith(TwitterUtils.TWITTER_RE):
+                        return "@{0}".format(self.names[mention].contact.replace(TwitterUtils.TWITTER_RE, ""))
             return base_name
         else:
             base_name = "`{0}`".format(mention)
