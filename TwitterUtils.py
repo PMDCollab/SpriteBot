@@ -104,7 +104,7 @@ async def reply_mentions(sprite_bot, api, since_id):
                     clean_name_args.append(name_args[ii])
 
             if len(clean_name_args) <= 4:
-                await query_tweet(sprite_bot, api, sprite_bot.tracker, tweet, name_args)
+                await query_tweet(sprite_bot, api, sprite_bot.tracker, tweet, clean_name_args)
         except:
             print(traceback.format_exc())
 
