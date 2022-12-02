@@ -96,10 +96,12 @@ async def reply_mentions(sprite_bot, api, since_id):
         new_since_id = max(tweet.id, new_since_id)
 
         name_args = tweet.text.split()
+        clean_name_args = []
         for ii in range(len(name_args)):
-            if "@" in name_args[-ii]:
-                del name_args[-ii]
+            if "@" not in name_args[ii]:
+                clean_name_args.append(name_args[ii])
 
-        await query_tweet(sprite_bot, api, sprite_bot.tracker, tweet, name_args)
+        if len(clean_name_args) <= 4:
+            await query_tweet(sprite_bot, api, sprite_bot.tracker, tweet, name_args)
 
     return new_since_id
