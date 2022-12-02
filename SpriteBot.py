@@ -1158,11 +1158,14 @@ class SpriteBot:
         self.getPostsFromDict(True, True, True, over_dict, posts, [])
 
         msgs_used = 0
+        print("Sending status posts")
         msgs_used, changed = await self.sendInfoPosts(channel, posts, msg_ids, msgs_used)
         changed_list |= changed
+        print("Sending info posts")
         msgs_used, changed = await self.sendInfoPosts(channel, self.info_post, msg_ids, msgs_used)
         changed_list |= changed
 
+        print("Deleting msg ids")
         while msgs_used < len(msg_ids):
             msg = await channel.fetch_message(msg_ids[-1])
             await msg.delete()
@@ -3309,6 +3312,7 @@ async def periodic_update_status():
             if sprite_bot.changed:
                 sprite_bot.changed = False
                 for server_id in sprite_bot.config.servers:
+                    print("Checking server {0}".format(server_id))
                     await sprite_bot.updatePost(sprite_bot.config.servers[server_id])
 
             print("Checking push.")
