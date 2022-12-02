@@ -96,6 +96,7 @@ async def reply_mentions(sprite_bot, api, since_id):
     for tweet in tweepy.Cursor(api.mentions_timeline, since_id=since_id).items():
         try:
             new_since_id = max(tweet.id, new_since_id)
+            print("Retrieved {0}".format(tweet.id))
 
             name_args = tweet.text.split()
             clean_name_args = []
@@ -105,6 +106,9 @@ async def reply_mentions(sprite_bot, api, since_id):
 
             if len(clean_name_args) <= 4:
                 await query_tweet(sprite_bot, api, sprite_bot.tracker, tweet, clean_name_args)
+                print("Responded to {0}".format(tweet.id))
+            else:
+                print("Did not respond to {0}".format(tweet.id))
         except:
             print(traceback.format_exc())
 
