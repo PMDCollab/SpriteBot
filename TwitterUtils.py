@@ -3,6 +3,7 @@ import time
 
 import requests
 from requests_oauthlib import OAuth1
+import traceback
 import tweepy
 import os
 import SpriteUtils
@@ -93,15 +94,18 @@ async def reply_mentions(sprite_bot, api, since_id):
     # TODO: remove reference to spritebot
     new_since_id = since_id
     for tweet in tweepy.Cursor(api.mentions_timeline, since_id=since_id).items():
-        new_since_id = max(tweet.id, new_since_id)
+        try:
+            new_since_id = max(tweet.id, new_since_id)
 
-        name_args = tweet.text.split()
-        clean_name_args = []
-        for ii in range(len(name_args)):
-            if "@" not in name_args[ii]:
-                clean_name_args.append(name_args[ii])
+            name_args = tweet.text.split()
+            clean_name_args = []
+            for ii in range(len(name_args)):
+                if "@" not in name_args[ii]:
+                    clean_name_args.append(name_args[ii])
 
-        if len(clean_name_args) <= 4:
-            await query_tweet(sprite_bot, api, sprite_bot.tracker, tweet, name_args)
+            if len(clean_name_args) <= 4:
+                await query_tweet(sprite_bot, api, sprite_bot.tracker, tweet, name_args)
+        except:
+            print(traceback.format_exc())
 
     return new_since_id
