@@ -3302,13 +3302,16 @@ async def periodic_update_status():
     await client.wait_until_ready()
     global sprite_bot
     updates = 0
+    print("Starting periodic update.")
     while not client.is_closed():
         try:
+            print("Checking changed.")
             if sprite_bot.changed:
                 sprite_bot.changed = False
                 for server_id in sprite_bot.config.servers:
                     await sprite_bot.updatePost(sprite_bot.config.servers[server_id])
 
+            print("Checking push.")
             # check for push
             if updates % 360 == 0:
                 if updates == 0:
@@ -3316,6 +3319,7 @@ async def periodic_update_status():
                 # update push
                 await sprite_bot.gitPush()
 
+            print("Checking twitter.")
             # twitter updates
             if sprite_bot.config.twitter:
                 if updates % 6 == 0:
