@@ -91,6 +91,7 @@ async def query_tweet(sprite_bot, api, tracker, tweet, name_args):
 
 
 async def reply_mentions(sprite_bot, api, since_id):
+    print("Checking since {0}".format(since_id))
     # TODO: remove reference to spritebot
     new_since_id = since_id
     for tweet in tweepy.Cursor(api.mentions_timeline, since_id=since_id).items():
