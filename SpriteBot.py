@@ -1113,13 +1113,19 @@ class SpriteBot:
         while line_idx < len(posts):
             cur_len = 0
             line_len = 0
+
+            print("Send info, ln:{0}/posts:{1}".format(line_idx, len(posts)))
+
             while line_idx + line_len < len(posts):
+                print("Add len, ln:{0}/add:{1}/posts:{2}".format(line_idx, line_len, len(posts)))
                 new_len = len(posts[line_idx + line_len])
                 if cur_len + new_len < 1950 and line_len < 25:
                     cur_len += new_len
                     line_len += 1
                 else:
                     break
+
+            print("Posting lines...")
 
             post_range = posts[line_idx:(line_idx+line_len)]
             post = "\n".join(post_range)
