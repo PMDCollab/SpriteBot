@@ -1113,19 +1113,13 @@ class SpriteBot:
         while line_idx < len(posts):
             cur_len = 0
             line_len = 0
-
-            print("Send info, ln:{0}/posts:{1}".format(line_idx, len(posts)))
-
             while line_idx + line_len < len(posts):
-                print("Add len, ln:{0}/add:{1}/posts:{2}".format(line_idx, line_len, len(posts)))
                 new_len = len(posts[line_idx + line_len])
                 if cur_len + new_len < 1950 and line_len < 25:
                     cur_len += new_len
                     line_len += 1
                 else:
                     break
-
-            print("Posting lines...")
 
             post_range = posts[line_idx:(line_idx+line_len)]
             post = "\n".join(post_range)
@@ -1164,14 +1158,11 @@ class SpriteBot:
         self.getPostsFromDict(True, True, True, over_dict, posts, [])
 
         msgs_used = 0
-        print("Sending status posts")
         msgs_used, changed = await self.sendInfoPosts(channel, posts, msg_ids, msgs_used)
         changed_list |= changed
-        print("Sending info posts")
         msgs_used, changed = await self.sendInfoPosts(channel, self.info_post, msg_ids, msgs_used)
         changed_list |= changed
 
-        print("Deleting msg ids")
         while msgs_used < len(msg_ids):
             msg = await channel.fetch_message(msg_ids[-1])
             await msg.delete()
@@ -3311,17 +3302,13 @@ async def periodic_update_status():
     await client.wait_until_ready()
     global sprite_bot
     updates = 0
-    print("Starting periodic update.")
     while not client.is_closed():
         try:
-            print("Checking changed.")
             if sprite_bot.changed:
                 sprite_bot.changed = False
                 for server_id in sprite_bot.config.servers:
-                    print("Checking server {0}".format(server_id))
                     await sprite_bot.updatePost(sprite_bot.config.servers[server_id])
 
-            print("Checking push.")
             # check for push
             if updates % 360 == 0:
                 if updates == 0:
@@ -3329,7 +3316,6 @@ async def periodic_update_status():
                 # update push
                 await sprite_bot.gitPush()
 
-            print("Checking twitter.")
             # twitter updates
             if sprite_bot.config.twitter:
                 if updates % 6 == 0:
