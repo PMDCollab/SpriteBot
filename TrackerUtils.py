@@ -681,7 +681,7 @@ def swapNodeMiscFeatures(node_from, node_to):
             pass
         elif key.startswith("portrait"):
             pass
-        elif key == "subgroups":
+        elif key == "canon" or key == "modreward" or key == "subgroups":
             pass
         else:
             tmp = node_to.__dict__[key]
@@ -724,6 +724,18 @@ def swapFolderPaths(base_path, tracker, asset_type, full_idx_from, full_idx_to):
     moveNodeFiles(gen_path_tmp, gen_path_to, False)
     shutil.rmtree(gen_path_tmp)
 
+def swapNodeMiscCanon(chosen_node_from, chosen_node_to):
+    for key in chosen_node_from.__dict__:
+        if key == "canon" or key == "modreward":
+            tmp = chosen_node_to.__dict__[key]
+            chosen_node_to.__dict__[key] = chosen_node_from.__dict__[key]
+            chosen_node_from.__dict__[key] = tmp
+
+    for sub_id in chosen_node_from.subgroups:
+        if sub_id in chosen_node_to.subgroups:
+            sub_from = chosen_node_from.subgroups[sub_id]
+            sub_to = chosen_node_from.subgroups[sub_id]
+            swapNodeMiscCanon(sub_from, sub_to)
 
 def swapAllSubNodes(base_path, tracker, full_idx_from, full_idx_to):
     # swap the subnode objects
@@ -733,6 +745,13 @@ def swapAllSubNodes(base_path, tracker, full_idx_from, full_idx_to):
     tmp = chosen_node_from.subgroups
     chosen_node_from.subgroups = chosen_node_to.subgroups
     chosen_node_to.subgroups = tmp
+
+    # swap back the canon-ness and modreward aspect
+    for sub_id in chosen_node_from.subgroups:
+        if sub_id in chosen_node_to.subgroups:
+            sub_from = chosen_node_from.subgroups[sub_id]
+            sub_to = chosen_node_to.subgroups[sub_id]
+            swapNodeMiscCanon(sub_from, sub_to)
 
     # swap the subfolders for each asset
     asset_types = ["sprite", "portrait"]

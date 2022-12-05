@@ -1231,6 +1231,18 @@ class SpriteBot:
         self.saveTracker()
         self.changed = True
 
+
+    async def checkMoveLock(self, full_idx_from, chosen_node_from, full_idx_to, chosen_node_to, asset_type):
+
+        chosen_path_from = TrackerUtils.getDirFromIdx(self.config.path, asset_type, full_idx_from)
+        chosen_img_to_link = await self.retrieveLinkMsg(full_idx_to, chosen_node_to, asset_type, False)
+        if asset_type == "sprite":
+            chosen_zip_to = SpriteUtils.getLinkZipGroup(chosen_img_to_link)
+            SpriteUtils.verifySpriteLock(chosen_node_from, chosen_path_from, None, chosen_zip_to, False)
+        elif asset_type == "portrait":
+            chosen_img_to = SpriteUtils.getLinkImg(chosen_img_to_link)
+            SpriteUtils.verifyPortraitLock(chosen_node_from, chosen_path_from, chosen_img_to, False)
+
     async def moveSlotRecursive(self, msg, name_args):
         try:
             delim_idx = name_args.index("->")
@@ -1325,18 +1337,6 @@ class SpriteBot:
         self.changed = True
 
         await self.gitCommit("Swapped {0} with {1} recursively".format(" ".join(name_seq_from), " ".join(name_seq_to)))
-
-
-    async def checkMoveLock(self, full_idx_from, chosen_node_from, full_idx_to, chosen_node_to, asset_type):
-
-        chosen_path_from = TrackerUtils.getDirFromIdx(self.config.path, asset_type, full_idx_from)
-        chosen_img_to_link = await self.retrieveLinkMsg(full_idx_to, chosen_node_to, asset_type, False)
-        if asset_type == "sprite":
-            chosen_zip_to = SpriteUtils.getLinkZipGroup(chosen_img_to_link)
-            SpriteUtils.verifySpriteLock(chosen_node_from, chosen_path_from, None, chosen_zip_to, False)
-        elif asset_type == "portrait":
-            chosen_img_to = SpriteUtils.getLinkImg(chosen_img_to_link)
-            SpriteUtils.verifyPortraitLock(chosen_node_from, chosen_path_from, chosen_img_to, False)
 
 
     async def moveSlot(self, msg, name_args, asset_type):
@@ -2891,7 +2891,7 @@ class SpriteBot:
                              f"`{prefix}move <Pokemon Name> [Pokemon Form] -> <Pokemon Name 2> [Pokemon Form 2]`\n" \
                              "Swaps the name, sprites, and portraits of one slot with another.  " \
                              "This can only be done with Pokemon or formes, and the swap is recursive to shiny/genders.  " \
-                             "Good for promoting alternates to main, temp Pokemon to newly revealed dex numbers, " \
+                             "Good for promoting alternate forms to base form, temp Pokemon to newly revealed dex numbers, " \
                              "or just fixing mistakes.\n" \
                              "`Pokemon Name` - Name of the Pokemon\n" \
                              "`Form Name` - [Optional] Form name of the Pokemon\n" \
