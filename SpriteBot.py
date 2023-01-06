@@ -687,7 +687,7 @@ class SpriteBot:
             elif base_idx is not None:
                 orig_idx = base_idx
 
-            if orig_idx is not None:
+            if orig_idx is not None and recolor:
                 orig_path = TrackerUtils.getDirFromIdx(self.config.path, asset_type, orig_idx)
                 # no need to check if the original sprite has changed between this recolor's submission and acceptance
                 # because when the original sprite is approved, all submissions for shinies are purged
