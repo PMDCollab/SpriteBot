@@ -1163,6 +1163,7 @@ class SpriteBot:
         msgs_used, changed = await self.sendInfoPosts(channel, self.info_post, msg_ids, msgs_used)
         changed_list |= changed
 
+        # remove unneeded posts from the list
         while msgs_used < len(msg_ids):
             msg = await channel.fetch_message(msg_ids[-1])
             await msg.delete()
@@ -1171,6 +1172,40 @@ class SpriteBot:
 
         if changed_list:
             self.saveConfig()
+
+        # remove unneeded posts from the channel
+        prevMsg = None
+        total = 0
+        msgs = []
+        while True:
+            count = 0
+            ended = False
+            async for message in channel.history(limit=100, before=prevMsg):
+                prevMsg = message
+                count += 1
+                if message.id in msg_ids:
+                    continue
+                if message.author.id != self.client.user.id:
+                    continue
+                msgs.append(message)
+
+            total += count
+            if count == 0:
+                ended = True
+            print("Scanned " + str(total))
+            if ended:
+                print("Scanned back to " + str(prevMsg.created_at))
+                break
+            print("Continuing...")
+
+        # deletion
+        for ii in range(0, len(msgs)):
+            message = msgs[ii]
+            try:
+                await message.delete()
+            except:
+                print(traceback.format_exc())
+
 
     async def retrieveLinkMsg(self, full_idx, chosen_node, asset_type, recolor):
         # build the needed field
@@ -3304,19 +3339,21 @@ async def periodic_update_status():
     updates = 0
     while not client.is_closed():
         try:
-            if sprite_bot.changed:
-                sprite_bot.changed = False
-                for server_id in sprite_bot.config.servers:
-                    await sprite_bot.updatePost(sprite_bot.config.servers[server_id])
+            # info updates every 5 minutes
+            if updates % 360 == 0:
+                if sprite_bot.changed:
+                    sprite_bot.changed = False
+                    for server_id in sprite_bot.config.servers:
+                        await sprite_bot.updatePost(sprite_bot.config.servers[server_id])
 
-            # check for push
+            # check for push every hour
             if updates % 360 == 0:
                 if updates == 0:
                     await sprite_bot.gitCommit("Tracker update from restart.")
                 # update push
                 await sprite_bot.gitPush()
 
-            # twitter updates
+            # twitter updates every minute
             if sprite_bot.config.twitter:
                 if updates % 6 == 0:
                     # check for mentions
