@@ -3354,13 +3354,13 @@ async def periodic_update_status():
                 await sprite_bot.gitPush()
 
             # twitter updates every minute
-            if sprite_bot.config.twitter:
-                if updates % 6 == 0:
-                    # check for mentions
-                    old_mention = max(1, sprite_bot.config.last_tw_mention)
-                    sprite_bot.config.last_tw_mention = await TwitterUtils.reply_mentions(sprite_bot, sprite_bot.tw_api, old_mention)
-                    if sprite_bot.config.last_tw_mention != old_mention:
-                        sprite_bot.saveConfig()
+            #if sprite_bot.config.twitter:
+            #    if updates % 6 == 0:
+            #        # check for mentions
+            #        old_mention = max(1, sprite_bot.config.last_tw_mention)
+            #        sprite_bot.config.last_tw_mention = await TwitterUtils.reply_mentions(sprite_bot, sprite_bot.tw_api, old_mention)
+            #        if sprite_bot.config.last_tw_mention != old_mention:
+            #            sprite_bot.saveConfig()
         except Exception as e:
             await sprite_bot.sendError(traceback.format_exc())
         await asyncio.sleep(10)
