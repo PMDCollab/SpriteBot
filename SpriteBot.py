@@ -3338,6 +3338,7 @@ async def periodic_update_status():
     global sprite_bot
     updates = 0
     while not client.is_closed():
+        await sprite_bot.sendError("Update #{0}".format(updates))
         try:
             # check for push every 10 mins
             if updates % 60 == 0:
@@ -3377,6 +3378,8 @@ async def periodic_update_status():
         #    await sprite_bot.sendError(traceback.format_exc())
         await asyncio.sleep(10)
         updates += 1
+        await sprite_bot.sendError("Client Closed Status: {0}".format(client.is_closed()))
+
 
 sprite_bot = SpriteBot(scdir, client)
 
