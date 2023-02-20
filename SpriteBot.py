@@ -3339,21 +3339,33 @@ async def periodic_update_status():
     updates = 0
     while not client.is_closed():
         try:
+            # check for push every 10 mins
+            if updates % 60 == 0:
+                if updates == 0:
+                    await sprite_bot.gitCommit("Tracker update from restart.")
+                # update push
+                await sprite_bot.sendError("Performing Push")
+                await sprite_bot.gitPush()
+                await sprite_bot.sendError("Push Complete")
+
+        except Exception as e:
+            await sprite_bot.sendError(traceback.format_exc())
+
+        try:
             # info updates every 5 minutes
             if updates % 360 == 0:
+                await sprite_bot.sendError("Performing Post Update")
                 if sprite_bot.changed:
                     sprite_bot.changed = False
                     for server_id in sprite_bot.config.servers:
                         await sprite_bot.updatePost(sprite_bot.config.servers[server_id])
+                await sprite_bot.sendError("Post Update Complete")
 
-            # check for push every hour
-            if updates % 360 == 0:
-                if updates == 0:
-                    await sprite_bot.gitCommit("Tracker update from restart.")
-                # update push
-                await sprite_bot.gitPush()
+        except Exception as e:
+            await sprite_bot.sendError(traceback.format_exc())
 
-            # twitter updates every minute
+        #try:
+            ## twitter updates every minute
             #if sprite_bot.config.twitter:
             #    if updates % 6 == 0:
             #        # check for mentions
@@ -3361,8 +3373,8 @@ async def periodic_update_status():
             #        sprite_bot.config.last_tw_mention = await TwitterUtils.reply_mentions(sprite_bot, sprite_bot.tw_api, old_mention)
             #        if sprite_bot.config.last_tw_mention != old_mention:
             #            sprite_bot.saveConfig()
-        except Exception as e:
-            await sprite_bot.sendError(traceback.format_exc())
+        #except Exception as e:
+        #    await sprite_bot.sendError(traceback.format_exc())
         await asyncio.sleep(10)
         updates += 1
 
