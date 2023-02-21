@@ -3376,7 +3376,7 @@ async def periodic_update_status():
             #            sprite_bot.saveConfig()
         #except Exception as e:
         #    await sprite_bot.sendError(traceback.format_exc())
-        await asyncio.sleep(10)
+        await asyncio.sleep(20)
         updates += 1
         await sprite_bot.sendError("Client Closed Status: {0}".format(client.is_closed()))
 
