@@ -3338,32 +3338,32 @@ async def periodic_update_status():
     global sprite_bot
     updates = 0
     while not client.is_closed():
-        await sprite_bot.sendError("Update #{0}".format(updates))
-        #try:
-        #    # check for push every 10 mins
-        #    if updates % 60 == 0:
-        #        if updates == 0:
-        #            await sprite_bot.gitCommit("Tracker update from restart.")
-        #        # update push
-        #        await sprite_bot.sendError("Performing Push")
-        #        await sprite_bot.gitPush()
-        #        await sprite_bot.sendError("Push Complete")
+        print("Update #{0}".format(updates))
+        try:
+            # check for push every 10 mins
+            if updates % 60 == 0:
+                if updates == 0:
+                    await sprite_bot.gitCommit("Tracker update from restart.")
+                # update push
+                print("Performing Push")
+                await sprite_bot.gitPush()
+                print("Push Complete")
 
-        #except Exception as e:
-        #    await sprite_bot.sendError(traceback.format_exc())
+        except Exception as e:
+            await sprite_bot.sendError(traceback.format_exc())
 
-        #try:
-        #    # info updates every 5 minutes
-        #    if updates % 360 == 0:
-        #        await sprite_bot.sendError("Performing Post Update")
-        #        if sprite_bot.changed:
-        #            sprite_bot.changed = False
-        #            for server_id in sprite_bot.config.servers:
-        #                await sprite_bot.updatePost(sprite_bot.config.servers[server_id])
-        #        await sprite_bot.sendError("Post Update Complete")
+        try:
+            # info updates every 5 minutes
+            if updates % 360 == 0:
+                print("Performing Post Update")
+                if sprite_bot.changed:
+                    sprite_bot.changed = False
+                    for server_id in sprite_bot.config.servers:
+                        await sprite_bot.updatePost(sprite_bot.config.servers[server_id])
+                print("Post Update Complete")
 
-        #except Exception as e:
-        #    await sprite_bot.sendError(traceback.format_exc())
+        except Exception as e:
+            await sprite_bot.sendError(traceback.format_exc())
 
         #try:
             ## twitter updates every minute
@@ -3378,7 +3378,7 @@ async def periodic_update_status():
         #    await sprite_bot.sendError(traceback.format_exc())
         await asyncio.sleep(5)
         updates += 1
-        await sprite_bot.sendError("Client Closed Status: {0}".format(client.is_closed()))
+        print("Client Closed Status: {0}".format(client.is_closed()))
 
 
 sprite_bot = SpriteBot(scdir, client)
