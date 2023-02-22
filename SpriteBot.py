@@ -243,12 +243,19 @@ class SpriteBot:
             self.saveConfig()
 
     async def sendError(self, trace):
-        print(trace)
+        self.writeLog(trace)
         to_send = await self.client.fetch_user(self.config.root)
         if self.config.error_ch != 0:
             to_send = self.client.get_channel(self.config.error_ch)
 
         await to_send.send("```" + trace[:1950] + "```")
+
+    def writeLog(self, trace):
+        try:
+            with open(os.path.join(self.path, "out.log"), 'a+', encoding='utf-8') as txt:
+                txt.write(trace)
+        except:
+            pass
 
     def getChatChannel(self, guild_id):
         chat_id = self.config.servers[str(guild_id)].chat
@@ -1192,11 +1199,11 @@ class SpriteBot:
             total += count
             if count == 0:
                 ended = True
-            print("Scanned " + str(total))
+            #print("Scanned " + str(total))
             if ended:
-                print("Scanned back to " + str(prevMsg.created_at))
+                #print("Scanned back to " + str(prevMsg.created_at))
                 break
-            print("Continuing...")
+            #print("Continuing...")
 
         # deletion
         for ii in range(0, len(msgs)):
@@ -3338,16 +3345,16 @@ async def periodic_update_status():
     global sprite_bot
     updates = 0
     while not client.is_closed():
-        print("Update #{0}".format(updates))
+        sprite_bot.writeLog("Update #{0}".format(updates))
         try:
             # check for push every 10 mins
             if updates % 60 == 0:
                 if updates == 0:
                     await sprite_bot.gitCommit("Tracker update from restart.")
                 # update push
-                print("Performing Push")
+                sprite_bot.writeLog("Performing Push")
                 await sprite_bot.gitPush()
-                print("Push Complete")
+                sprite_bot.writeLog("Push Complete")
 
         except Exception as e:
             await sprite_bot.sendError(traceback.format_exc())
@@ -3355,12 +3362,12 @@ async def periodic_update_status():
         try:
             # info updates every 5 minutes
             if updates % 360 == 0:
-                print("Performing Post Update")
+                sprite_bot.writeLog("Performing Post Update")
                 if sprite_bot.changed:
                     sprite_bot.changed = False
                     for server_id in sprite_bot.config.servers:
                         await sprite_bot.updatePost(sprite_bot.config.servers[server_id])
-                print("Post Update Complete")
+                sprite_bot.writeLog("Post Update Complete")
 
         except Exception as e:
             await sprite_bot.sendError(traceback.format_exc())
@@ -3378,7 +3385,7 @@ async def periodic_update_status():
         #    await sprite_bot.sendError(traceback.format_exc())
         await asyncio.sleep(5)
         updates += 1
-        print("Client Closed Status: {0}".format(client.is_closed()))
+        sprite_bot.writeLog("Client Closed Status: {0}".format(client.is_closed()))
 
 
 sprite_bot = SpriteBot(scdir, client)
