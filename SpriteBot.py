@@ -253,7 +253,7 @@ class SpriteBot:
     def writeLog(self, trace):
         try:
             with open(os.path.join(self.path, "out.log"), 'a+', encoding='utf-8') as txt:
-                txt.write(trace)
+                txt.write(trace+ "\n")
         except:
             pass
 
@@ -3383,7 +3383,7 @@ async def periodic_update_status():
             #            sprite_bot.saveConfig()
         #except Exception as e:
         #    await sprite_bot.sendError(traceback.format_exc())
-        await asyncio.sleep(5)
+        await asyncio.sleep(10)
         updates += 1
         sprite_bot.writeLog("Client Closed Status: {0}".format(client.is_closed()))
 
