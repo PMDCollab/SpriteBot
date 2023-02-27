@@ -1295,20 +1295,22 @@ class SpriteBot:
         name_args_from = name_args[:delim_idx]
         name_args_to = name_args[delim_idx+1:]
 
-        if len(name_args_from) > 2 or len(name_args_to) > 2:
-            await msg.channel.send(msg.author.mention + " Can move only species or form.")
-            return
-
         name_seq_from = [TrackerUtils.sanitizeName(i) for i in name_args_from]
         full_idx_from = TrackerUtils.findFullTrackerIdx(self.tracker, name_seq_from, 0)
         if full_idx_from is None:
             await msg.channel.send(msg.author.mention + " No such Pokemon specified as source.")
+            return
+        if len(full_idx_from) > 2:
+            await msg.channel.send(msg.author.mention + " Can move only species or form. Source specified more than that.")
             return
 
         name_seq_to = [TrackerUtils.sanitizeName(i) for i in name_args_to]
         full_idx_to = TrackerUtils.findFullTrackerIdx(self.tracker, name_seq_to, 0)
         if full_idx_to is None:
             await msg.channel.send(msg.author.mention + " No such Pokemon specified as destination.")
+            return
+        if len(full_idx_to) > 2:
+            await msg.channel.send(msg.author.mention + " Can move only species or form. Destination specified more than that.")
             return
 
         chosen_node_from = TrackerUtils.getNodeFromIdx(self.tracker, full_idx_from, 0)
