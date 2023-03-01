@@ -400,15 +400,20 @@ def verifySpriteRecolor(msg_args, precolor_zip, wan_zip, recolor, checkSilhouett
 
                     bin_diff = []
                     for shiny_name in shiny_name_list:
-                        if not shiny_name.endswith("-Anim.png"):
+                        if shiny_name == Constants.MULTI_SHEET_XML:
                             verifyZipFile(shiny_zip, shiny_name)
                             orig_anim_data = zip.read(shiny_name)
                             shiny_anim_data = shiny_zip.read(shiny_name)
                             if orig_anim_data != shiny_anim_data:
                                 bin_diff.append(shiny_name)
+                        elif not shiny_name.endswith("-Anim.png"):
+                            orig_anim_data = readZipImg(zip, shiny_name)
+                            shiny_anim_data = readZipImg(shiny_zip, shiny_name)
+                            if not exUtils.imgsEqual(orig_anim_data, shiny_anim_data):
+                                bin_diff.append(shiny_name)
 
                     if len(bin_diff) > 0:
-                        raise SpriteVerifyError("The files below must remain the same as they are for the original sprite."
+                        raise SpriteVerifyError("The files below must remain identical to those of the original sprite."
                                                 "  Please copy them from the original zip:\n{0}".format(", ".join(bin_diff)[:1900]))
 
                     for shiny_name in shiny_name_list:
