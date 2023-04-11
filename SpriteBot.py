@@ -2389,7 +2389,7 @@ class SpriteBot:
 
 
     async def setNeed(self, msg, args, needed):
-        if len(args) < 2 or len(args) > 4:
+        if len(args) < 2 or len(args) > 5:
             await msg.channel.send(msg.author.mention + " Invalid number of args!")
             return
 
@@ -2402,9 +2402,6 @@ class SpriteBot:
         full_idx = TrackerUtils.findFullTrackerIdx(self.tracker, name_seq, 0)
         if full_idx is None:
             await msg.channel.send(msg.author.mention + " No such Pokemon.")
-            return
-        if len(full_idx) > 3:
-            await msg.channel.send(msg.author.mention + " Cannot alter the need for genders. Use `!addgender` and `!deletegender` instead.")
             return
         chosen_node = TrackerUtils.getNodeFromIdx(self.tracker, full_idx, 0)
         chosen_node.__dict__[asset_type + "_required"] = needed
