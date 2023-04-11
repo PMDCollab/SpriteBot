@@ -615,6 +615,7 @@ class SpriteBot:
 
         self.changed |= change_status
 
+
     async def submissionApproved(self, msg, orig_sender, orig_author, approvals):
         sender_info = orig_sender
         if orig_author != orig_sender:
@@ -633,6 +634,7 @@ class SpriteBot:
         msg_lines = msg.content.split('\n')
         base_idx = None
         add_author = False
+        delete_author = False
         if len(msg_lines) > 1:
             try:
                 msg_args = parser.parse_args(msg_lines[1].split())
@@ -642,6 +644,8 @@ class SpriteBot:
                 return
             if msg_args.addauthor:
                 add_author = True
+            if msg_args.deleteauthor:
+                delete_author = True
             if msg_args.base:
                 name_seq = [TrackerUtils.sanitizeName(i) for i in msg_args.base]
                 base_idx = TrackerUtils.findFullTrackerIdx(self.tracker, name_seq, 0)
@@ -651,7 +655,7 @@ class SpriteBot:
                     return
 
         diffs = []
-        if len(msg_lines) > 2:
+        if not delete_author and len(msg_lines) > 2:
             msg_changes = msg_lines[2]
             if msg_changes.startswith("Changes: "):
                 diffs = msg_changes.replace("Changes: ", "").split(", ")
@@ -682,6 +686,8 @@ class SpriteBot:
         new_revise = "New"
         if add_author:
             new_revise = "Revised Credit"
+        elif delete_author:
+            new_revise = "Deleted Credit"
         elif chosen_node.__dict__[asset_type+"_credit"].primary != "":
             new_revise = "Revised"
 
@@ -691,6 +697,12 @@ class SpriteBot:
         if add_author:
             # dont update files if just updating author
             pass
+        elif delete_author:
+            mentions = ["<@!"+str(ii)+">" for ii in approvals]
+            approve_msg = "{0} {1} approved by {2}: #{3:03d}: {4}".format(new_revise, asset_type, str(mentions), int(full_idx[0]), new_name_str)
+            await self.getChatChannel(msg.guild.id).send(sender_info + " " + approve_msg + "\n(This did not actually happen, feature in beta.)")
+            await msg.delete()
+            return
         elif asset_type == "sprite":
             orig_idx = None
             if is_shiny:
