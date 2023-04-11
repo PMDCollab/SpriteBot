@@ -45,6 +45,7 @@ parser.add_argument('--colormod', type=int)
 parser.add_argument('--colors', type=int)
 parser.add_argument('--author')
 parser.add_argument('--addauthor', nargs='?', const=True, default=False)
+parser.add_argument('--deleteauthor', nargs='?', const=True, default=False)
 
 class MyClient(discord.Client):
     async def setup_hook(self):
@@ -558,6 +559,7 @@ class SpriteBot:
     async def postStagedSubmission(self, channel, cmd_str, formatted_content, full_idx, chosen_node, asset_type, author, recolor,
                                    diffs, return_file, return_name, overcolor_img):
 
+        deleting = cmd_str == "--deleteauthor"
         title = TrackerUtils.getIdxName(self.tracker, full_idx)
 
         return_copy = io.BytesIO()
@@ -566,7 +568,9 @@ class SpriteBot:
         return_file.seek(0)
         send_files = [discord.File(return_copy, return_name)]
 
-        if diffs is not None and len(diffs) > 0:
+        if deleting:
+            diff_str = "Approvers AND the author in question must approve this."
+        elif diffs is not None and len(diffs) > 0:
             diff_str = "Changes: {0}".format(", ".join(diffs))
         else:
             diff_str = "No Changes."
@@ -995,11 +999,15 @@ class SpriteBot:
             orig_sender = sender_data[0]
             orig_author = sender_data[-1]
             orig_sender_id = int(orig_sender[3:-1])
+            args = msg_lines[1]
+            deleting = args == "--deleteauthor"
 
             auto = False
             warn = False
+            consent = False
             approve = []
             decline = []
+
 
             if ss:
                 async for user in ss.users():
@@ -1011,7 +1019,11 @@ class SpriteBot:
 
             if cks:
                 async for user in cks.users():
-                    if await self.isAuthorized(user, msg.guild):
+                    user_author_id = "<@!{0}>".format(user.id)
+                    if deleting and user_author_id == orig_author:
+                        approve.append(user.id)
+                        consent = True
+                    elif await self.isAuthorized(user, msg.guild):
                         approve.append(user.id)
                     elif user.id != self.client.user.id:
                         remove_users.append((cks, user))
@@ -1025,7 +1037,10 @@ class SpriteBot:
 
             if xs:
                 async for user in xs.users():
+                    user_author_id = "<@!{0}>".format(user.id)
                     if await self.isAuthorized(user, msg.guild) or user.id == orig_sender_id:
+                        decline.append(user.id)
+                    elif deleting and user_author_id == orig_author:
                         decline.append(user.id)
                     elif user.id != self.client.user.id:
                         remove_users.append((xs, user))
@@ -1036,18 +1051,26 @@ class SpriteBot:
             if len(decline) > 0:
                 await self.submissionDeclined(msg, orig_sender, decline)
                 return True
-            elif auto or (asset_type == "sprite" and len(approve) >= 3 and not warn) \
-                    or (asset_type == "portrait" and len(approve) >= 2 and not warn):
+            elif auto:
                 await self.submissionApproved(msg, orig_sender, orig_author, approve)
                 return False
-            else:
-                chosen_node = TrackerUtils.getNodeFromIdx(self.tracker, full_idx, 0)
-                pending_dict = chosen_node.__dict__[asset_type + "_pending"]
-                pending_dict[str(msg.id)] = msg.channel.id
-
-                for reaction, user in remove_users:
-                    await reaction.remove(user)
+            elif deleting and len(approve) >= 3 and consent and not warn:
+                await self.submissionApproved(msg, orig_sender, orig_author, approve)
                 return False
+            elif asset_type == "sprite" and len(approve) >= 3 and not warn:
+                await self.submissionApproved(msg, orig_sender, orig_author, approve)
+                return False
+            elif asset_type == "portrait" and len(approve) >= 2 and not warn:
+                await self.submissionApproved(msg, orig_sender, orig_author, approve)
+                return False
+
+            chosen_node = TrackerUtils.getNodeFromIdx(self.tracker, full_idx, 0)
+            pending_dict = chosen_node.__dict__[asset_type + "_pending"]
+            pending_dict[str(msg.id)] = msg.channel.id
+
+            for reaction, user in remove_users:
+                await reaction.remove(user)
+            return False
         else:
             if len(msg.attachments) != 1:
                 await msg.delete()
@@ -1954,6 +1977,70 @@ class SpriteBot:
         await self.postStagedSubmission(submit_channel, "--addauthor", "", full_idx, chosen_node, asset_type, author + "/" + wanted_author,
                                                 False, None, base_file, base_name, None)
 
+    async def deleteCredit(self, msg, name_args, asset_type):
+        # compute answer from current status
+        if len(name_args) < 2:
+            await msg.channel.send(msg.author.mention + " Specify a user ID and Pokemon.")
+            return
+
+        wanted_author = self.getFormattedCredit(name_args[0])
+        if wanted_author not in self.names:
+            await msg.channel.send(msg.author.mention + " No such profile ID.")
+            return
+
+        authorized = await self.isAuthorized(msg.author, msg.guild)
+        author = "<@!{0}>".format(msg.author.id)
+        if not authorized and author != wanted_author:
+            await msg.channel.send(msg.author.mention + " You must specify your own user ID.")
+            return
+
+        name_seq = [TrackerUtils.sanitizeName(i) for i in name_args[1:]]
+        full_idx = TrackerUtils.findFullTrackerIdx(self.tracker, name_seq, 0)
+        if full_idx is None:
+            await msg.channel.send(msg.author.mention + " No such Pokemon.")
+            return
+
+        chosen_node = TrackerUtils.getNodeFromIdx(self.tracker, full_idx, 0)
+
+        if chosen_node.__dict__[asset_type + "_credit"].primary == "":
+            await msg.channel.send(msg.author.mention + " This command only works on filled {0}.".format(asset_type))
+            return
+
+        gen_path = TrackerUtils.getDirFromIdx(self.config.path, asset_type, full_idx)
+        credit_entries = TrackerUtils.getFileCredits(gen_path)
+        has_credit = False
+        latest_credit = False
+        for credit_entry in credit_entries:
+            credit_id = credit_entry[1]
+            if credit_id == wanted_author:
+                has_credit = True
+                latest_credit = True
+            else:
+                latest_credit = False
+
+        if not has_credit:
+            await msg.channel.send(msg.author.mention + " The author must be in the credits list for this {0}.".format(asset_type))
+            return
+
+        if latest_credit:
+            await msg.channel.send(msg.author.mention + " The author cannot be the latest contributor.")
+            return
+
+        chat_id = self.config.servers[str(msg.guild.id)].submit
+        if chat_id == 0:
+            await msg.channel.send(msg.author.mention + " This server does not support submissions.")
+            return
+
+        submit_channel = self.client.get_channel(chat_id)
+        author = "<@!{0}>".format(msg.author.id)
+
+        base_link = await self.retrieveLinkMsg(full_idx, chosen_node, asset_type, False)
+        base_file, base_name = SpriteUtils.getLinkData(base_link)
+
+        # stage a post in submissions
+        await self.postStagedSubmission(submit_channel, "--deleteauthor", "", full_idx, chosen_node, asset_type, author + "/" + wanted_author,
+                                        False, None, base_file, base_name, None)
+
 
     async def getProfile(self, msg):
         msg_mention = "<@!{0}>".format(msg.author.id)
@@ -2540,6 +2627,8 @@ class SpriteBot:
                   f"`{prefix}recolorportrait` - Get the Pokemon's portrait sheet in a form for easy recoloring\n" \
                   f"`{prefix}autocolorsprite` - Generates an automatic recolor of the Pokemon's sprite sheet\n" \
                   f"`{prefix}autocolorportrait` - Generates an automatic recolor of the Pokemon's portrait sheet\n" \
+                  f"`{prefix}deletespritecredit` - Removes an author to the credits of the sprite\n" \
+                  f"`{prefix}deleteportraitcredit` - Removes an author to the credits of the portrait\n" \
                   f"`{prefix}listsprite` - List all sprites related to a Pokemon\n" \
                   f"`{prefix}listportrait` - List all portraits related to a Pokemon\n"
             if use_bounties:
@@ -2674,6 +2763,40 @@ class SpriteBot:
                              f"`{prefix}portraitcredit Wooper Shiny Female`\n" \
                              f"`{prefix}portraitcredit Shaymin Sky`\n" \
                              f"`{prefix}portraitcredit Shaymin Sky Shiny`"
+            elif base_arg == "deletespritecredit":
+                return_msg = "**Command Help**\n" \
+                             f"`{prefix}deletespritecredit <Author ID> <Pokemon Name> [Form Name] [Shiny] [Gender]`\n" \
+                             "Deletes the specified author from the credits of the sprite.  " \
+                             "This makes a post in the submissions channel, asking other approvers to sign off." \
+                             "The post must be approved by the author being removed.\n" \
+                             "`Author ID` - The discord ID of the author to set as primary\n" \
+                             "`Pokemon Name` - Name of the Pokemon\n" \
+                             "`Form Name` - [Optional] Form name of the Pokemon\n" \
+                             "`Shiny` - [Optional] Specifies if you want the shiny sprite or not\n" \
+                             "`Gender` - [Optional] Specifies the gender of the Pokemon\n" \
+                             "**Examples**\n" \
+                             f"`{prefix}deletespritecredit @Audino Unown Shiny`\n" \
+                             f"`{prefix}deletespritecredit <@!117780585635643396> Unown Shiny`\n" \
+                             f"`{prefix}deletespritecredit @Audino Calyrex`\n" \
+                             f"`{prefix}deletespritecredit @Audino Calyrex Shiny`\n" \
+                             f"`{prefix}deletespritecredit @Audino Jellicent Shiny Female`"
+            elif base_arg == "deleteportraitcredit":
+                return_msg = "**Command Help**\n" \
+                             f"`{prefix}deleteportraitcredit <Author ID> <Pokemon Name> [Form Name] [Shiny] [Gender]`\n" \
+                             "Deletes the specified author from the credits of the portrait.  " \
+                             "This makes a post in the submissions channel, asking other approvers to sign off." \
+                             "The post must be approved by the author being removed.\n" \
+                             "`Author ID` - The discord ID of the author to set as primary\n" \
+                             "`Pokemon Name` - Name of the Pokemon\n" \
+                             "`Form Name` - [Optional] Form name of the Pokemon\n" \
+                             "`Shiny` - [Optional] Specifies if you want the shiny sprite or not\n" \
+                             "`Gender` - [Optional] Specifies the gender of the Pokemon\n" \
+                             "**Examples**\n" \
+                             f"`{prefix}deleteportraitcredit @Audino Unown Shiny`\n" \
+                             f"`{prefix}deleteportraitcredit <@!117780585635643396> Unown Shiny`\n" \
+                             f"`{prefix}deleteportraitcredit @Audino Calyrex`\n" \
+                             f"`{prefix}deleteportraitcredit @Audino Calyrex Shiny`\n" \
+                             f"`{prefix}deleteportraitcredit @Audino Jellicent Shiny Female`"
             elif base_arg == "spritehistory":
                 return_msg = "**Command Help**\n" \
                              f"`{prefix}spritehistory <Pokemon Name> [Form Name] [Shiny] [Gender]`\n" \
@@ -3274,6 +3397,10 @@ async def on_message(msg: discord.Message):
                 await sprite_bot.addCredit(msg, args[1:], "sprite")
             elif base_arg == "addportraitcredit" and authorized:
                 await sprite_bot.addCredit(msg, args[1:], "portrait")
+            elif base_arg == "deletespritecredit":
+                await sprite_bot.deleteCredit(msg, args[1:], "sprite")
+            elif base_arg == "deleteportraitcredit":
+                await sprite_bot.deleteCredit(msg, args[1:], "portrait")
             elif base_arg == "modreward" and authorized:
                 await sprite_bot.modSpeciesForm(msg, args[1:])
             elif base_arg == "transferprofile" and authorized:
