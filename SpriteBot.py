@@ -1066,15 +1066,17 @@ class SpriteBot:
             elif auto:
                 await self.submissionApproved(msg, orig_sender, orig_author, approve)
                 return False
-            elif deleting and len(approve) >= 3 and consent and not warn:
-                await self.submissionApproved(msg, orig_sender, orig_author, approve)
-                return False
-            elif asset_type == "sprite" and len(approve) >= 3 and not warn:
-                await self.submissionApproved(msg, orig_sender, orig_author, approve)
-                return False
-            elif asset_type == "portrait" and len(approve) >= 2 and not warn:
-                await self.submissionApproved(msg, orig_sender, orig_author, approve)
-                return False
+            elif not warn:
+                if deleting:
+                    if len(approve) >= 3 and consent:
+                        await self.submissionApproved(msg, orig_sender, orig_author, approve)
+                        return False
+                elif asset_type == "sprite" and len(approve) >= 3:
+                    await self.submissionApproved(msg, orig_sender, orig_author, approve)
+                    return False
+                elif asset_type == "portrait" and len(approve) >= 2:
+                    await self.submissionApproved(msg, orig_sender, orig_author, approve)
+                    return False
 
             chosen_node = TrackerUtils.getNodeFromIdx(self.tracker, full_idx, 0)
             pending_dict = chosen_node.__dict__[asset_type + "_pending"]
