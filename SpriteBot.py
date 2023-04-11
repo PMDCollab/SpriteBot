@@ -2447,10 +2447,6 @@ class SpriteBot:
             if TrackerUtils.genderDiffExists(species_dict.subgroups["0000"], asset_type, gender_name):
                 await msg.channel.send(msg.author.mention + " Gender difference already exists for #{0:03d}: {1}!".format(int(species_idx), species_name))
                 return
-            if TrackerUtils.genderDiffExists(species_dict.subgroups["0000"], "sprite", other_gender) or \
-                    TrackerUtils.genderDiffExists(species_dict.subgroups["0000"], "portrait", other_gender):
-                await msg.channel.send(msg.author.mention + " Gender difference already exists for the other gender of #{0:03d}: {1}!".format(int(species_idx), species_name))
-                return
 
             TrackerUtils.createGenderDiff(species_dict.subgroups["0000"], asset_type, gender_name)
             await msg.channel.send(msg.author.mention + " Added gender difference to #{0:03d}: {1}! ({2})".format(int(species_idx), species_name, asset_type))
@@ -2467,10 +2463,6 @@ class SpriteBot:
             if TrackerUtils.genderDiffExists(form_dict, asset_type, gender_name):
                 await msg.channel.send(msg.author.mention +
                     " Gender difference already exists for #{0:03d}: {1} {2}!".format(int(species_idx), species_name, form_name))
-                return
-            if TrackerUtils.genderDiffExists(form_dict, "sprite", gender_name) or \
-                    TrackerUtils.genderDiffExists(form_dict, "portrait", gender_name):
-                await msg.channel.send(msg.author.mention + " Gender difference already exists for other gender of #{0:03d}: {1} {2}!".format(int(species_idx), species_name, form_name))
                 return
 
             TrackerUtils.createGenderDiff(form_dict, asset_type, gender_name)
