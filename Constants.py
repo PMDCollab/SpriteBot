@@ -29,3 +29,4 @@ DIRECTIONS = [ "Down",
                "DownLeft"]
 
 MULTI_SHEET_XML = "AnimData.xml"
+CREDIT_TXT = "credits.txt"

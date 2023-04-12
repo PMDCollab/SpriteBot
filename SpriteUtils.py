@@ -147,8 +147,7 @@ def thumbnailFileImg(inFile):
     return file_data
 
 def getLinkData(url):
-    full_path, ext = os.path.splitext(url)
-    _, file = os.path.split(full_path)
+    _, file = os.path.split(url)
     req = urllib.request.Request(url, None, RETRIEVE_HEADERS)
 
     with urllib.request.urlopen(req) as response:
