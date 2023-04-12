@@ -655,7 +655,7 @@ class SpriteBot:
                     return
 
         diffs = []
-        if not delete_author and len(msg_lines) > 2:
+        if not add_author and not delete_author and len(msg_lines) > 2:
             msg_changes = msg_lines[2]
             if msg_changes.startswith("Changes: "):
                 diffs = msg_changes.replace("Changes: ", "").split(", ")
@@ -694,78 +694,87 @@ class SpriteBot:
         # save and set the new sprite or portrait
         gen_path = TrackerUtils.getDirFromIdx(self.config.path, asset_type, full_idx)
 
-        if add_author:
-            # dont update files if just updating author
-            pass
-        elif delete_author:
-            mentions = ["<@!"+str(ii)+">" for ii in approvals]
-            approve_msg = "{0} {1} approved by {2}: #{3:03d}: {4}".format(new_revise, asset_type, str(mentions), int(full_idx[0]), new_name_str)
-            await self.getChatChannel(msg.guild.id).send(sender_info + " " + approve_msg + "\n(This did not actually happen, feature in beta.)")
-            await msg.delete()
-            return
-        elif asset_type == "sprite":
-            orig_idx = None
-            if is_shiny:
-                orig_idx = TrackerUtils.createShinyIdx(full_idx, False)
-            elif base_idx is not None:
-                orig_idx = base_idx
+        if not add_author and not delete_author:
+            if asset_type == "sprite":
+                orig_idx = None
+                if is_shiny:
+                    orig_idx = TrackerUtils.createShinyIdx(full_idx, False)
+                elif base_idx is not None:
+                    orig_idx = base_idx
 
-            if orig_idx is not None and recolor:
-                orig_path = TrackerUtils.getDirFromIdx(self.config.path, asset_type, orig_idx)
-                # no need to check if the original sprite has changed between this recolor's submission and acceptance
-                # because when the original sprite is approved, all submissions for shinies are purged
+                if orig_idx is not None and recolor:
+                    orig_path = TrackerUtils.getDirFromIdx(self.config.path, asset_type, orig_idx)
+                    # no need to check if the original sprite has changed between this recolor's submission and acceptance
+                    # because when the original sprite is approved, all submissions for shinies are purged
+                    try:
+                        recolor_img = SpriteUtils.getLinkImg(msg.attachments[0].url)
+                    except Exception as e:
+                        await self.getChatChannel(msg.guild.id).send(
+                            orig_sender + " " + "Removed unknown file: {0}".format(file_name))
+                        await msg.delete()
+                        raise e
+                    SpriteUtils.placeSpriteRecolorToPath(orig_path, recolor_img, gen_path)
+                else:
+                    wan_file = SpriteUtils.getLinkZipGroup(msg.attachments[0].url)
+                    SpriteUtils.placeSpriteZipToPath(wan_file, gen_path)
+            elif asset_type == "portrait":
                 try:
-                    recolor_img = SpriteUtils.getLinkImg(msg.attachments[0].url)
+                    portrait_img = SpriteUtils.getLinkImg(msg.attachments[0].url)
                 except Exception as e:
-                    await self.getChatChannel(msg.guild.id).send(
-                        orig_sender + " " + "Removed unknown file: {0}".format(file_name))
+                    await self.getChatChannel(msg.guild.id).send(orig_sender + " " + "Removed unknown file: {0}".format(file_name))
                     await msg.delete()
                     raise e
-                SpriteUtils.placeSpriteRecolorToPath(orig_path, recolor_img, gen_path)
-            else:
-                wan_file = SpriteUtils.getLinkZipGroup(msg.attachments[0].url)
-                SpriteUtils.placeSpriteZipToPath(wan_file, gen_path)
-        elif asset_type == "portrait":
-            try:
-                portrait_img = SpriteUtils.getLinkImg(msg.attachments[0].url)
-            except Exception as e:
-                await self.getChatChannel(msg.guild.id).send(orig_sender + " " + "Removed unknown file: {0}".format(file_name))
-                await msg.delete()
-                raise e
 
-            if recolor:
-                portrait_img = SpriteUtils.removePalette(portrait_img)
-            SpriteUtils.placePortraitToPath(portrait_img, gen_path)
+                if recolor:
+                    portrait_img = SpriteUtils.removePalette(portrait_img)
+                SpriteUtils.placePortraitToPath(portrait_img, gen_path)
 
         prev_completion_file = TrackerUtils.getCurrentCompletion(chosen_node, asset_type)
 
         new_credit = True
-        cur_credits = TrackerUtils.getFileCredits(gen_path)
-        for credit in cur_credits:
-            if credit[1] == orig_author:
-                new_credit = False
-                break
+        if delete_author:
+            new_credit = False
+            # TrackerUtils.deleteCredits(gen_path, orig_author)
 
-        TrackerUtils.appendCredits(gen_path, orig_author, ",".join(diffs))
-        # add to universal names list and save if changed
-        if orig_author not in self.names:
-            self.names[orig_author] = TrackerUtils.CreditEntry("", "")
-        self.names[orig_author].sprites = True
-        self.names[orig_author].portraits = True
-        self.saveNames()
+            # update the credits and timestamp in the chosen node
+            # chosen_node.__dict__[asset_type + "_modified"] = str(datetime.datetime.utcnow())
 
-        # update the credits and timestamp in the chosen node
-        chosen_node.__dict__[asset_type + "_modified"] = str(datetime.datetime.utcnow())
+            # credit_data = chosen_node.__dict__[asset_type + "_credit"]
 
-        credit_data = chosen_node.__dict__[asset_type + "_credit"]
-        if credit_data.primary != orig_author:
-            # only update credit name if the new author is different from the primary
-            credit_entries = TrackerUtils.getCreditEntries(gen_path)
-            if credit_data.primary == "":
-                credit_data.total = len(credit_entries)
-                credit_data.primary = credit_entries[0]
-                credit_data.secondary.clear()
-            else:
+            # credit_entries = TrackerUtils.getCreditEntries(gen_path)
+            # if credit_data.primary == orig_author:
+                # delete the primary and promote a secondary
+            #     credit_data.primary = credit_entries[0]
+            # reload secondary credits and amount
+            # TrackerUtils.updateCreditFromEntries(credit_data, credit_entries)
+        else:
+            cur_credits = TrackerUtils.getFileCredits(gen_path)
+            for credit in cur_credits:
+                if credit[1] == orig_author:
+                    new_credit = False
+                    break
+
+            TrackerUtils.appendCredits(gen_path, orig_author, ",".join(diffs))
+
+            # add to universal names list and save if changed
+            if orig_author not in self.names:
+                self.names[orig_author] = TrackerUtils.CreditEntry("", "")
+
+            self.names[orig_author].sprites = True
+            self.names[orig_author].portraits = True
+            self.saveNames()
+
+            # update the credits and timestamp in the chosen node
+            chosen_node.__dict__[asset_type + "_modified"] = str(datetime.datetime.utcnow())
+
+            credit_data = chosen_node.__dict__[asset_type + "_credit"]
+            if credit_data.primary != orig_author:
+                # only update credit name if the new author is different from the primary
+                credit_entries = TrackerUtils.getCreditEntries(gen_path)
+                if credit_data.primary == "":
+                    credit_data.total = len(credit_entries)
+                    credit_data.primary = credit_entries[0]
+                # reload secondary credits and amount
                 TrackerUtils.updateCreditFromEntries(credit_data, credit_entries)
 
         # update the file cache
@@ -778,58 +787,64 @@ class SpriteBot:
         if str(msg.id) in pending_dict:
             del pending_dict[str(msg.id)]
 
-        # generate a new link
-        file_data, ext = SpriteUtils.generateFileData(gen_path, asset_type, False)
-        file_data.seek(0)
-        file_name = "{0}-{1}{2}".format(asset_type, "-".join(full_idx), ext)
+        new_link = ""
+        if not add_author and not delete_author:
+            # generate a new link
+            file_data, ext = SpriteUtils.generateFileData(gen_path, asset_type, False)
+            file_data.seek(0)
+            file_name = "{0}-{1}{2}".format(asset_type, "-".join(full_idx), ext)
 
-        new_link = await self.generateLink(file_data, file_name)
-        chosen_node.__dict__[asset_type+"_link"] = new_link
-        chosen_node.__dict__[asset_type+"_recolor_link"] = ""
+            new_link = await self.generateLink(file_data, file_name)
+            chosen_node.__dict__[asset_type+"_link"] = new_link
+            chosen_node.__dict__[asset_type+"_recolor_link"] = ""
+        elif delete_author:
+            new_link = "(This didn't actually happen. The feature is still in beta)"
 
         mentions = ["<@!"+str(ii)+">" for ii in approvals]
         approve_msg = "{0} {1} approved by {2}: #{3:03d}: {4}".format(new_revise, asset_type, str(mentions), int(full_idx[0]), new_name_str)
 
-        if len(diffs) > 0:
-            approve_msg += "\nChanges: {0}".format(", ".join(diffs))
-        else:
-            approve_msg += "\nNo Changes."
+        give_points = 0
+        if not add_author and not delete_author:
+            if len(diffs) > 0:
+                approve_msg += "\nChanges: {0}".format(", ".join(diffs))
+            else:
+                approve_msg += "\nNo Changes."
 
-        # update completion to correct value
-        chosen_node.__dict__[asset_type + "_complete"] = current_completion_file
-        if current_completion_file != prev_completion_file:
-            approve_msg += "\n{0} is now {1}.".format(asset_type.title(), PHASES[current_completion_file])
+            # update completion to correct value
+            chosen_node.__dict__[asset_type + "_complete"] = current_completion_file
+            if current_completion_file != prev_completion_file:
+                approve_msg += "\n{0} is now {1}.".format(asset_type.title(), PHASES[current_completion_file])
 
-        # if this was non-shiny, set the complete flag to false for the shiny
-        if not is_shiny and not add_author:
-            if shiny_node.__dict__[asset_type+"_credit"].primary != "":
-                shiny_node.__dict__[asset_type+"_complete"] = TrackerUtils.PHASE_INCOMPLETE
-                approve_msg += "\nNote: Shiny form now marked as {0} due to this change.".format(PHASES[TrackerUtils.PHASE_INCOMPLETE])
+            # if this was non-shiny, set the complete flag to false for the shiny
+            if not is_shiny:
+                if shiny_node.__dict__[asset_type+"_credit"].primary != "":
+                    shiny_node.__dict__[asset_type+"_complete"] = TrackerUtils.PHASE_INCOMPLETE
+                    approve_msg += "\nNote: Shiny form now marked as {0} due to this change.".format(PHASES[TrackerUtils.PHASE_INCOMPLETE])
 
 
-        give_points = current_completion_file - prev_completion_file
+            give_points = current_completion_file - prev_completion_file
 
-        if TrackerUtils.isShinyIdx(full_idx):
-            give_points = 1
-            if current_completion_file < TrackerUtils.PHASE_FULL:
+            if TrackerUtils.isShinyIdx(full_idx):
+                give_points = 1
+                if current_completion_file < TrackerUtils.PHASE_FULL:
+                    give_points = 0
+
+                if asset_type == "sprite":
+                    give_points *= SPRITE_SHINY_WORTH
+                elif asset_type == "portrait":
+                    give_points *= PORTRAIT_SHINY_WORTH
+            else:
+                if asset_type == "sprite":
+                    give_points *= SPRITE_WORTH
+                elif asset_type == "portrait":
+                    give_points *= PORTRAIT_WORTH
+
+            if give_points < 1 and new_credit:
+                give_points = 1
+
+            if chosen_node.modreward:
                 give_points = 0
-
-            if asset_type == "sprite":
-                give_points *= SPRITE_SHINY_WORTH
-            elif asset_type == "portrait":
-                give_points *= PORTRAIT_SHINY_WORTH
-        else:
-            if asset_type == "sprite":
-                give_points *= SPRITE_WORTH
-            elif asset_type == "portrait":
-                give_points *= PORTRAIT_WORTH
-
-        if give_points < 1 and new_credit:
-            give_points = 1
-
-        if chosen_node.modreward:
-            give_points = 0
-            approve_msg += "\nThe non-bounty GP Reward for this {0} will be handled by the approvers.".format(asset_type)
+                approve_msg += "\nThe non-bounty GP Reward for this {0} will be handled by the approvers.".format(asset_type)
 
         # save the tracker
         self.saveTracker()
@@ -848,89 +863,89 @@ class SpriteBot:
         # delete post
         await msg.delete()
 
-
-        # add bounty
-        result_phase = current_completion_file
-        while result_phase > 0:
-            if str(result_phase) in chosen_node.__dict__[asset_type + "_bounty"]:
-                give_points += chosen_node.__dict__[asset_type + "_bounty"][str(result_phase)]
-                del chosen_node.__dict__[asset_type + "_bounty"][str(result_phase)]
-            result_phase -= 1
-
-        if give_points > 0 and orig_author.startswith("<@!") and self.config.points_ch != 0:
-            orig_author_id = orig_author[3:-1]
-            await self.client.get_channel(self.config.points_ch).send("!gr {0} {1} {2}".format(orig_author_id, give_points, self.config.servers[str(msg.guild.id)].chat))
-
         self.changed = True
 
+        if not add_author and not delete_author:
+            # add bounty
+            result_phase = current_completion_file
+            while result_phase > 0:
+                if str(result_phase) in chosen_node.__dict__[asset_type + "_bounty"]:
+                    give_points += chosen_node.__dict__[asset_type + "_bounty"][str(result_phase)]
+                    del chosen_node.__dict__[asset_type + "_bounty"][str(result_phase)]
+                result_phase -= 1
 
-        if not is_shiny and not add_author:
-            # remove all pending shinies
-            pending = {}
-            for pending_id in shiny_node.__dict__[asset_type+"_pending"]:
-                pending[pending_id] = shiny_node.__dict__[asset_type+"_pending"][pending_id]
+            if give_points > 0 and orig_author.startswith("<@!") and self.config.points_ch != 0:
+                orig_author_id = orig_author[3:-1]
+                await self.client.get_channel(self.config.points_ch).send("!gr {0} {1} {2}".format(orig_author_id, give_points, self.config.servers[str(msg.guild.id)].chat))
 
-            for pending_id in pending:
-                try:
-                    shiny_ch = self.client.get_channel(pending[pending_id])
-                    shiny_msg = await shiny_ch.fetch_message(pending_id)
-                    shiny_lines = msg.content.split()
-                    shiny_data = shiny_lines[0].split()
-                    shiny_sender_data = shiny_data[0].split("/")
-                    shiny_sender = shiny_sender_data[0]
-                    await self.submissionDeclined(shiny_msg, shiny_sender, [])
-                except Exception as e:
-                    await self.sendError(traceback.format_exc())
 
-            # autogenerate the shiny
-            if base_recolor_file is not None:
-                # auto-generate the shiny recolor image, in file form
-                shiny_path = TrackerUtils.getDirFromIdx(self.config.path, asset_type, shiny_idx)
-                auto_recolor_img, cmd_str, content = SpriteUtils.autoRecolor(base_recolor_file, gen_path, shiny_path, asset_type)
+            if not is_shiny:
+                # remove all pending shinies
+                pending = {}
+                for pending_id in shiny_node.__dict__[asset_type+"_pending"]:
+                    pending[pending_id] = shiny_node.__dict__[asset_type+"_pending"][pending_id]
 
-                # compute the diff
-                auto_diffs = []
-                try:
-                    if asset_type == "sprite":
-                        orig_idx = TrackerUtils.createShinyIdx(full_idx, False)
-                        orig_node = TrackerUtils.getNodeFromIdx(self.tracker, orig_idx, 0)
+                for pending_id in pending:
+                    try:
+                        shiny_ch = self.client.get_channel(pending[pending_id])
+                        shiny_msg = await shiny_ch.fetch_message(pending_id)
+                        shiny_lines = msg.content.split()
+                        shiny_data = shiny_lines[0].split()
+                        shiny_sender_data = shiny_data[0].split("/")
+                        shiny_sender = shiny_sender_data[0]
+                        await self.submissionDeclined(shiny_msg, shiny_sender, [])
+                    except Exception as e:
+                        await self.sendError(traceback.format_exc())
 
-                        orig_group_link = await self.retrieveLinkMsg(orig_idx, orig_node, asset_type, False)
-                        orig_zip_group = SpriteUtils.getLinkZipGroup(orig_group_link)
+                # autogenerate the shiny
+                if base_recolor_file is not None:
+                    # auto-generate the shiny recolor image, in file form
+                    shiny_path = TrackerUtils.getDirFromIdx(self.config.path, asset_type, shiny_idx)
+                    auto_recolor_img, cmd_str, content = SpriteUtils.autoRecolor(base_recolor_file, gen_path, shiny_path, asset_type)
 
-                        auto_diffs = SpriteUtils.verifySpriteLock(shiny_node, shiny_path, orig_zip_group, auto_recolor_img, True)
-                    elif asset_type == "portrait":
-                        auto_diffs = SpriteUtils.verifyPortraitLock(shiny_node, shiny_path, auto_recolor_img, True)
-                except Exception as e:
-                    return
+                    # compute the diff
+                    auto_diffs = []
+                    try:
+                        if asset_type == "sprite":
+                            orig_idx = TrackerUtils.createShinyIdx(full_idx, False)
+                            orig_node = TrackerUtils.getNodeFromIdx(self.tracker, orig_idx, 0)
 
-                # post it as a staged submission
-                return_name = "{0}-{1}{2}".format(asset_type + "_recolor", "-".join(shiny_idx), ".png")
-                auto_recolor_file = io.BytesIO()
-                auto_recolor_img.save(auto_recolor_file, format='PNG')
-                auto_recolor_file.seek(0)
+                            orig_group_link = await self.retrieveLinkMsg(orig_idx, orig_node, asset_type, False)
+                            orig_zip_group = SpriteUtils.getLinkZipGroup(orig_group_link)
 
-                try:
-                    msg_args = parser.parse_args(cmd_str.split())
-                except SystemExit:
-                    await self.sendError(traceback.format_exc())
-                    return
+                            auto_diffs = SpriteUtils.verifySpriteLock(shiny_node, shiny_path, orig_zip_group, auto_recolor_img, True)
+                        elif asset_type == "portrait":
+                            auto_diffs = SpriteUtils.verifyPortraitLock(shiny_node, shiny_path, auto_recolor_img, True)
+                    except Exception as e:
+                        return
 
-                overcolor = msg_args.overcolor
-                overcolor_img = None
-                if overcolor:
-                    overcolor_img = SpriteUtils.removePalette(auto_recolor_img)
+                    # post it as a staged submission
+                    return_name = "{0}-{1}{2}".format(asset_type + "_recolor", "-".join(shiny_idx), ".png")
+                    auto_recolor_file = io.BytesIO()
+                    auto_recolor_img.save(auto_recolor_file, format='PNG')
+                    auto_recolor_file.seek(0)
 
-                await self.postStagedSubmission(msg.channel, cmd_str, content, shiny_idx, shiny_node, asset_type, sender_info,
-                                                True, auto_diffs, auto_recolor_file, return_name, overcolor_img)
+                    try:
+                        msg_args = parser.parse_args(cmd_str.split())
+                    except SystemExit:
+                        await self.sendError(traceback.format_exc())
+                        return
 
-        if self.config.twitter and asset_type == "portrait":
-            status = TrackerUtils.getStatusEmoji(chosen_node, asset_type)
-            tw_msg = "{5} #{3:03d}: {4}\n{0} {1} by {2}".format(new_revise,
-                                                            asset_type,
-                                                            self.createCreditAttribution(orig_author, True),
-                                                            int(full_idx[0]), new_name_str, status)
-            TwitterUtils.post_image(self.tw_api, tw_msg, new_link)
+                    overcolor = msg_args.overcolor
+                    overcolor_img = None
+                    if overcolor:
+                        overcolor_img = SpriteUtils.removePalette(auto_recolor_img)
+
+                    await self.postStagedSubmission(msg.channel, cmd_str, content, shiny_idx, shiny_node, asset_type, sender_info,
+                                                    True, auto_diffs, auto_recolor_file, return_name, overcolor_img)
+
+            if self.config.twitter and asset_type == "portrait":
+                status = TrackerUtils.getStatusEmoji(chosen_node, asset_type)
+                tw_msg = "{5} #{3:03d}: {4}\n{0} {1} by {2}".format(new_revise,
+                                                                asset_type,
+                                                                self.createCreditAttribution(orig_author, True),
+                                                                int(full_idx[0]), new_name_str, status)
+                TwitterUtils.post_image(self.tw_api, tw_msg, new_link)
 
 
     async def submissionDeclined(self, msg, orig_sender, declines):
