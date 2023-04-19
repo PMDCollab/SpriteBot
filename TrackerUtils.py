@@ -75,7 +75,18 @@ def appendCredits(path, id, diff):
     if diff == '':
         diff = '"'
     with open(os.path.join(path, Constants.CREDIT_TXT), 'a+', encoding='utf-8') as txt:
-        txt.write("{0}\t{1}\t{2}\n".format(str(datetime.datetime.utcnow()), id, diff))
+        txt.write("{0}\t{1}\tCUR\t{2}\n".format(str(datetime.datetime.utcnow()), id, diff))
+
+def shiftCredits(fullPath):
+    id_list = []
+    with open(fullPath, 'r', encoding='utf-8') as txt:
+        for line in txt:
+            id_list.append(line.strip().split('\t'))
+    for idx in range(len(id_list)):
+        id_list[idx].insert(2, "CUR")
+    with open(fullPath, 'w', encoding='utf-8') as txt:
+        for entry in id_list:
+            txt.write(entry[0] + "\t" + entry[1] + "\t" + entry[2] + "\t" + entry[3] + "\n")
 
 def deleteCredits(path, id):
     id_list = []
@@ -298,6 +309,7 @@ def fileSystemToJson(dict, species_path, prefix, tier):
 
             fileSystemToJson(dict.subgroups[inFile], fullPath, prefix, tier + 1)
         elif inFile == Constants.CREDIT_TXT:
+            #shiftCredits(fullPath)
             credit_entries = getCreditEntries(species_path)
             credit_data = dict.__dict__[prefix + "_credit"]
             updateCreditFromEntries(credit_data, credit_entries)
@@ -623,7 +635,7 @@ def renameFileCredits(species_path, old_name, new_name):
                     entry[1] = new_name
             with open(fullPath, 'w', encoding='utf-8') as txt:
                 for entry in id_list:
-                    txt.write(entry[0] + "\t" + entry[1] + "\t" + entry[2] + "\n")
+                    txt.write(entry[0] + "\t" + entry[1] + "\t" + entry[2] + "\t" + entry[3] + "\n")
 
 def getDirFromIdx(base_path, asset_type, full_idx):
     full_arr = [base_path, asset_type] + full_idx

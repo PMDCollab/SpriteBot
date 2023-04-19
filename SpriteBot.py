@@ -1900,11 +1900,12 @@ class SpriteBot:
             for credit_entry in credit_entries:
                 credit_time = credit_entry[0]
                 credit_id = credit_entry[1]
-                credit_diff = credit_entry[2]
+                credit_status = credit_entry[2]
+                credit_diff = credit_entry[3]
                 entry = self.names[credit_id]
                 if entry.name != '':
                     credit_id = entry.name
-                credit_line = "{0}\t{1}\t{2}".format(credit_time, credit_id, credit_diff)
+                credit_line = "{0}\t{1}\t{2}\t{3}".format(credit_time, credit_id, credit_status, credit_diff)
                 if len(credit_str) + len(credit_line) < 1950:
                     credit_str += '\n' + credit_line
                 else:
