@@ -1288,7 +1288,11 @@ class SpriteBot:
         if guild_id_str in chosen_node.__dict__[req_link]:
             talk_id = chosen_node.__dict__[req_link][guild_id_str]
             guild = self.client.get_guild(guild_id)
-            return guild.get_thread(talk_id)
+            try:
+                thread = await guild.fetch_channel(talk_id)
+                return thread
+            except:
+                await self.sendError(traceback.format_exc())
 
         approval_id = self.config.servers[str(guild_id_str)].chat
         approval_ch = self.client.get_channel(approval_id)
