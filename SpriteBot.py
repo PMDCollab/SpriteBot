@@ -637,7 +637,7 @@ class SpriteBot:
 
         review_thread = await self.retrieveDiscussion(full_idx, chosen_node, asset_type, msg.guild.id)
         if review_thread:
-            await review_thread.send("Post approved.")
+            await review_thread.send("Post approved for {0}".format(sender_info))
 
         msg_lines = msg.content.split('\n')
         base_idx = None
@@ -967,7 +967,7 @@ class SpriteBot:
 
         review_thread = await self.retrieveDiscussion(full_idx, chosen_node, asset_type, msg.guild.id)
         if review_thread:
-            await review_thread.send("Post declined.")
+            await review_thread.send("Post declined for {0}".format(orig_sender))
 
         # change the status of the sprite
         pending_dict = chosen_node.__dict__[asset_type+"_pending"]
@@ -1297,7 +1297,7 @@ class SpriteBot:
         new_name.insert(0, asset_type)
         new_name_str = " ".join(new_name)
 
-        msg = await approval_ch.send(new_name_str)
+        msg = await approval_ch.send("Discussion: {0}".format(new_name_str))
         thread = await msg.create_thread(name=new_name_str)
         chosen_node.__dict__[req_link][guild_id_str] = thread.id
         return thread
