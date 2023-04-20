@@ -2076,6 +2076,8 @@ class SpriteBot:
         latest_credit = False
         for credit_entry in credit_entries:
             credit_id = credit_entry[1]
+            if credit_entry[2] == "OLD":
+                continue
             if credit_id == wanted_author:
                 has_credit = True
                 latest_credit = True

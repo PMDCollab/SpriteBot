@@ -58,6 +58,8 @@ def getCreditEntries(path):
     credit_strings = []
     for credit in credits:
         credit_id = credit[1]
+        if credit[2] == "OLD":
+            continue
         if credit_id not in found_names:
             credit_strings.append(credit_id)
             found_names[credit_id] = True
@@ -69,8 +71,7 @@ def getFileCredits(path):
         with open(os.path.join(path, Constants.CREDIT_TXT), 'r', encoding='utf-8') as txt:
             for line in txt:
                 credit = line.strip().split('\t')
-                if credit[2] == "CUR":
-                    id_list.append(credit)
+                id_list.append(credit)
     return id_list
 
 def appendCredits(path, id, diff):
