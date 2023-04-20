@@ -63,6 +63,7 @@ class BotServer:
         self.chat = 0
         self.submit = 0
         self.approval = 0
+        self.approval_chat = 0
         self.prefix = ""
         self.info_posts = []
 
@@ -261,7 +262,6 @@ class SpriteBot:
     def getChatChannel(self, guild_id):
         chat_id = self.config.servers[str(guild_id)].chat
         return self.client.get_channel(chat_id)
-
 
     def getAuthorCol(self, author):
         return str(author.id) + "#" + author.name.replace("\t", "") + "#" + author.discriminator
@@ -613,6 +613,10 @@ class SpriteBot:
         await new_msg.add_reaction('\U00002705')
         await new_msg.add_reaction('\U0000274C')
 
+        review_thread = await self.retrieveDiscussion(full_idx, chosen_node, asset_type, new_msg.guild.id)
+        if review_thread:
+            await review_thread.send("New post by {0}".format(author))
+
         self.changed |= change_status
 
 
@@ -630,6 +634,10 @@ class SpriteBot:
 
         chosen_node = TrackerUtils.getNodeFromIdx(self.tracker, full_idx, 0)
         chosen_path = TrackerUtils.getDirFromIdx(self.config.path, asset_type, full_idx)
+
+        review_thread = await self.retrieveDiscussion(full_idx, chosen_node, asset_type, msg.guild.id)
+        if review_thread:
+            await review_thread.send("Post approved.")
 
         msg_lines = msg.content.split('\n')
         base_idx = None
@@ -956,6 +964,11 @@ class SpriteBot:
             return
 
         chosen_node = TrackerUtils.getNodeFromIdx(self.tracker, full_idx, 0)
+
+        review_thread = await self.retrieveDiscussion(full_idx, chosen_node, asset_type, msg.guild.id)
+        if review_thread:
+            await review_thread.send("Post declined.")
+
         # change the status of the sprite
         pending_dict = chosen_node.__dict__[asset_type+"_pending"]
         change_status = len(pending_dict) == 1
@@ -1262,6 +1275,32 @@ class SpriteBot:
                 await message.delete()
             except:
                 print(traceback.format_exc())
+
+    async def retrieveDiscussion(self, full_idx, chosen_node, asset_type, guild_id):
+
+        guild_id_str = str(guild_id)
+        if self.config.servers[guild_id_str].approval_chat == 0:
+            return None
+
+        req_base = asset_type
+        req_link = req_base + "_talk"
+
+        if guild_id_str in chosen_node.__dict__[req_link]:
+            talk_id = chosen_node.__dict__[req_link][guild_id_str]
+            guild = self.client.get_guild(guild_id)
+            return guild.get_thread(talk_id)
+
+        approval_id = self.config.servers[str(guild_id_str)].approval_chat
+        approval_chat = self.client.get_channel(approval_id)
+
+        new_name = TrackerUtils.getIdxName(self.tracker, full_idx)
+        new_name.insert(0, asset_type)
+        new_name_str = " ".join(new_name)
+
+        msg = await approval_chat.send(new_name_str)
+        thread = await msg.create_thread(name=new_name_str)
+        chosen_node.__dict__[req_link][guild_id_str] = thread.id
+        return thread
 
 
     async def retrieveLinkMsg(self, full_idx, chosen_node, asset_type, recolor):
@@ -2239,14 +2278,15 @@ class SpriteBot:
             info_ch = msg.channel_mentions[0]
             bot_ch = msg.channel_mentions[1]
             submit_ch = None
+            reviewer_ch = None
             reviewer_role = None
 
-        elif len(args) == 5:
+        elif len(args) == 6:
             if msg.author.id != sprite_bot.config.root:
                 await msg.channel.send(msg.author.mention + " Bad channel args!")
                 return
 
-            if len(msg.channel_mentions) != 3:
+            if len(msg.channel_mentions) != 4:
                 await msg.channel.send(msg.author.mention + " Bad channel args!")
                 return
 
@@ -2257,25 +2297,32 @@ class SpriteBot:
             info_ch = msg.channel_mentions[0]
             bot_ch = msg.channel_mentions[1]
             submit_ch = msg.channel_mentions[2]
+            reviewer_ch = msg.channel_mentions[3]
             reviewer_role = msg.role_mentions[0]
         else:
-            await msg.channel.send(msg.author.mention + " Args not equal to 3 or 5!")
+            await msg.channel.send(msg.author.mention + " Args not equal to 3 or 6!")
             return
 
         prefix = args[0]
         init_guild = msg.guild
 
 
-        info_perms = info_ch.permissions_for(init_guild.me)
-        bot_perms = bot_ch.permissions_for(init_guild.me)
 
+        info_perms = info_ch.permissions_for(init_guild.me)
         if not info_perms.send_messages or not info_perms.read_messages:
             await msg.channel.send(msg.author.mention + " Bad channel perms for info!")
             return
 
+        bot_perms = bot_ch.permissions_for(init_guild.me)
         if not bot_perms.send_messages or not bot_perms.read_messages:
             await msg.channel.send(msg.author.mention + " Bad channel perms for chat!")
             return
+
+        if reviewer_ch is not None:
+            review_perms = reviewer_ch.permissions_for(init_guild.me)
+            if not review_perms.send_messages or not review_perms.read_messages or not review_perms.create_public_threads:
+                await msg.channel.send(msg.author.mention + " Bad channel perms for review!")
+                return
 
         if submit_ch is not None:
             submit_perms = submit_ch.permissions_for(init_guild.me)
@@ -2289,9 +2336,11 @@ class SpriteBot:
         new_server.chat = bot_ch.id
         if submit_ch is not None:
             new_server.submit = submit_ch.id
+            new_server.approval_chat = reviewer_ch.id
             new_server.approval = reviewer_role.id
         else:
             new_server.submit = 0
+            new_server.approval_chat = 0
             new_server.approval = 0
         self.config.servers[str(init_guild.id)] = new_server
 

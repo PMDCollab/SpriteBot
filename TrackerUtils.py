@@ -125,6 +125,10 @@ class TrackerNode:
 
         self.__dict__ = main_dict
 
+        if "sprite_talk" not in self.__dict__:
+            self.sprite_talk = {}
+            self.portrait_talk = {}
+
         self.sprite_credit = CreditNode(node_dict["sprite_credit"])
         self.portrait_credit = CreditNode(node_dict["portrait_credit"])
 
