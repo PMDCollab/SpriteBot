@@ -734,19 +734,19 @@ class SpriteBot:
         new_credit = True
         if delete_author:
             new_credit = False
-            # TrackerUtils.deleteCredits(gen_path, orig_author)
+            TrackerUtils.deleteCredits(gen_path, orig_author)
 
             # update the credits and timestamp in the chosen node
-            # chosen_node.__dict__[asset_type + "_modified"] = str(datetime.datetime.utcnow())
+            chosen_node.__dict__[asset_type + "_modified"] = str(datetime.datetime.utcnow())
 
-            # credit_data = chosen_node.__dict__[asset_type + "_credit"]
+            credit_data = chosen_node.__dict__[asset_type + "_credit"]
 
-            # credit_entries = TrackerUtils.getCreditEntries(gen_path)
-            # if credit_data.primary == orig_author:
+            credit_entries = TrackerUtils.getCreditEntries(gen_path)
+            if credit_data.primary == orig_author:
                 # delete the primary and promote a secondary
-            #     credit_data.primary = credit_entries[0]
+                credit_data.primary = credit_entries[0]
             # reload secondary credits and amount
-            # TrackerUtils.updateCreditFromEntries(credit_data, credit_entries)
+            TrackerUtils.updateCreditFromEntries(credit_data, credit_entries)
         else:
             cur_credits = TrackerUtils.getFileCredits(gen_path)
             for credit in cur_credits:
@@ -797,8 +797,6 @@ class SpriteBot:
             new_link = await self.generateLink(file_data, file_name)
             chosen_node.__dict__[asset_type+"_link"] = new_link
             chosen_node.__dict__[asset_type+"_recolor_link"] = ""
-        elif delete_author:
-            new_link = "(This didn't actually happen. The feature is still in beta)"
 
         mentions = ["<@!"+str(ii)+">" for ii in approvals]
         approve_msg = "{0} {1} approved by {2}: #{3:03d}: {4}".format(new_revise, asset_type, str(mentions), int(full_idx[0]), new_name_str)
@@ -1905,10 +1903,9 @@ class SpriteBot:
                 entry = self.names[credit_id]
                 if entry.name != '':
                     credit_id = entry.name
-                credit_line = "{0}\t{1}\t{2}\t{3}".format(credit_time, credit_id, credit_status, credit_diff)
-                if len(credit_str) + len(credit_line) < 1950:
-                    credit_str += '\n' + credit_line
-                else:
+                credit_line = "{0}\t{1}\t{2}".format(credit_time, credit_id, credit_diff)
+                credit_str += '\n' + credit_line
+                if len(credit_str) >= 1950:
                     too_long = True
         else:
             credit_entries = TrackerUtils.getCreditEntries(gen_path)
@@ -1917,11 +1914,9 @@ class SpriteBot:
                 if entry.name != '':
                     credit_id = entry.name
                 credit_line = "{0}\t{1}".format(credit_id, entry.contact)
-                if len(credit_str) + len(credit_line) < 1950:
-                    credit_str += '\n' + credit_line
-                else:
+                credit_str += '\n' + credit_line
+                if len(credit_str) >= 1950:
                     too_long = True
-
         if too_long:
             file_data = io.StringIO()
             file_data.write(credit_str)

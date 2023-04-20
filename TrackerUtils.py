@@ -68,7 +68,9 @@ def getFileCredits(path):
     if os.path.exists(os.path.join(path, Constants.CREDIT_TXT)):
         with open(os.path.join(path, Constants.CREDIT_TXT), 'r', encoding='utf-8') as txt:
             for line in txt:
-                id_list.append(line.strip().split('\t'))
+                credit = line.strip().split('\t')
+                if credit[2] == "CUR":
+                    id_list.append(credit)
     return id_list
 
 def appendCredits(path, id, diff):
@@ -309,7 +311,6 @@ def fileSystemToJson(dict, species_path, prefix, tier):
 
             fileSystemToJson(dict.subgroups[inFile], fullPath, prefix, tier + 1)
         elif inFile == Constants.CREDIT_TXT:
-            #shiftCredits(fullPath)
             credit_entries = getCreditEntries(species_path)
             credit_data = dict.__dict__[prefix + "_credit"]
             updateCreditFromEntries(credit_data, credit_entries)
