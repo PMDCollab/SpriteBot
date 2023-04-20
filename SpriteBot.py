@@ -1279,7 +1279,7 @@ class SpriteBot:
     async def retrieveDiscussion(self, full_idx, chosen_node, asset_type, guild_id):
 
         guild_id_str = str(guild_id)
-        if self.config.servers[guild_id_str].approval_chat == 0:
+        if self.config.servers[guild_id_str].chat == 0:
             return None
 
         req_base = asset_type
@@ -1290,14 +1290,14 @@ class SpriteBot:
             guild = self.client.get_guild(guild_id)
             return guild.get_thread(talk_id)
 
-        approval_id = self.config.servers[str(guild_id_str)].approval_chat
-        approval_chat = self.client.get_channel(approval_id)
+        approval_id = self.config.servers[str(guild_id_str)].chat
+        approval_ch = self.client.get_channel(approval_id)
 
         new_name = TrackerUtils.getIdxName(self.tracker, full_idx)
         new_name.insert(0, asset_type)
         new_name_str = " ".join(new_name)
 
-        msg = await approval_chat.send(new_name_str)
+        msg = await approval_ch.send(new_name_str)
         thread = await msg.create_thread(name=new_name_str)
         chosen_node.__dict__[req_link][guild_id_str] = thread.id
         return thread
