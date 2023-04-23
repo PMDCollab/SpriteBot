@@ -409,9 +409,9 @@ class SpriteBot:
                 else:
                     wan_zip = SpriteUtils.getLinkZipGroup(msg.attachments[0].url)
             except SpriteUtils.SpriteVerifyError as e:
-                await self.returnMsgFile(msg, msg.author.mention + " Submission was in the wrong format.\n{0}".format(str(e)), asset_type)
+                await self.returnMsgFile(msg, None, msg.author.mention + " Submission was in the wrong format.\n{0}".format(str(e)), asset_type)
             except Exception as e:
-                await self.returnMsgFile(msg, msg.author.mention + " Submission was in the wrong format.\n{0}".format(str(e)), asset_type)
+                await self.returnMsgFile(msg, None, msg.author.mention + " Submission was in the wrong format.\n{0}".format(str(e)), asset_type)
                 raise e
 
             orig_zip = None
@@ -429,7 +429,7 @@ class SpriteBot:
 
                 if orig_node.__dict__[asset_type + "_credit"].primary == "":
                     # this means there's no original portrait to base the recolor off of
-                    await self.returnMsgFile(msg, msg.author.mention + " Cannot submit a shiny when the original isn't finished.", asset_type)
+                    await self.returnMsgFile(msg, None, msg.author.mention + " Cannot submit a shiny when the original isn't finished.", asset_type)
                     return False, None
 
                 orig_link = await self.retrieveLinkMsg(orig_idx, orig_node, asset_type, recolor)
@@ -441,9 +441,9 @@ class SpriteBot:
                     else:
                         orig_zip = SpriteUtils.getLinkZipGroup(orig_link)
                 except SpriteUtils.SpriteVerifyError as e:
-                    await self.returnMsgFile(msg, msg.author.mention + " A problem occurred reading original sprite.", asset_type)
+                    await self.returnMsgFile(msg, None, msg.author.mention + " A problem occurred reading original sprite.", asset_type)
                 except Exception as e:
-                    await self.returnMsgFile(msg, msg.author.mention + " A problem occurred reading original sprite.", asset_type)
+                    await self.returnMsgFile(msg, None, msg.author.mention + " A problem occurred reading original sprite.", asset_type)
                     raise e
 
             # if the file needs to be compared to an original, verify it as a recolor. Otherwise, by itself.
@@ -459,17 +459,17 @@ class SpriteBot:
                 decline_msg = e.message
                 quant_img = e.preview_img
             except Exception as e:
-                await self.returnMsgFile(msg, msg.author.mention + " A problem occurred reading submitted sprite.\n{0}".format(str(e)), asset_type)
+                await self.returnMsgFile(msg, None, msg.author.mention + " A problem occurred reading submitted sprite.\n{0}".format(str(e)), asset_type)
                 raise e
         elif asset_type == "portrait":
             # get the portrait image and verify its contents
             try:
                 img = SpriteUtils.getLinkImg(msg.attachments[0].url)
             except SpriteUtils.SpriteVerifyError as e:
-                await self.returnMsgFile(msg, msg.author.mention + " Submission was in the wrong format.\n{0}".format(str(e)), asset_type)
+                await self.returnMsgFile(msg, None, msg.author.mention + " Submission was in the wrong format.\n{0}".format(str(e)), asset_type)
                 return False, None
             except Exception as e:
-                await self.returnMsgFile(msg, msg.author.mention + " Submission was in the wrong format.\n{0}".format(str(e)), asset_type)
+                await self.returnMsgFile(msg, None, msg.author.mention + " Submission was in the wrong format.\n{0}".format(str(e)), asset_type)
                 raise e
 
             orig_img = None
@@ -480,7 +480,7 @@ class SpriteBot:
 
                 if orig_node.__dict__[asset_type + "_credit"].primary == "":
                     # this means there's no original portrait to base the recolor off of
-                    await self.returnMsgFile(msg, msg.author.mention + " Cannot submit a shiny when the original isn't finished.", asset_type)
+                    await self.returnMsgFile(msg, None, msg.author.mention + " Cannot submit a shiny when the original isn't finished.", asset_type)
                     return False, None
 
                 orig_link = await self.retrieveLinkMsg(orig_idx, orig_node, asset_type, recolor)
@@ -488,11 +488,11 @@ class SpriteBot:
                 try:
                     orig_img = SpriteUtils.getLinkImg(orig_link)
                 except SpriteUtils.SpriteVerifyError as e:
-                    await self.returnMsgFile(msg, msg.author.mention + " A problem occurred reading original portrait.",
+                    await self.returnMsgFile(msg, None, msg.author.mention + " A problem occurred reading original portrait.",
                                              asset_type)
                     return False, None
                 except Exception as e:
-                    await self.returnMsgFile(msg, msg.author.mention + " A problem occurred reading original portrait.",
+                    await self.returnMsgFile(msg, None, msg.author.mention + " A problem occurred reading original portrait.",
                                              asset_type)
                     raise e
 
@@ -508,15 +508,18 @@ class SpriteBot:
                 quant_img = e.preview_img
 
         if decline_msg is not None:
-            await self.returnMsgFile(msg, msg.author.mention + " " + decline_msg, asset_type, quant_img)
+            await self.returnMsgFile(msg, None, msg.author.mention + " " + decline_msg, asset_type, quant_img)
             return False, None
 
         return True, diffs
 
-    async def returnMsgFile(self, msg, msg_body, asset_type, quant_img=None):
+    async def returnMsgFile(self, msg, thread, msg_body, asset_type, quant_img=None):
         try:
             return_file, return_name = SpriteUtils.getLinkFile(msg.attachments[0].url, asset_type)
             await self.getChatChannel(msg.guild.id).send(msg_body, file=discord.File(return_file, return_name))
+            if thread:
+                return_file, return_name = SpriteUtils.getLinkFile(msg.attachments[0].url, asset_type)
+                await thread.send(msg_body, file=discord.File(return_file, return_name))
 
             if quant_img is not None:
                 fileData = io.BytesIO()
@@ -569,7 +572,7 @@ class SpriteBot:
         send_files = [discord.File(return_copy, return_name)]
 
         if deleting:
-            diff_str = "Approvers AND the author in question must approve this."
+            diff_str = "Approvers AND the author in question must approve this. Use \U00002705 to approve."
         elif diffs is not None and len(diffs) > 0:
             diff_str = "Changes: {0}".format(", ".join(diffs))
         else:
@@ -634,11 +637,8 @@ class SpriteBot:
 
         chosen_node = TrackerUtils.getNodeFromIdx(self.tracker, full_idx, 0)
         chosen_path = TrackerUtils.getDirFromIdx(self.config.path, asset_type, full_idx)
-
         review_thread = await self.retrieveDiscussion(full_idx, chosen_node, asset_type, msg.guild.id)
-        if review_thread:
-            await review_thread.send("Post approved for {0}".format(sender_info))
-            await review_thread.edit(archived=True)
+
 
         msg_lines = msg.content.split('\n')
         base_idx = None
@@ -864,6 +864,8 @@ class SpriteBot:
         for server_id in self.config.servers:
             if server_id == str(msg.guild.id):
                 await self.getChatChannel(msg.guild.id).send(sender_info + " " + approve_msg + "\n" + new_link)
+                await review_thread.send(sender_info + " " + approve_msg + "\n" + new_link)
+                await review_thread.edit(auto_archive_duration=1440)
             else:
                 await self.getChatChannel(int(server_id)).send("{1}: {0}".format(update_msg, msg.guild.name))
 
@@ -965,11 +967,7 @@ class SpriteBot:
             return
 
         chosen_node = TrackerUtils.getNodeFromIdx(self.tracker, full_idx, 0)
-
         review_thread = await self.retrieveDiscussion(full_idx, chosen_node, asset_type, msg.guild.id)
-        if review_thread:
-            await review_thread.send("Post declined for {0}".format(orig_sender))
-            await review_thread.edit(archived=True)
 
         # change the status of the sprite
         pending_dict = chosen_node.__dict__[asset_type+"_pending"]
@@ -979,9 +977,10 @@ class SpriteBot:
 
         if len(declines) > 0:
             mentions = ["<@!" + str(ii) + ">" for ii in declines]
-            await self.returnMsgFile(msg, orig_sender + " " + "{0} declined by {1}:".format(asset_type, ', '.join(mentions)), asset_type)
+            await self.returnMsgFile(msg, review_thread, orig_sender + " " + "{0} declined by {1}:".format(asset_type, ', '.join(mentions)), asset_type)
+            await review_thread.edit(auto_archive_duration=1440)
         else:
-            await self.returnMsgFile(msg,
+            await self.returnMsgFile(msg, None,
                                      orig_sender + " " + "{0} declined due to another change."
                                                          "  Please resubmit.".format(asset_type), asset_type)
         self.changed |= change_status
@@ -1173,7 +1172,7 @@ class SpriteBot:
                     decline_msg = "{0} does not have a profile.".format(sanitized_author)
 
                 if decline_msg is not None:
-                    await self.returnMsgFile(msg, msg.author.mention + " " + decline_msg, asset_type)
+                    await self.returnMsgFile(msg, None, msg.author.mention + " " + decline_msg, asset_type)
                     return False
 
                 author = "{0}/{1}".format(author, sanitized_author)
@@ -2719,6 +2718,10 @@ class SpriteBot:
                   f"`{prefix}recolorportrait` - Get the Pokemon's portrait sheet in a form for easy recoloring\n" \
                   f"`{prefix}autocolorsprite` - Generates an automatic recolor of the Pokemon's sprite sheet\n" \
                   f"`{prefix}autocolorportrait` - Generates an automatic recolor of the Pokemon's portrait sheet\n" \
+                  f"`{prefix}spritecredit` - Gets the credits of the sprite\n" \
+                  f"`{prefix}portraitcredit` - Gets the credits of the portrait\n" \
+                  f"`{prefix}spritehistory` - Gets the credit history of the sprite\n" \
+                  f"`{prefix}portraithistory` - Gets the credit history of the portrait\n" \
                   f"`{prefix}deletespritecredit` - Removes an author to the credits of the sprite\n" \
                   f"`{prefix}deleteportraitcredit` - Removes an author to the credits of the portrait\n" \
                   f"`{prefix}listsprite` - List all sprites related to a Pokemon\n" \
