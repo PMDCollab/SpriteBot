@@ -126,6 +126,10 @@ class TrackerNode:
 
         self.__dict__ = main_dict
 
+        if "sprite_talk" not in self.__dict__:
+            self.sprite_talk = {}
+            self.portrait_talk = {}
+
         self.sprite_credit = CreditNode(node_dict["sprite_credit"])
         self.portrait_credit = CreditNode(node_dict["portrait_credit"])
 
@@ -199,6 +203,7 @@ def initSubNode(name, canon):
     sub_dict["portrait_pending"] = {}
     sub_dict["portrait_recolor_link"] = ""
     sub_dict["portrait_required"] = False
+    sub_dict["portrait_talk"] = {}
     sub_dict["sprite_complete"] = 0
     sub_dict["sprite_credit"] = initCreditDict()
     sub_dict["sprite_files"] = {}
@@ -208,6 +213,7 @@ def initSubNode(name, canon):
     sub_dict["sprite_pending"] = {}
     sub_dict["sprite_recolor_link"] = ""
     sub_dict["sprite_required"] = False
+    sub_dict["sprite_talk"] = {}
     sub_dict["subgroups"] = {}
     return TrackerNode(sub_dict)
 
