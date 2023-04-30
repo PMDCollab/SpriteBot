@@ -1223,66 +1223,36 @@ class SpriteBot:
 
         return msg_idx, changed
 
-    async def updatePost(self, server):
-        # update status in #info
-        msg_ids = server.info_posts
-        changed_list = False
+    async def updateThreads(self, server_id):
+        server = self.config.servers[server_id]
+        channel = self.client.get_channel(int(server.submit))
 
-        channel = self.client.get_channel(int(server.info))
+        for thread in channel.threads:
+            if thread.archived:
+                continue
+            name_args = thread.name.split()
+            asset_name = name_args[0]
+            name_seq = [TrackerUtils.sanitizeName(i) for i in name_args[1:]]
+            full_idx = TrackerUtils.findFullTrackerIdx(self.tracker, name_seq, 0)
+            if full_idx is None:
+                # this thread should not exist!  But we'll just set it to archived?
+                await thread.edit(archived=True)
+                continue
 
-        posts = []
-        over_dict = TrackerUtils.initSubNode("", True)
-        over_dict.subgroups = self.tracker
-        self.getPostsFromDict(True, True, True, over_dict, posts, [])
+            chosen_node = TrackerUtils.getNodeFromIdx(self.tracker, full_idx, 0)
+            pending_dict = chosen_node.__dict__[asset_name+"_pending"]
 
-        msgs_used = 0
-        msgs_used, changed = await self.sendInfoPosts(channel, posts, msg_ids, msgs_used)
-        changed_list |= changed
-        msgs_used, changed = await self.sendInfoPosts(channel, self.info_post, msg_ids, msgs_used)
-        changed_list |= changed
+            if len(pending_dict) > 0:
+                # no need to archive, the submission is active
+                continue
 
-        # remove unneeded posts from the list
-        while msgs_used < len(msg_ids):
-            msg = await channel.fetch_message(msg_ids[-1])
-            await msg.delete()
-            msg_ids.pop()
-            changed_list = True
+            # so this is an inactive submission.
+            last_msg = await thread.fetch_message(thread.last_message_id)
+            # subtract one day from current time and if the thread is older than one day, archive it
+            time_before = datetime.datetime.now(last_msg.created_at.tzinfo) - datetime.timedelta(days=1)
+            if last_msg.created_at < time_before:
+                await thread.edit(archived=True)
 
-        if changed_list:
-            self.saveConfig()
-
-        # remove unneeded posts from the channel
-        prevMsg = None
-        total = 0
-        msgs = []
-        while True:
-            count = 0
-            ended = False
-            async for message in channel.history(limit=100, before=prevMsg):
-                prevMsg = message
-                count += 1
-                if message.id in msg_ids:
-                    continue
-                if message.author.id != self.client.user.id:
-                    continue
-                msgs.append(message)
-
-            total += count
-            if count == 0:
-                ended = True
-            #print("Scanned " + str(total))
-            if ended:
-                #print("Scanned back to " + str(prevMsg.created_at))
-                break
-            #print("Continuing...")
-
-        # deletion
-        for ii in range(0, len(msgs)):
-            message = msgs[ii]
-            try:
-                await message.delete()
-            except:
-                print(traceback.format_exc())
 
     async def retrieveDiscussion(self, full_idx, chosen_node, asset_type, guild_id):
 
@@ -3579,7 +3549,7 @@ async def periodic_update_status():
             await sprite_bot.sendError(traceback.format_exc())
 
         try:
-            # info updates every 5 minutes
+            # info updates every 1 hour
             if updates % 360 == 0:
                 sprite_bot.writeLog("Performing Post Update")
                 if sprite_bot.changed:
@@ -3587,6 +3557,17 @@ async def periodic_update_status():
                     for server_id in sprite_bot.config.servers:
                         await sprite_bot.updatePost(sprite_bot.config.servers[server_id])
                 sprite_bot.writeLog("Post Update Complete")
+
+        except Exception as e:
+            await sprite_bot.sendError(traceback.format_exc())
+
+        try:
+            # thread updates every 1 hour
+            if updates % 360 == 0:
+                sprite_bot.writeLog("Performing Thread Update")
+                for server_id in sprite_bot.config.servers:
+                    await sprite_bot.updateThreads(server_id)
+                sprite_bot.writeLog("Thread Update Complete")
 
         except Exception as e:
             await sprite_bot.sendError(traceback.format_exc())
