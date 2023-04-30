@@ -236,6 +236,12 @@ class SpriteBot:
         self.saveConfig()
         await self.client.close()
 
+    async def shutdown(self, msg):
+        resp_ch = self.getChatChannel(msg.guild.id)
+        await resp_ch.send("Shutting down.")
+        self.saveConfig()
+        await self.client.close()
+
     async def checkRestarted(self):
         if self.config.update_ch != 0 and self.config.update_msg != 0:
             msg = await self.client.get_channel(self.config.update_ch).fetch_message(self.config.update_msg)
@@ -618,7 +624,7 @@ class SpriteBot:
 
         review_thread = await self.retrieveDiscussion(full_idx, chosen_node, asset_type, new_msg.guild.id)
         if review_thread:
-            await review_thread.send("New post by {0}".format(author))
+            await review_thread.send("New post by {0}: {1}".format(author, new_msg.jump_url))
 
         self.changed |= change_status
 
@@ -865,7 +871,6 @@ class SpriteBot:
             if server_id == str(msg.guild.id):
                 await self.getChatChannel(msg.guild.id).send(sender_info + " " + approve_msg + "\n" + new_link)
                 await review_thread.send(sender_info + " " + approve_msg + "\n" + new_link)
-                await review_thread.edit(auto_archive_duration=1440)
             else:
                 await self.getChatChannel(int(server_id)).send("{1}: {0}".format(update_msg, msg.guild.name))
 
@@ -978,7 +983,6 @@ class SpriteBot:
         if len(declines) > 0:
             mentions = ["<@!" + str(ii) + ">" for ii in declines]
             await self.returnMsgFile(msg, review_thread, orig_sender + " " + "{0} declined by {1}:".format(asset_type, ', '.join(mentions)), asset_type)
-            await review_thread.edit(auto_archive_duration=1440)
         else:
             await self.returnMsgFile(msg, None,
                                      orig_sender + " " + "{0} declined due to another change."
@@ -3519,6 +3523,8 @@ async def on_message(msg: discord.Message):
                 await sprite_bot.setCanon(msg, args[1:], False)
             elif base_arg == "update" and msg.author.id == sprite_bot.config.root:
                 await sprite_bot.updateBot(msg)
+            elif base_arg == "shutdown" and msg.author.id == sprite_bot.config.root:
+                await sprite_bot.shutdown(msg)
             elif base_arg == "forcepush" and msg.author.id == sprite_bot.config.root:
                 await sprite_bot.gitCommit("Tracker update from forced push.")
                 await sprite_bot.gitPush()
