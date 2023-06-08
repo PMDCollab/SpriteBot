@@ -1226,6 +1226,8 @@ class SpriteBot:
     async def updateThreads(self, server_id):
         server = self.config.servers[server_id]
         channel = self.client.get_channel(int(server.submit))
+        if channel is None:
+            raise Exception("No submission channel found for {0}!".format(server_id))
 
         for thread in channel.threads:
             if thread.archived:
