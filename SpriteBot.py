@@ -1223,6 +1223,67 @@ class SpriteBot:
 
         return msg_idx, changed
 
+    async def updatePost(self, server):
+        # update status in #info
+        msg_ids = server.info_posts
+        changed_list = False
+
+        channel = self.client.get_channel(int(server.info))
+
+        posts = []
+        over_dict = TrackerUtils.initSubNode("", True)
+        over_dict.subgroups = self.tracker
+        self.getPostsFromDict(True, True, True, over_dict, posts, [])
+
+        msgs_used = 0
+        msgs_used, changed = await self.sendInfoPosts(channel, posts, msg_ids, msgs_used)
+        changed_list |= changed
+        msgs_used, changed = await self.sendInfoPosts(channel, self.info_post, msg_ids, msgs_used)
+        changed_list |= changed
+
+        # remove unneeded posts from the list
+        while msgs_used < len(msg_ids):
+            msg = await channel.fetch_message(msg_ids[-1])
+            await msg.delete()
+            msg_ids.pop()
+            changed_list = True
+
+        if changed_list:
+            self.saveConfig()
+
+        # remove unneeded posts from the channel
+        prevMsg = None
+        total = 0
+        msgs = []
+        while True:
+            count = 0
+            ended = False
+            async for message in channel.history(limit=100, before=prevMsg):
+                prevMsg = message
+                count += 1
+                if message.id in msg_ids:
+                    continue
+                if message.author.id != self.client.user.id:
+                    continue
+                msgs.append(message)
+
+            total += count
+            if count == 0:
+                ended = True
+            #print("Scanned " + str(total))
+            if ended:
+                #print("Scanned back to " + str(prevMsg.created_at))
+                break
+            #print("Continuing...")
+
+        # deletion
+        for ii in range(0, len(msgs)):
+            message = msgs[ii]
+            try:
+                await message.delete()
+            except:
+                print(traceback.format_exc())
+
     async def updateThreads(self, server_id):
         server = self.config.servers[server_id]
         channel = self.client.get_channel(int(server.submit))
