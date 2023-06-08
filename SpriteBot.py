@@ -1288,7 +1288,7 @@ class SpriteBot:
         server = self.config.servers[server_id]
         if int(server.submit) == 0:
             return
-        
+
         channel = self.client.get_channel(int(server.submit))
         if channel is None:
             raise Exception("No submission channel found for {0}!".format(server_id))
@@ -3618,7 +3618,7 @@ async def periodic_update_status():
             # info updates every 1 hour
             if updates % 360 == 0:
                 sprite_bot.writeLog("Performing Post Update")
-                if sprite_bot.changed:
+                if sprite_bot.changed or updates == 0:
                     sprite_bot.changed = False
                     for server_id in sprite_bot.config.servers:
                         await sprite_bot.updatePost(sprite_bot.config.servers[server_id])
