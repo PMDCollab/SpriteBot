@@ -880,6 +880,10 @@ class SpriteBot:
         self.changed = True
 
         if not add_author and not delete_author:
+
+            if self.names[orig_author].name == "" and self.names[orig_author].contact == "":
+                await self.getChatChannel(msg.guild.id).send("Pro-tip! Use `!register <your name> <contact info>` to change your name and contact info in the credits.\nIt's recommended to include an external contact for in case you lose access to your account.")
+
             # add bounty
             result_phase = current_completion_file
             while result_phase > 0:
