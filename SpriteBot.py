@@ -8,7 +8,6 @@ import asyncio
 import json
 import SpriteUtils
 import TrackerUtils
-import TwitterUtils
 import datetime
 import git
 import sys
@@ -82,7 +81,6 @@ class BotConfig:
         self.path = ""
         self.root = 0
         self.push = False
-        self.twitter = False
         self.last_tw_mention = 0
         self.points = 0
         self.error_ch = 0
@@ -123,10 +121,6 @@ class SpriteBot:
         self.need_restart = False
         with open(os.path.join(self.path, CONFIG_FILE_PATH)) as f:
             self.config = BotConfig(json.load(f))
-
-        # init twitter
-        if self.config.twitter:
-            self.tw_api = TwitterUtils.init_twitter(scdir)
 
         # init portrait constants
         with open(os.path.join(self.config.path, SPRITE_CONFIG_FILE_PATH)) as f:
@@ -957,13 +951,6 @@ class SpriteBot:
                     await self.postStagedSubmission(msg.channel, cmd_str, content, shiny_idx, shiny_node, asset_type, sender_info,
                                                     True, auto_diffs, auto_recolor_file, return_name, overcolor_img)
 
-            if self.config.twitter and asset_type == "portrait":
-                status = TrackerUtils.getStatusEmoji(chosen_node, asset_type)
-                tw_msg = "{5} #{3:03d}: {4}\n{0} {1} by {2}".format(new_revise,
-                                                                asset_type,
-                                                                self.createCreditAttribution(orig_author, True),
-                                                                int(full_idx[0]), new_name_str, status)
-                TwitterUtils.post_image(self.tw_api, tw_msg, new_link)
 
 
     async def submissionDeclined(self, msg, orig_sender, declines):
@@ -1853,52 +1840,30 @@ class SpriteBot:
                                      files=send_files)
 
 
-    def createCreditAttribution(self, mention, plainName):
-        if plainName:
-            # "plainName" actually refers to "twitter-ready name"
-            # TODO: rename this variable or refactor it as a separate flag
-            base_name = "{0}".format(mention)
-            if mention in self.names:
-                if self.names[mention].name != "":
-                    base_name = self.names[mention].name
-                if self.names[mention].contact != "":
-                    if self.names[mention].contact.startswith(TwitterUtils.TWITTER_RE):
-                        return "@{0}".format(self.names[mention].contact.replace(TwitterUtils.TWITTER_RE, ""))
-            return base_name
-        else:
-            base_name = "`{0}`".format(mention)
-            if mention in self.names:
-                if self.names[mention].name != "":
-                    base_name = self.names[mention].name
-                if self.names[mention].contact != "":
-                    return "{0} `{1}`".format(base_name, self.names[mention].contact)
-            return base_name
-
-    def getBestCreditName(self, mention):
+    def createCreditAttribution(self, mention):
         base_name = "`{0}`".format(mention)
         if mention in self.names:
             if self.names[mention].name != "":
                 base_name = self.names[mention].name
             if self.names[mention].contact != "":
                 return "{0} `{1}`".format(base_name, self.names[mention].contact)
-
         return base_name
 
     """
     Base credit is used in the case of shinies.
     It is the credit of the base sprite that should be added to the shiny credit.
     """
-    def createCreditBlock(self, credit, base_credit, plainName):
+    def createCreditBlock(self, credit, base_credit):
         author_arr = []
-        author_arr.append(self.createCreditAttribution(credit.primary, plainName))
+        author_arr.append(self.createCreditAttribution(credit.primary))
         for author in credit.secondary:
-            author_arr.append(self.createCreditAttribution(author, plainName))
+            author_arr.append(self.createCreditAttribution(author))
         if base_credit is not None:
-            attr = self.createCreditAttribution(base_credit.primary, plainName)
+            attr = self.createCreditAttribution(base_credit.primary)
             if attr not in author_arr:
                 author_arr.append(attr)
             for author in credit.secondary:
-                attr = self.createCreditAttribution(author, plainName)
+                attr = self.createCreditAttribution(author)
                 if attr not in author_arr:
                     author_arr.append(attr)
 
@@ -1944,7 +1909,7 @@ class SpriteBot:
                 else:
                     credit = chosen_node.__dict__[asset_type + "_credit"]
                     base_credit = None
-                    response += "\n" + self.createCreditBlock(credit, base_credit, False)
+                    response += "\n" + self.createCreditBlock(credit, base_credit)
                     if len(credit.secondary) + 1 < credit.total:
                         response += "\nRun `!{0}credit {1}` for full credit.".format(asset_type, " ".join(name_seq))
                 if recolor and not recolor_shiny:
@@ -2057,7 +2022,7 @@ class SpriteBot:
         credit_data.primary = wanted_author
         TrackerUtils.updateCreditFromEntries(credit_data, credit_entries)
 
-        await msg.channel.send(msg.author.mention + " Credit display has been reset for {0} {1}:\n{2}".format(asset_type, " ".join(name_seq), self.createCreditBlock(credit_data, None, False)))
+        await msg.channel.send(msg.author.mention + " Credit display has been reset for {0} {1}:\n{2}".format(asset_type, " ".join(name_seq), self.createCreditBlock(credit_data, None)))
 
         self.saveTracker()
         self.changed = True
@@ -3642,17 +3607,6 @@ async def periodic_update_status():
         except Exception as e:
             await sprite_bot.sendError(traceback.format_exc())
 
-        #try:
-            ## twitter updates every minute
-            #if sprite_bot.config.twitter:
-            #    if updates % 6 == 0:
-            #        # check for mentions
-            #        old_mention = max(1, sprite_bot.config.last_tw_mention)
-            #        sprite_bot.config.last_tw_mention = await TwitterUtils.reply_mentions(sprite_bot, sprite_bot.tw_api, old_mention)
-            #        if sprite_bot.config.last_tw_mention != old_mention:
-            #            sprite_bot.saveConfig()
-        #except Exception as e:
-        #    await sprite_bot.sendError(traceback.format_exc())
         await asyncio.sleep(10)
         updates += 1
         sprite_bot.writeLog("Client Closed Status: {0}".format(client.is_closed()))
