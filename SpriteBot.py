@@ -16,6 +16,7 @@ import argparse
 import Constants
 
 from commands.QueryRessourceStatus import QueryRessourceStatus
+from commands.AutoRecolorRessource import AutoRecolorRessource
 from Constants import PHASES
 
 # Housekeeping for login information
@@ -185,7 +186,9 @@ class SpriteBot:
             QueryRessourceStatus(self, "portrait", False),
             QueryRessourceStatus(self, "portrait", True),
             QueryRessourceStatus(self, "sprite", False),
-            QueryRessourceStatus(self, "sprite", True)
+            QueryRessourceStatus(self, "sprite", True),
+            AutoRecolorRessource(self, "portrait"),
+            AutoRecolorRessource(self, "sprite")
         ]
 
         print("Info Initiated")
@@ -1798,57 +1801,6 @@ class SpriteBot:
         self.getPostsFromDict(asset_type == 'sprite', asset_type == 'portrait', False, over_dict, posts, [])
         msgs_used, changed = await self.sendInfoPosts(msg.channel, posts, [], 0)
 
-    async def tryAutoRecolor(self, msg, name_args, asset_type):
-        # compute answer from current status
-        if len(name_args) == 0:
-            await msg.channel.send(msg.author.mention + " Specify a Pokemon.")
-            return
-        name_seq = [TrackerUtils.sanitizeName(i) for i in name_args]
-        full_idx = TrackerUtils.findFullTrackerIdx(self.tracker, name_seq, 0)
-        if full_idx is None:
-            await msg.channel.send(msg.author.mention + " No such Pokemon.")
-            return
-
-        # can't get recolor link for a shiny
-        if "Shiny" in name_seq:
-            await msg.channel.send(msg.author.mention + " Can't recolor a shiny Pokemon.")
-            return
-
-        chosen_node = TrackerUtils.getNodeFromIdx(self.tracker, full_idx, 0)
-
-        if chosen_node.__dict__[asset_type + "_credit"].primary == "":
-            await msg.channel.send(msg.author.mention + " Can't recolor a Pokemon that doesn't have a {0}.".format(asset_type))
-            return
-
-        shiny_idx = TrackerUtils.createShinyIdx(full_idx, True)
-        shiny_node = TrackerUtils.getNodeFromIdx(self.tracker, shiny_idx, 0)
-
-        if shiny_node.__dict__[asset_type + "_credit"].primary == "":
-            await msg.channel.send(msg.author.mention + " Can't recolor a Pokemon that doesn't have a shiny {0}.".format(asset_type))
-            return
-
-        base_link = await self.retrieveLinkMsg(full_idx, chosen_node, asset_type, False)
-        cur_recolor_file, _ = SpriteUtils.getLinkFile(base_link, asset_type)
-        base_recolor_link = await self.retrieveLinkMsg(full_idx, chosen_node, asset_type, True)
-        cur_recolor_img = SpriteUtils.getLinkImg(base_recolor_link)
-        base_path = TrackerUtils.getDirFromIdx(self.config.path, asset_type, full_idx)
-        # auto-generate the shiny recolor image, in file form
-        shiny_path = TrackerUtils.getDirFromIdx(self.config.path, asset_type, shiny_idx)
-        auto_recolor_img, cmd_str, content = SpriteUtils.autoRecolor(cur_recolor_file, base_path, shiny_path, asset_type)
-        # post it as a staged submission
-        return_name = "{0}-{1}{2}".format(asset_type + "_recolor", "-".join(shiny_idx), ".png")
-
-        auto_recolor_file = io.BytesIO()
-        auto_recolor_img.save(auto_recolor_file, format='PNG')
-        auto_recolor_file.seek(0)
-
-        title = TrackerUtils.getIdxName(self.tracker, full_idx)
-
-        send_files = [discord.File(auto_recolor_file, return_name)]
-        await msg.channel.send("{0} {1}\n{2}\n{3}".format(msg.author.mention, " ".join(title), cmd_str, content),
-                                     files=send_files)
-
-
     def createCreditAttribution(self, mention):
         base_name = "`{0}`".format(mention)
         if mention in self.names:
@@ -2677,9 +2629,7 @@ class SpriteBot:
             for command in self.commands:
                 return_msg += f"`{prefix}{command.getCommand()}` - {command.getSingleLineHelp(server_config)}\n"
             
-            return_msg += f"`{prefix}autocolorsprite` - Generates an automatic recolor of the Pokemon's sprite sheet\n" \
-                  f"`{prefix}autocolorportrait` - Generates an automatic recolor of the Pokemon's portrait sheet\n" \
-                  f"`{prefix}spritecredit` - Gets the credits of the sprite\n" \
+            return_msg += f"`{prefix}spritecredit` - Gets the credits of the sprite\n" \
                   f"`{prefix}portraitcredit` - Gets the credits of the portrait\n" \
                   f"`{prefix}spritehistory` - Gets the credit history of the sprite\n" \
                   f"`{prefix}portraithistory` - Gets the credit history of the portrait\n" \
@@ -2718,32 +2668,6 @@ class SpriteBot:
                              "`Pokemon Name` - Name of the Pokemon\n" \
                              "**Examples**\n" \
                              f"`{prefix}listportrait Pikachu`"
-            elif base_arg == "autocolorsprite":
-                return_msg = "**Command Help**\n" \
-                             f"`{prefix}autocolor <Pokemon Name> [Form Name] [Gender]`\n" \
-                             "Generates an automatic shiny of a Pokemon's sprite sheet, in recolor form. " \
-                             "Meant to be used as a starting point to assist in manual recoloring. " \
-                             "Works best on sprite with multiple animations, where the shiny has only a few.\n" \
-                             "`Pokemon Name` - Name of the Pokemon\n" \
-                             "`Form Name` - [Optional] Form name of the Pokemon\n" \
-                             "`Gender` - [Optional] Specifies the gender of the Pokemon, for those with gender differences\n" \
-                             "**Examples**\n" \
-                             f"`{prefix}autocolorsprite Pikachu`\n" \
-                             f"`{prefix}autocolorsprite Pikachu Female`\n" \
-                             f"`{prefix}autocolorsprite Shaymin Sky`"
-            elif base_arg == "autocolorportrait":
-                return_msg = "**Command Help**\n" \
-                             f"`{prefix}autocolor <Pokemon Name> [Form Name] [Gender]`\n" \
-                             "Generates an automatic shiny of a Pokemon's portrait sheet, in recolor form. " \
-                             "Meant to be used as a starting point to assist in manual recoloring. " \
-                             "Works best on portrait with multiple emotions, where the shiny has only a few.\n" \
-                             "`Pokemon Name` - Name of the Pokemon\n" \
-                             "`Form Name` - [Optional] Form name of the Pokemon\n" \
-                             "`Gender` - [Optional] Specifies the gender of the Pokemon, for those with gender differences\n" \
-                             "**Examples**\n" \
-                             f"`{prefix}autocolorportrait Pikachu`\n" \
-                             f"`{prefix}autocolorportrait Pikachu Female`\n" \
-                             f"`{prefix}autocolorportrait Shaymin Sky`"
             elif base_arg == "spritecredit":
                 return_msg = "**Command Help**\n" \
                              f"`{prefix}spritecredit <Pokemon Name> [Form Name] [Shiny] [Gender]`\n" \
@@ -3361,10 +3285,6 @@ async def on_message(msg: discord.Message):
                 await sprite_bot.getAbsentProfiles(msg)
             elif base_arg == "unregister":
                 await sprite_bot.deleteProfile(msg, args[1:])
-            elif base_arg == "autocolorportrait":
-                await sprite_bot.tryAutoRecolor(msg, args[1:], "portrait")
-            elif base_arg == "autocolorsprite":
-                await sprite_bot.tryAutoRecolor(msg, args[1:], "sprite")
                 # authorized commands
             elif base_arg == "add" and authorized:
                 await sprite_bot.addSpeciesForm(msg, args[1:])
