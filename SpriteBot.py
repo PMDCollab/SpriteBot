@@ -17,6 +17,8 @@ import Constants
 
 from commands.QueryRessourceStatus import QueryRessourceStatus
 from commands.AutoRecolorRessource import AutoRecolorRessource
+from commands.ListRessource import ListRessource
+
 from Constants import PHASES
 
 # Housekeeping for login information
@@ -188,7 +190,9 @@ class SpriteBot:
             QueryRessourceStatus(self, "sprite", False),
             QueryRessourceStatus(self, "sprite", True),
             AutoRecolorRessource(self, "portrait"),
-            AutoRecolorRessource(self, "sprite")
+            AutoRecolorRessource(self, "sprite"),
+            ListRessource(self, "portrait"),
+            ListRessource(self, "sprite")
         ]
 
         print("Info Initiated")
@@ -1782,25 +1786,6 @@ class SpriteBot:
 
         await msg.channel.send(msg.author.mention + " Cleared links for #{0:03d}: {1}.".format(int(full_idx[0]), " ".join(name_seq)))
 
-    async def listForms(self, msg, name_args, asset_type):
-        # compute answer from current status
-        if len(name_args) == 0:
-            await msg.channel.send(msg.author.mention + " Specify a Pokemon.")
-            return
-        name_seq = [TrackerUtils.sanitizeName(name_args[0])]
-        full_idx = TrackerUtils.findFullTrackerIdx(self.tracker, name_seq, 0)
-        if full_idx is None:
-            await msg.channel.send(msg.author.mention + " No such Pokemon.")
-            return
-
-        chosen_node = TrackerUtils.getNodeFromIdx(self.tracker, full_idx, 0)
-
-        posts = []
-        over_dict = TrackerUtils.initSubNode("", True)
-        over_dict.subgroups = { full_idx[0] : chosen_node }
-        self.getPostsFromDict(asset_type == 'sprite', asset_type == 'portrait', False, over_dict, posts, [])
-        msgs_used, changed = await self.sendInfoPosts(msg.channel, posts, [], 0)
-
     def createCreditAttribution(self, mention):
         base_name = "`{0}`".format(mention)
         if mention in self.names:
@@ -2634,9 +2619,7 @@ class SpriteBot:
                   f"`{prefix}spritehistory` - Gets the credit history of the sprite\n" \
                   f"`{prefix}portraithistory` - Gets the credit history of the portrait\n" \
                   f"`{prefix}deletespritecredit` - Removes an author to the credits of the sprite\n" \
-                  f"`{prefix}deleteportraitcredit` - Removes an author to the credits of the portrait\n" \
-                  f"`{prefix}listsprite` - List all sprites related to a Pokemon\n" \
-                  f"`{prefix}listportrait` - List all portraits related to a Pokemon\n"
+                  f"`{prefix}deleteportraitcredit` - Removes an author to the credits of the portrait\n"
             if use_bounties:
                 return_msg += f"`{prefix}spritebounty` - Place a bounty on a sprite\n" \
                               f"`{prefix}portraitbounty` - Place a bounty on a portrait\n" \
@@ -2654,20 +2637,6 @@ class SpriteBot:
                         + command.getMultiLineHelp(server_config)
             if return_msg != None:
                 pass
-            elif base_arg == "listsprite":
-                return_msg = "**Command Help**\n" \
-                             f"`{prefix}listsprite <Pokemon Name>`\n" \
-                             "List all sprites related to a Pokemon.  This includes all forms, gender, and shiny variants.\n" \
-                             "`Pokemon Name` - Name of the Pokemon\n" \
-                             "**Examples**\n" \
-                             f"`{prefix}listsprite Pikachu`"
-            elif base_arg == "listportrait":
-                return_msg = "**Command Help**\n" \
-                             f"`{prefix}listportrait <Pokemon Name>`\n" \
-                             "List all portraits related to a Pokemon.  This includes all forms, gender, and shiny variants.\n" \
-                             "`Pokemon Name` - Name of the Pokemon\n" \
-                             "**Examples**\n" \
-                             f"`{prefix}listportrait Pikachu`"
             elif base_arg == "spritecredit":
                 return_msg = "**Command Help**\n" \
                              f"`{prefix}spritecredit <Pokemon Name> [Form Name] [Shiny] [Gender]`\n" \
@@ -3259,10 +3228,6 @@ async def on_message(msg: discord.Message):
             elif base_arg == "staffhelp":
                 await sprite_bot.staffhelp(msg, args[1:])
                 # primary commands
-            elif base_arg == "listsprite":
-                await sprite_bot.listForms(msg, args[1:], "sprite")
-            elif base_arg == "listportrait":
-                await sprite_bot.listForms(msg, args[1:], "portrait")
             elif base_arg == "spritecredit":
                 await sprite_bot.getCredit(msg, args[1:], "sprite", False)
             elif base_arg == "portraitcredit":
