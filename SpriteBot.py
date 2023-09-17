@@ -15,6 +15,9 @@ import re
 import argparse
 import Constants
 
+from commands.QueryRessourceStatus import QueryRessourceStatus
+from Constants import PHASES
+
 # Housekeeping for login information
 TOKEN_FILE_PATH = 'discord_token.txt'
 NAME_FILE_PATH = 'credit_names.txt'
@@ -27,8 +30,6 @@ SPRITE_WORTH = 10
 PORTRAIT_WORTH = 1
 SPRITE_SHINY_WORTH = 2
 PORTRAIT_SHINY_WORTH = 1
-
-PHASES = [ "\u26AA incomplete", "\u2705 available", "\u2B50 fully featured" ]
 
 MESSAGE_BOUNTIES_DISABLED = "Bounties are disabled for this instance of SpriteBot"
 
@@ -178,6 +179,14 @@ class SpriteBot:
         self.saveTracker()
         # save updated credits
         self.saveNames()
+
+        # register commands
+        self.commands = [
+            QueryRessourceStatus(self, "portrait", False),
+            QueryRessourceStatus(self, "portrait", True),
+            QueryRessourceStatus(self, "sprite", False),
+            QueryRessourceStatus(self, "sprite", True)
+        ]
 
         print("Info Initiated")
 
@@ -1873,64 +1882,6 @@ class SpriteBot:
             block += " +{0} more".format(credit_diff)
         return block
 
-
-    async def queryStatus(self, msg, name_args, asset_type, recolor):
-        # compute answer from current status
-        if len(name_args) == 0:
-            await msg.channel.send(msg.author.mention + " Specify a Pokemon.")
-            return
-        name_seq = [TrackerUtils.sanitizeName(i) for i in name_args]
-        full_idx = TrackerUtils.findFullTrackerIdx(self.tracker, name_seq, 0)
-        if full_idx is None:
-            await msg.channel.send(msg.author.mention + " No such Pokemon.")
-            return
-
-        # special case recolor link for a shiny
-        recolor_shiny = False
-        if recolor and "Shiny" in name_seq:
-            recolor_shiny = True
-
-        chosen_node = TrackerUtils.getNodeFromIdx(self.tracker, full_idx, 0)
-        # post the statuses
-        response = msg.author.mention + " "
-        status = TrackerUtils.getStatusEmoji(chosen_node, asset_type)
-        response += "{0} #{1:03d}: {2}".format(status, int(full_idx[0]), " ".join(name_seq))
-
-        if chosen_node.__dict__[asset_type + "_required"]:
-            file_exists = chosen_node.__dict__[asset_type + "_credit"].primary != ""
-            if not file_exists and recolor:
-                if recolor_shiny:
-                    response += " doesn't have a {0}. Submit it first.".format(asset_type)
-                else:
-                    response += " doesn't have a {0} to recolor. Submit the original first.".format(asset_type)
-            else:
-                if not file_exists:
-                    response += "\n [This {0} is missing. If you want to submit, use this file as a template!]".format(asset_type)
-                else:
-                    credit = chosen_node.__dict__[asset_type + "_credit"]
-                    base_credit = None
-                    response += "\n" + self.createCreditBlock(credit, base_credit)
-                    if len(credit.secondary) + 1 < credit.total:
-                        response += "\nRun `!{0}credit {1}` for full credit.".format(asset_type, " ".join(name_seq))
-                if recolor and not recolor_shiny:
-                    response += "\n [Recolor this {0} to its shiny palette and submit it.]".format(asset_type)
-                chosen_link = await self.retrieveLinkMsg(full_idx, chosen_node, asset_type, recolor)
-                response += "\n" + chosen_link
-
-            next_phase = chosen_node.__dict__[asset_type + "_complete"] + 1
-
-            if str(next_phase) in chosen_node.__dict__[asset_type + "_bounty"]:
-                bounty = chosen_node.__dict__[asset_type + "_bounty"][str(next_phase)]
-                if bounty > 0:
-                    response += "\n This {0} has a bounty of **{1}GP**, paid out when it becomes {2}".format(asset_type, bounty, PHASES[next_phase].title())
-            if chosen_node.modreward and chosen_node.__dict__[asset_type + "_complete"] == TrackerUtils.PHASE_INCOMPLETE:
-                response += "\n The reward for this {0} will be decided by approvers.".format(asset_type)
-        else:
-            response += " does not need a {0}.".format(asset_type)
-
-        await msg.channel.send(response)
-
-
     async def getCredit(self, msg, name_args, asset_type, history):
         # compute answer from current status
         if len(name_args) == 0:
@@ -2717,15 +2668,16 @@ class SpriteBot:
         self.changed = True
 
     async def help(self, msg, args):
-        prefix = self.config.servers[str(msg.guild.id)].prefix
+        server_config = self.config.servers[str(msg.guild.id)]
+        prefix = server_config.prefix
         use_bounties = self.config.use_bounties
         if len(args) == 0:
-            return_msg = "**Commands**\n" \
-                  f"`{prefix}sprite` - Get the Pokemon's sprite sheet\n" \
-                  f"`{prefix}portrait` - Get the Pokemon's portrait sheet\n" \
-                  f"`{prefix}recolorsprite` - Get the Pokemon's sprite sheet in a form for easy recoloring\n" \
-                  f"`{prefix}recolorportrait` - Get the Pokemon's portrait sheet in a form for easy recoloring\n" \
-                  f"`{prefix}autocolorsprite` - Generates an automatic recolor of the Pokemon's sprite sheet\n" \
+            return_msg = "**Commands**\n"
+
+            for command in self.commands:
+                return_msg += f"`{prefix}{command.getCommand()}` - {command.getSingleLineHelp(server_config)}\n"
+            
+            return_msg += f"`{prefix}autocolorsprite` - Generates an automatic recolor of the Pokemon's sprite sheet\n" \
                   f"`{prefix}autocolorportrait` - Generates an automatic recolor of the Pokemon's portrait sheet\n" \
                   f"`{prefix}spritecredit` - Gets the credits of the sprite\n" \
                   f"`{prefix}portraitcredit` - Gets the credits of the portrait\n" \
@@ -2745,39 +2697,20 @@ class SpriteBot:
 
         else:
             base_arg = args[0]
-            if base_arg == "listsprite":
+            return_msg = None
+            for command in self.commands:
+                if command.getCommand() == base_arg:
+                    return_msg = "**Command Help**\n" \
+                        + command.getMultiLineHelp(server_config)
+            if return_msg != None:
+                pass
+            elif base_arg == "listsprite":
                 return_msg = "**Command Help**\n" \
                              f"`{prefix}listsprite <Pokemon Name>`\n" \
                              "List all sprites related to a Pokemon.  This includes all forms, gender, and shiny variants.\n" \
                              "`Pokemon Name` - Name of the Pokemon\n" \
                              "**Examples**\n" \
                              f"`{prefix}listsprite Pikachu`"
-            elif base_arg == "sprite":
-                return_msg = "**Command Help**\n" \
-                             f"`{prefix}sprite <Pokemon Name> [Form Name] [Shiny] [Gender]`\n" \
-                             "Gets the sprite sheet for a Pokemon.  If there is none, it will return a blank template.\n" \
-                             "`Pokemon Name` - Name of the Pokemon\n" \
-                             "`Form Name` - [Optional] Form name of the Pokemon\n" \
-                             "`Shiny` - [Optional] Specifies if you want the shiny sprite or not\n" \
-                             "`Gender` - [Optional] Specifies the gender of the Pokemon, for those with gender differences\n" \
-                             "**Examples**\n" \
-                             f"`{prefix}sprite Pikachu`\n" \
-                             f"`{prefix}sprite Pikachu Shiny`\n" \
-                             f"`{prefix}sprite Pikachu Female`\n" \
-                             f"`{prefix}sprite Pikachu Shiny Female`\n" \
-                             f"`{prefix}sprite Shaymin Sky`\n" \
-                             f"`{prefix}sprite Shaymin Sky Shiny`"
-            elif base_arg == "recolorsprite":
-                return_msg = "**Command Help**\n" \
-                             f"`{prefix}recolorsprite <Pokemon Name> [Form Name] [Gender]`\n" \
-                             "Gets the sprite sheet for a Pokemon in a form that is easy to recolor.\n" \
-                             "`Pokemon Name` - Name of the Pokemon\n" \
-                             "`Form Name` - [Optional] Form name of the Pokemon\n" \
-                             "`Gender` - [Optional] Specifies the gender of the Pokemon, for those with gender differences\n" \
-                             "**Examples**\n" \
-                             f"`{prefix}recolorsprite Pikachu`\n" \
-                             f"`{prefix}recolorsprite Pikachu Female`\n" \
-                             f"`{prefix}recolorsprite Shaymin Sky`"
             elif base_arg == "listportrait":
                 return_msg = "**Command Help**\n" \
                              f"`{prefix}listportrait <Pokemon Name>`\n" \
@@ -2785,32 +2718,6 @@ class SpriteBot:
                              "`Pokemon Name` - Name of the Pokemon\n" \
                              "**Examples**\n" \
                              f"`{prefix}listportrait Pikachu`"
-            elif base_arg == "portrait":
-                return_msg = "**Command Help**\n" \
-                             f"`{prefix}portrait <Pokemon Name> [Form Name] [Shiny] [Gender]`\n" \
-                             "Gets the portrait sheet for a Pokemon.  If there is none, it will return a blank template.\n" \
-                             "`Pokemon Name` - Name of the Pokemon\n" \
-                             "`Form Name` - [Optional] Form name of the Pokemon\n" \
-                             "`Shiny` - [Optional] Specifies if you want the shiny portrait or not\n" \
-                             "`Gender` - [Optional] Specifies the gender of the Pokemon, for those with gender differences\n" \
-                             "**Examples**\n" \
-                             f"`{prefix}portrait Wooper`\n" \
-                             f"`{prefix}portrait Wooper Shiny`\n" \
-                             f"`{prefix}portrait Wooper Female`\n" \
-                             f"`{prefix}portrait Wooper Shiny Female`\n" \
-                             f"`{prefix}portrait Shaymin Sky`\n" \
-                             f"`{prefix}portrait Shaymin Sky Shiny`"
-            elif base_arg == "recolorportrait":
-                return_msg = "**Command Help**\n" \
-                             f"`{prefix}recolorportrait <Pokemon Name> [Form Name] [Gender]`\n" \
-                             "Gets the portrait sheet for a Pokemon in a form that is easy to recolor.\n" \
-                             "`Pokemon Name` - Name of the Pokemon\n" \
-                             "`Form Name` - [Optional] Form name of the Pokemon\n" \
-                             "`Gender` - [Optional] Specifies the gender of the Pokemon, for those with gender differences\n" \
-                             "**Examples**\n" \
-                             f"`{prefix}recolorportrait Pikachu`\n" \
-                             f"`{prefix}recolorportrait Pikachu Female`\n" \
-                             f"`{prefix}recolorportrait Shaymin Sky`"
             elif base_arg == "autocolorsprite":
                 return_msg = "**Command Help**\n" \
                              f"`{prefix}autocolor <Pokemon Name> [Form Name] [Gender]`\n" \
@@ -3417,6 +3324,12 @@ async def on_message(msg: discord.Message):
 
             authorized = await sprite_bot.isAuthorized(msg.author, msg.guild)
             base_arg = args[0].lower()
+
+            for command in sprite_bot.commands:
+                if base_arg == command.getCommand():
+                    await command.executeCommand(msg, args[1:])
+                    return
+
             if base_arg == "help":
                 await sprite_bot.help(msg, args[1:])
             elif base_arg == "staffhelp":
@@ -3424,16 +3337,8 @@ async def on_message(msg: discord.Message):
                 # primary commands
             elif base_arg == "listsprite":
                 await sprite_bot.listForms(msg, args[1:], "sprite")
-            elif base_arg == "sprite":
-                await sprite_bot.queryStatus(msg, args[1:], "sprite", False)
-            elif base_arg == "recolorsprite":
-                await sprite_bot.queryStatus(msg, args[1:], "sprite", True)
             elif base_arg == "listportrait":
                 await sprite_bot.listForms(msg, args[1:], "portrait")
-            elif base_arg == "portrait":
-                await sprite_bot.queryStatus(msg, args[1:], "portrait", False)
-            elif base_arg == "recolorportrait":
-                await sprite_bot.queryStatus(msg, args[1:], "portrait", True)
             elif base_arg == "spritecredit":
                 await sprite_bot.getCredit(msg, args[1:], "sprite", False)
             elif base_arg == "portraitcredit":

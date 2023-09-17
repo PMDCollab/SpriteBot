@@ -30,3 +30,5 @@ DIRECTIONS = [ "Down",
 
 MULTI_SHEET_XML = "AnimData.xml"
 CREDIT_TXT = "credits.txt"
+
+PHASES = [ "\u26AA incomplete", "\u2705 available", "\u2B50 fully featured" ]
