@@ -81,7 +81,6 @@ class BotConfig:
         self.path = ""
         self.root = 0
         self.push = False
-        self.last_tw_mention = 0
         self.points = 0
         self.error_ch = 0
         self.points_ch = 0
@@ -389,7 +388,7 @@ class SpriteBot:
             to_send = self.client.get_channel(self.config.error_ch)
 
         resp = await to_send.send("", file=discord.File(file_data, filename))
-        result_url = resp.attachments[0].url
+        result_url = TrackerUtils.sanitizeLink(resp.attachments[0].url)
         return result_url
 
     async def verifySubmission(self, msg, full_idx, base_idx, asset_type, recolor, msg_args):
@@ -405,9 +404,9 @@ class SpriteBot:
             wan_zip = None
             try:
                 if recolor:
-                    wan_zip = SpriteUtils.getLinkImg(msg.attachments[0].url)
+                    wan_zip = SpriteUtils.getLinkImg(TrackerUtils.sanitizeLink(msg.attachments[0].url))
                 else:
-                    wan_zip = SpriteUtils.getLinkZipGroup(msg.attachments[0].url)
+                    wan_zip = SpriteUtils.getLinkZipGroup(TrackerUtils.sanitizeLink(msg.attachments[0].url))
             except SpriteUtils.SpriteVerifyError as e:
                 await self.returnMsgFile(msg, None, msg.author.mention + " Submission was in the wrong format.\n{0}".format(str(e)), asset_type)
             except Exception as e:
@@ -464,7 +463,7 @@ class SpriteBot:
         elif asset_type == "portrait":
             # get the portrait image and verify its contents
             try:
-                img = SpriteUtils.getLinkImg(msg.attachments[0].url)
+                img = SpriteUtils.getLinkImg(TrackerUtils.sanitizeLink(msg.attachments[0].url))
             except SpriteUtils.SpriteVerifyError as e:
                 await self.returnMsgFile(msg, None, msg.author.mention + " Submission was in the wrong format.\n{0}".format(str(e)), asset_type)
                 return False, None
@@ -515,10 +514,10 @@ class SpriteBot:
 
     async def returnMsgFile(self, msg, thread, msg_body, asset_type, quant_img=None):
         try:
-            return_file, return_name = SpriteUtils.getLinkFile(msg.attachments[0].url, asset_type)
+            return_file, return_name = SpriteUtils.getLinkFile(TrackerUtils.sanitizeLink(msg.attachments[0].url), asset_type)
             await self.getChatChannel(msg.guild.id).send(msg_body, file=discord.File(return_file, return_name))
             if thread:
-                return_file, return_name = SpriteUtils.getLinkFile(msg.attachments[0].url, asset_type)
+                return_file, return_name = SpriteUtils.getLinkFile(TrackerUtils.sanitizeLink(msg.attachments[0].url), asset_type)
                 await thread.send(msg_body, file=discord.File(return_file, return_name))
 
             if quant_img is not None:
@@ -538,7 +537,7 @@ class SpriteBot:
     async def stageSubmission(self, msg, full_idx, chosen_node, asset_type, author, recolor, diffs, overcolor):
 
         try:
-            return_file, return_name = SpriteUtils.getLinkFile(msg.attachments[0].url, asset_type)
+            return_file, return_name = SpriteUtils.getLinkFile(TrackerUtils.sanitizeLink(msg.attachments[0].url), asset_type)
         except SpriteUtils.SpriteVerifyError as e:
             await self.getChatChannel(msg.guild.id).send("An error occurred with the file {0}.\n{1}".format(msg.attachments[0].filename, str(e)))
             await msg.delete()
@@ -550,7 +549,7 @@ class SpriteBot:
 
         overcolor_img = None
         if overcolor:
-            overcolor_img = SpriteUtils.getLinkImg(msg.attachments[0].url)
+            overcolor_img = SpriteUtils.getLinkImg(TrackerUtils.sanitizeLink(msg.attachments[0].url))
             if recolor:
                 overcolor_img = SpriteUtils.removePalette(overcolor_img)
 
@@ -716,7 +715,7 @@ class SpriteBot:
                     # no need to check if the original sprite has changed between this recolor's submission and acceptance
                     # because when the original sprite is approved, all submissions for shinies are purged
                     try:
-                        recolor_img = SpriteUtils.getLinkImg(msg.attachments[0].url)
+                        recolor_img = SpriteUtils.getLinkImg(TrackerUtils.sanitizeLink(msg.attachments[0].url))
                     except Exception as e:
                         await self.getChatChannel(msg.guild.id).send(
                             orig_sender + " " + "Removed unknown file: {0}".format(file_name))
@@ -724,11 +723,11 @@ class SpriteBot:
                         raise e
                     SpriteUtils.placeSpriteRecolorToPath(orig_path, recolor_img, gen_path)
                 else:
-                    wan_file = SpriteUtils.getLinkZipGroup(msg.attachments[0].url)
+                    wan_file = SpriteUtils.getLinkZipGroup(TrackerUtils.sanitizeLink(msg.attachments[0].url))
                     SpriteUtils.placeSpriteZipToPath(wan_file, gen_path)
             elif asset_type == "portrait":
                 try:
-                    portrait_img = SpriteUtils.getLinkImg(msg.attachments[0].url)
+                    portrait_img = SpriteUtils.getLinkImg(TrackerUtils.sanitizeLink(msg.attachments[0].url))
                 except Exception as e:
                     await self.getChatChannel(msg.guild.id).send(orig_sender + " " + "Removed unknown file: {0}".format(file_name))
                     await msg.delete()
