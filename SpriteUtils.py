@@ -93,7 +93,7 @@ def comparePixels(img1, img2):
     for ii in range(len(inData1)):
         data1 = inData1[ii]
         data2 = inData2[ii]
-        if (data1[3] > 0) != (data2[3] > 0):
+        if data1[3] != data2[3]:
             diffs.append((ii % img1.size[0], ii // img1.size[0]))
 
     return diffs
@@ -478,20 +478,45 @@ def verifyPortraitRecolor(msg_args, orig_img, img, recolor):
         orig_img = removePalette(orig_img)
         img = removePalette(img)
 
-    pixDiff = comparePixels(orig_img, img)
-    if recolor:
-        correctedDiff = [xyPlusOne(x) for x in pixDiff]
-    else:
-        correctedDiff = pixDiff
+    tileDiff = []
+    partialPixDiff = []
+    for xt in range(Constants.PORTRAIT_TILE_X):
+        for yt in range(Constants.PORTRAIT_TILE_Y):
+            xx = xt * Constants.PORTRAIT_SIZE
+            yy = yt * Constants.PORTRAIT_SIZE
+            if xx < orig_img.size[0] and yy < orig_img.size[1]:
+                orig_crop = orig_img.crop((xx, yy, xx + Constants.PORTRAIT_SIZE, yy + Constants.PORTRAIT_SIZE))
+            else:
+                orig_crop = Image.new('RGBA', (Constants.PORTRAIT_SIZE, Constants.PORTRAIT_SIZE), (0, 0, 0, 0))
 
-    if len(correctedDiff) > 0:
-        raise SpriteVerifyError("Recolor has differing pixel opacity at:\n {0}".format(str(correctedDiff)[:1000]))
-    else:
-        palette_diff = comparePalette(orig_img, img)
-        if palette_diff != 0:
-            if msg_args.colormod != palette_diff:
-                base_str = "Recolor has `{0}` colors compared to the original.\nIf this was intended, resubmit and specify `--colormod {0}` in the message."
-                raise SpriteVerifyError(base_str.format(palette_diff))
+            if xx < img.size[0] and yy < img.size[1]:
+                img_crop = img.crop((xx, yy, xx + Constants.PORTRAIT_SIZE, yy + Constants.PORTRAIT_SIZE))
+            else:
+                img_crop = Image.new('RGBA', (Constants.PORTRAIT_SIZE, Constants.PORTRAIT_SIZE), (0, 0, 0, 0))
+
+            pixDiff = comparePixels(orig_crop, img_crop)
+            if len(pixDiff) == Constants.PORTRAIT_SIZE * Constants.PORTRAIT_SIZE:
+                # full tile missing or added
+                tileDiff.append((xt, yt))
+            elif len(pixDiff) > 0:
+                for px, py in pixDiff:
+                    partialPixDiff.append((xx + px, yy + py))
+
+
+    if recolor:
+        partialPixDiff = [xyPlusOne(x) for x in partialPixDiff]
+
+    if len(partialPixDiff) > 0:
+        raise SpriteVerifyError("Recolor has differing opacity at pixels:\n {0}".format(str(partialPixDiff)[:1000]))
+    if len(tileDiff) > 0:
+        if not msg_args.lineart:
+            raise SpriteVerifyError("Recolor has missing or added portrait at tiles:\n {0}\nIf this is intended (ex, incomplete recolors), resubmit and include `--lineart` in the message.".format(str(tileDiff)[:1000]))
+
+    palette_diff = comparePalette(orig_img, img)
+    if palette_diff != 0:
+        if msg_args.colormod != palette_diff:
+            base_str = "Recolor has `{0}` colors compared to the original.\nIf this was intended, resubmit and specify `--colormod {0}` in the message."
+            raise SpriteVerifyError(base_str.format(palette_diff))
 
     overpalette = getPortraitOverpalette(img)
 

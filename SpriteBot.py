@@ -737,7 +737,12 @@ class SpriteBot:
                     portrait_img = SpriteUtils.removePalette(portrait_img)
                 SpriteUtils.placePortraitToPath(portrait_img, gen_path)
 
-        prev_completion_file = TrackerUtils.getCurrentCompletion(chosen_node, asset_type)
+        orig_node = chosen_node
+        if is_shiny:
+            orig_idx = TrackerUtils.createShinyIdx(full_idx, False)
+            orig_node = TrackerUtils.getNodeFromIdx(self.tracker, orig_idx, 0)
+
+        prev_completion_file = TrackerUtils.getCurrentCompletion(orig_node, chosen_node, asset_type)
 
         new_credit = True
         if delete_author:
@@ -788,7 +793,7 @@ class SpriteBot:
         # update the file cache
         TrackerUtils.updateFiles(chosen_node, gen_path, asset_type)
 
-        current_completion_file = TrackerUtils.getCurrentCompletion(chosen_node, asset_type)
+        current_completion_file = TrackerUtils.getCurrentCompletion(orig_node, chosen_node, asset_type)
 
         # remove from pending list
         pending_dict = chosen_node.__dict__[asset_type + "_pending"]
