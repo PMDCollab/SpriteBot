@@ -18,6 +18,8 @@ import Constants
 from commands.QueryRessourceStatus import QueryRessourceStatus
 from commands.AutoRecolorRessource import AutoRecolorRessource
 from commands.ListRessource import ListRessource
+from commands.QueryRessourceCredit import QueryRessourceCredit
+from commands.DeleteRessourceCredit import DeleteRessourceCredit
 
 from Constants import PHASES
 
@@ -192,7 +194,13 @@ class SpriteBot:
             AutoRecolorRessource(self, "portrait"),
             AutoRecolorRessource(self, "sprite"),
             ListRessource(self, "portrait"),
-            ListRessource(self, "sprite")
+            ListRessource(self, "sprite"),
+            QueryRessourceCredit(self, "portrait", False),
+            QueryRessourceCredit(self, "sprite", False),
+            QueryRessourceCredit(self, "portrait", True),
+            QueryRessourceCredit(self, "sprite", True),
+            DeleteRessourceCredit(self, "portrait"),
+            DeleteRessourceCredit(self, "sprite"),
         ]
 
         print("Info Initiated")
@@ -1819,62 +1827,6 @@ class SpriteBot:
             block += " +{0} more".format(credit_diff)
         return block
 
-    async def getCredit(self, msg, name_args, asset_type, history):
-        # compute answer from current status
-        if len(name_args) == 0:
-            await msg.channel.send(msg.author.mention + " Specify a Pokemon.")
-            return
-        name_seq = [TrackerUtils.sanitizeName(i) for i in name_args]
-        full_idx = TrackerUtils.findFullTrackerIdx(self.tracker, name_seq, 0)
-        if full_idx is None:
-            await msg.channel.send(msg.author.mention + " No such Pokemon.")
-            return
-
-        chosen_node = TrackerUtils.getNodeFromIdx(self.tracker, full_idx, 0)
-
-        if chosen_node.__dict__[asset_type + "_credit"].primary == "":
-            await msg.channel.send(msg.author.mention + " No credit found.")
-            return
-
-        gen_path = TrackerUtils.getDirFromIdx(self.config.path, asset_type, full_idx)
-
-        response = msg.author.mention + " "
-        status = TrackerUtils.getStatusEmoji(chosen_node, asset_type)
-        response += "Full credit for {0} #{1:03d}: {2}".format(status, int(full_idx[0]), " ".join(name_seq))
-
-        credit_str = ""
-        too_long = False
-        if history:
-            credit_entries = TrackerUtils.getFileCredits(gen_path)
-            for credit_entry in credit_entries:
-                credit_time = credit_entry[0]
-                credit_id = credit_entry[1]
-                credit_status = credit_entry[2]
-                credit_diff = credit_entry[3]
-                entry = self.names[credit_id]
-                if entry.name != '':
-                    credit_id = entry.name
-                credit_line = "{0}\t{1}\t{2}".format(credit_time, credit_id, credit_diff)
-                credit_str += '\n' + credit_line
-                if len(credit_str) >= 1950:
-                    too_long = True
-        else:
-            credit_entries = TrackerUtils.getCreditEntries(gen_path)
-            for credit_id in credit_entries:
-                entry = self.names[credit_id]
-                if entry.name != '':
-                    credit_id = entry.name
-                credit_line = "{0}\t{1}".format(credit_id, entry.contact)
-                credit_str += '\n' + credit_line
-                if len(credit_str) >= 1950:
-                    too_long = True
-        if too_long:
-            file_data = io.StringIO()
-            file_data.write(credit_str)
-            await msg.channel.send(response, file=discord.File(file_data, 'credits.txt'))
-        else:
-            await msg.channel.send(response + "```" + credit_str + "```")
-
     async def resetCredit(self, msg, name_args, asset_type):
         # compute answer from current status
         if len(name_args) < 2:
@@ -1952,73 +1904,6 @@ class SpriteBot:
         # stage a post in submissions
         await self.postStagedSubmission(submit_channel, "--addauthor", "", full_idx, chosen_node, asset_type, author + "/" + wanted_author,
                                                 False, None, base_file, base_name, None)
-
-    async def deleteCredit(self, msg, name_args, asset_type):
-        # compute answer from current status
-        if len(name_args) < 2:
-            await msg.channel.send(msg.author.mention + " Specify a user ID and Pokemon.")
-            return
-
-        wanted_author = self.getFormattedCredit(name_args[0])
-        if wanted_author not in self.names:
-            await msg.channel.send(msg.author.mention + " No such profile ID.")
-            return
-
-        authorized = await self.isAuthorized(msg.author, msg.guild)
-        author = "<@!{0}>".format(msg.author.id)
-        if not authorized and author != wanted_author:
-            await msg.channel.send(msg.author.mention + " You must specify your own user ID.")
-            return
-
-        name_seq = [TrackerUtils.sanitizeName(i) for i in name_args[1:]]
-        full_idx = TrackerUtils.findFullTrackerIdx(self.tracker, name_seq, 0)
-        if full_idx is None:
-            await msg.channel.send(msg.author.mention + " No such Pokemon.")
-            return
-
-        chosen_node = TrackerUtils.getNodeFromIdx(self.tracker, full_idx, 0)
-
-        if chosen_node.__dict__[asset_type + "_credit"].primary == "":
-            await msg.channel.send(msg.author.mention + " This command only works on filled {0}.".format(asset_type))
-            return
-
-        gen_path = TrackerUtils.getDirFromIdx(self.config.path, asset_type, full_idx)
-        credit_entries = TrackerUtils.getFileCredits(gen_path)
-        has_credit = False
-        latest_credit = False
-        for credit_entry in credit_entries:
-            credit_id = credit_entry[1]
-            if credit_entry[2] == "OLD":
-                continue
-            if credit_id == wanted_author:
-                has_credit = True
-                latest_credit = True
-            else:
-                latest_credit = False
-
-        if not has_credit:
-            await msg.channel.send(msg.author.mention + " The author must be in the credits list for this {0}.".format(asset_type))
-            return
-
-        if latest_credit:
-            await msg.channel.send(msg.author.mention + " The author cannot be the latest contributor.")
-            return
-
-        chat_id = self.config.servers[str(msg.guild.id)].submit
-        if chat_id == 0:
-            await msg.channel.send(msg.author.mention + " This server does not support submissions.")
-            return
-
-        submit_channel = self.client.get_channel(chat_id)
-        author = "<@!{0}>".format(msg.author.id)
-
-        base_link = await self.retrieveLinkMsg(full_idx, chosen_node, asset_type, False)
-        base_file, base_name = SpriteUtils.getLinkData(base_link)
-
-        # stage a post in submissions
-        await self.postStagedSubmission(submit_channel, "--deleteauthor", "", full_idx, chosen_node, asset_type, author + "/" + wanted_author,
-                                        False, None, base_file, base_name, None)
-
 
     async def getProfile(self, msg):
         msg_mention = "<@!{0}>".format(msg.author.id)
@@ -2613,13 +2498,6 @@ class SpriteBot:
 
             for command in self.commands:
                 return_msg += f"`{prefix}{command.getCommand()}` - {command.getSingleLineHelp(server_config)}\n"
-            
-            return_msg += f"`{prefix}spritecredit` - Gets the credits of the sprite\n" \
-                  f"`{prefix}portraitcredit` - Gets the credits of the portrait\n" \
-                  f"`{prefix}spritehistory` - Gets the credit history of the sprite\n" \
-                  f"`{prefix}portraithistory` - Gets the credit history of the portrait\n" \
-                  f"`{prefix}deletespritecredit` - Removes an author to the credits of the sprite\n" \
-                  f"`{prefix}deleteportraitcredit` - Removes an author to the credits of the portrait\n"
             if use_bounties:
                 return_msg += f"`{prefix}spritebounty` - Place a bounty on a sprite\n" \
                               f"`{prefix}portraitbounty` - Place a bounty on a portrait\n" \
@@ -2637,100 +2515,6 @@ class SpriteBot:
                         + command.getMultiLineHelp(server_config)
             if return_msg != None:
                 pass
-            elif base_arg == "spritecredit":
-                return_msg = "**Command Help**\n" \
-                             f"`{prefix}spritecredit <Pokemon Name> [Form Name] [Shiny] [Gender]`\n" \
-                             "Gets the full credits for a Pokemon's sprite sheet.  Credit them all in your romhacks.\n" \
-                             "`Pokemon Name` - Name of the Pokemon\n" \
-                             "`Form Name` - [Optional] Form name of the Pokemon\n" \
-                             "`Shiny` - [Optional] Specifies if you want the shiny sprite or not\n" \
-                             "`Gender` - [Optional] Specifies the gender of the Pokemon, for those with gender differences\n" \
-                             "**Examples**\n" \
-                             f"`{prefix}spritecredit Pikachu`\n" \
-                             f"`{prefix}spritecredit Pikachu Shiny`\n" \
-                             f"`{prefix}spritecredit Pikachu Female`\n" \
-                             f"`{prefix}spritecredit Pikachu Shiny Female`\n" \
-                             f"`{prefix}spritecredit Shaymin Sky`\n" \
-                             f"`{prefix}spritecredit Shaymin Sky Shiny`"
-            elif base_arg == "portraitcredit":
-                return_msg = "**Command Help**\n" \
-                             f"`{prefix}portraitcredit <Pokemon Name> [Form Name] [Shiny] [Gender]`\n" \
-                             "Gets the full credits for a Pokemon's portraits.  Credit them all in your romhacks.\n" \
-                             "`Pokemon Name` - Name of the Pokemon\n" \
-                             "`Form Name` - [Optional] Form name of the Pokemon\n" \
-                             "`Shiny` - [Optional] Specifies if you want the shiny portrait or not\n" \
-                             "`Gender` - [Optional] Specifies the gender of the Pokemon, for those with gender differences\n" \
-                             "**Examples**\n" \
-                             f"`{prefix}portraitcredit Wooper`\n" \
-                             f"`{prefix}portraitcredit Wooper Shiny`\n" \
-                             f"`{prefix}portraitcredit Wooper Female`\n" \
-                             f"`{prefix}portraitcredit Wooper Shiny Female`\n" \
-                             f"`{prefix}portraitcredit Shaymin Sky`\n" \
-                             f"`{prefix}portraitcredit Shaymin Sky Shiny`"
-            elif base_arg == "deletespritecredit":
-                return_msg = "**Command Help**\n" \
-                             f"`{prefix}deletespritecredit <Author ID> <Pokemon Name> [Form Name] [Shiny] [Gender]`\n" \
-                             "Deletes the specified author from the credits of the sprite.  " \
-                             "This makes a post in the submissions channel, asking other approvers to sign off." \
-                             "The post must be approved by the author being removed.\n" \
-                             "`Author ID` - The discord ID of the author to set as primary\n" \
-                             "`Pokemon Name` - Name of the Pokemon\n" \
-                             "`Form Name` - [Optional] Form name of the Pokemon\n" \
-                             "`Shiny` - [Optional] Specifies if you want the shiny sprite or not\n" \
-                             "`Gender` - [Optional] Specifies the gender of the Pokemon\n" \
-                             "**Examples**\n" \
-                             f"`{prefix}deletespritecredit @Audino Unown Shiny`\n" \
-                             f"`{prefix}deletespritecredit <@!117780585635643396> Unown Shiny`\n" \
-                             f"`{prefix}deletespritecredit @Audino Calyrex`\n" \
-                             f"`{prefix}deletespritecredit @Audino Calyrex Shiny`\n" \
-                             f"`{prefix}deletespritecredit @Audino Jellicent Shiny Female`"
-            elif base_arg == "deleteportraitcredit":
-                return_msg = "**Command Help**\n" \
-                             f"`{prefix}deleteportraitcredit <Author ID> <Pokemon Name> [Form Name] [Shiny] [Gender]`\n" \
-                             "Deletes the specified author from the credits of the portrait.  " \
-                             "This makes a post in the submissions channel, asking other approvers to sign off." \
-                             "The post must be approved by the author being removed.\n" \
-                             "`Author ID` - The discord ID of the author to set as primary\n" \
-                             "`Pokemon Name` - Name of the Pokemon\n" \
-                             "`Form Name` - [Optional] Form name of the Pokemon\n" \
-                             "`Shiny` - [Optional] Specifies if you want the shiny sprite or not\n" \
-                             "`Gender` - [Optional] Specifies the gender of the Pokemon\n" \
-                             "**Examples**\n" \
-                             f"`{prefix}deleteportraitcredit @Audino Unown Shiny`\n" \
-                             f"`{prefix}deleteportraitcredit <@!117780585635643396> Unown Shiny`\n" \
-                             f"`{prefix}deleteportraitcredit @Audino Calyrex`\n" \
-                             f"`{prefix}deleteportraitcredit @Audino Calyrex Shiny`\n" \
-                             f"`{prefix}deleteportraitcredit @Audino Jellicent Shiny Female`"
-            elif base_arg == "spritehistory":
-                return_msg = "**Command Help**\n" \
-                             f"`{prefix}spritehistory <Pokemon Name> [Form Name] [Shiny] [Gender]`\n" \
-                             "Gets the full credit history for a Pokemon's sprite sheet, including who changed what.\n" \
-                             "`Pokemon Name` - Name of the Pokemon\n" \
-                             "`Form Name` - [Optional] Form name of the Pokemon\n" \
-                             "`Shiny` - [Optional] Specifies if you want the shiny sprite or not\n" \
-                             "`Gender` - [Optional] Specifies the gender of the Pokemon, for those with gender differences\n" \
-                             "**Examples**\n" \
-                             f"`{prefix}spritehistory Pikachu`\n" \
-                             f"`{prefix}spritehistory Pikachu Shiny`\n" \
-                             f"`{prefix}spritehistory Pikachu Female`\n" \
-                             f"`{prefix}spritehistory Pikachu Shiny Female`\n" \
-                             f"`{prefix}spritehistory Shaymin Sky`\n" \
-                             f"`{prefix}spritehistory Shaymin Sky Shiny`"
-            elif base_arg == "portraithistory":
-                return_msg = "**Command Help**\n" \
-                             f"`{prefix}portraithistory <Pokemon Name> [Form Name] [Shiny] [Gender]`\n" \
-                             "Gets the full credit history for a Pokemon's portraits, including who changed what.\n" \
-                             "`Pokemon Name` - Name of the Pokemon\n" \
-                             "`Form Name` - [Optional] Form name of the Pokemon\n" \
-                             "`Shiny` - [Optional] Specifies if you want the shiny portrait or not\n" \
-                             "`Gender` - [Optional] Specifies the gender of the Pokemon, for those with gender differences\n" \
-                             "**Examples**\n" \
-                             f"`{prefix}portraithistory Wooper`\n" \
-                             f"`{prefix}portraithistory Wooper Shiny`\n" \
-                             f"`{prefix}portraithistory Wooper Female`\n" \
-                             f"`{prefix}portraithistory Wooper Shiny Female`\n" \
-                             f"`{prefix}portraithistory Shaymin Sky`\n" \
-                             f"`{prefix}portraithistory Shaymin Sky Shiny`"
             elif base_arg == "spritebounty":
                 if use_bounties:
                     return_msg = "**Command Help**\n" \
@@ -3228,14 +3012,6 @@ async def on_message(msg: discord.Message):
             elif base_arg == "staffhelp":
                 await sprite_bot.staffhelp(msg, args[1:])
                 # primary commands
-            elif base_arg == "spritecredit":
-                await sprite_bot.getCredit(msg, args[1:], "sprite", False)
-            elif base_arg == "portraitcredit":
-                await sprite_bot.getCredit(msg, args[1:], "portrait", False)
-            elif base_arg == "spritehistory":
-                await sprite_bot.getCredit(msg, args[1:], "sprite", True)
-            elif base_arg == "portraithistory":
-                await sprite_bot.getCredit(msg, args[1:], "portrait", True)
             elif base_arg == "spritebounty":
                 await sprite_bot.placeBounty(msg, args[1:], "sprite")
             elif base_arg == "portraitbounty":
@@ -3291,10 +3067,6 @@ async def on_message(msg: discord.Message):
                 await sprite_bot.addCredit(msg, args[1:], "sprite")
             elif base_arg == "addportraitcredit" and authorized:
                 await sprite_bot.addCredit(msg, args[1:], "portrait")
-            elif base_arg == "deletespritecredit":
-                await sprite_bot.deleteCredit(msg, args[1:], "sprite")
-            elif base_arg == "deleteportraitcredit":
-                await sprite_bot.deleteCredit(msg, args[1:], "portrait")
             elif base_arg == "modreward" and authorized:
                 await sprite_bot.modSpeciesForm(msg, args[1:])
             elif base_arg == "transferprofile" and authorized:
