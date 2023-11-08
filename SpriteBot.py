@@ -20,6 +20,7 @@ from commands.AutoRecolorRessource import AutoRecolorRessource
 from commands.ListRessource import ListRessource
 from commands.QueryRessourceCredit import QueryRessourceCredit
 from commands.DeleteRessourceCredit import DeleteRessourceCredit
+from commands.GetProfile import GetProfile
 
 from Constants import PHASES
 
@@ -201,6 +202,7 @@ class SpriteBot:
             QueryRessourceCredit(self, "sprite", True),
             DeleteRessourceCredit(self, "portrait"),
             DeleteRessourceCredit(self, "sprite"),
+            GetProfile(self)
         ]
 
         print("Info Initiated")
@@ -1905,13 +1907,6 @@ class SpriteBot:
         await self.postStagedSubmission(submit_channel, "--addauthor", "", full_idx, chosen_node, asset_type, author + "/" + wanted_author,
                                                 False, None, base_file, base_name, None)
 
-    async def getProfile(self, msg):
-        msg_mention = "<@!{0}>".format(msg.author.id)
-        if msg_mention in self.names:
-            await msg.channel.send(msg_mention + "\nName: \"{0}\"    Contact: \"{1}\"".format(self.names[msg_mention].name, self.names[msg_mention].contact))
-            return
-        await msg.channel.send(msg_mention + " No profile. Set it with `!register <Name> <Contact>`!")
-
     async def getAbsentProfiles(self, msg):
         total_names = ["Absentee profiles:"]
         msg_ids = []
@@ -2503,7 +2498,6 @@ class SpriteBot:
                               f"`{prefix}portraitbounty` - Place a bounty on a portrait\n" \
                               f"`{prefix}bounties` - View top bounties\n"
             return_msg += f"`{prefix}register` - Register your profile\n" \
-                          f"`{prefix}profile` - View your profile\n" \
                           f"Type `{prefix}help` with the name of a command to learn more about it."
 
         else:
@@ -2567,10 +2561,6 @@ class SpriteBot:
                                 f"`{prefix}bounties sprite`"
                 else:
                     return_msg = MESSAGE_BOUNTIES_DISABLED
-            elif base_arg == "profile":
-                return_msg = "**Command Help**\n" \
-                             f"`{prefix}profile`\n" \
-                             "View your profile, containing your current name and contact info."
             elif base_arg == "register":
                 return_msg = "**Command Help**\n" \
                              f"`{prefix}register <Name> <Contact>`\n" \
@@ -3018,8 +3008,6 @@ async def on_message(msg: discord.Message):
                 await sprite_bot.placeBounty(msg, args[1:], "portrait")
             elif base_arg == "bounties":
                 await sprite_bot.listBounties(msg, args[1:])
-            elif base_arg == "profile":
-                await sprite_bot.getProfile(msg)
             elif base_arg == "register":
                 await sprite_bot.setProfile(msg, args[1:])
             elif base_arg == "absentprofiles":
