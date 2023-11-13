@@ -1202,7 +1202,7 @@ class SpriteBot:
             return True
 
 
-    async def sendInfoPosts(self, channel, posts, msg_ids, msg_idx):
+    async def sendInfoPosts(self, channel, posts: List[str], msg_ids, msg_idx):
         changed = False
         line_idx = 0
         while line_idx < len(posts):
@@ -1247,7 +1247,7 @@ class SpriteBot:
 
         channel = self.client.get_channel(int(server.info))
 
-        posts = []
+        posts: List[str] = []
         over_dict = TrackerUtils.initSubNode("", True)
         over_dict.subgroups = self.tracker
         self.getPostsFromDict(True, True, True, over_dict, posts, [])

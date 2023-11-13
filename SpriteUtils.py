@@ -17,6 +17,7 @@ import xml.etree.ElementTree as ET
 import xml.dom.minidom as minidom
 import utils as exUtils
 import Constants
+from typing import Dict, List, Tuple
 
 RETRIEVE_HEADERS = { 'User-Agent': 'Mozilla/5.0 (Windows; U; Windows NT 5.1; en-US; rv:1.9.0.7) Gecko/2009021910 Firefox/3.0.7'}
 
@@ -189,7 +190,7 @@ def verifyZipFile(zip, file_name):
     if info.file_size > ZIP_SIZE_LIMIT:
         raise SpriteVerifyError("Zipped file {0} is too large, at {1} bytes.".format(file_name, info.file_size))
 
-def readZipImg(zip, file_name):
+def readZipImg(zip, file_name) -> Image.Image:
     verifyZipFile(zip, file_name)
 
     file_data = BytesIO()
@@ -252,42 +253,56 @@ def downloadFromUrl(path, sprite_link):
 def getStatsFromTree(file_data):
     tree = ET.parse(file_data)
     root = tree.getroot()
-    sdw_size = int(root.find('ShadowSize').text)
+    maybe_shadow_size = root.find('ShadowSize')
+    if maybe_shadow_size is None or maybe_shadow_size.text is None:
+        raise SpriteVerifyError("ShadowSize element missing or empty")
+    sdw_size = int(maybe_shadow_size.text)
     if sdw_size < 0 or sdw_size > 2:
         raise SpriteVerifyError("Invalid shadow size: {0}".format(sdw_size))
 
-    anim_names = {}
-    anim_stats = {}
+    anim_names: Dict[str, int] = {}
+    anim_stats: Dict[int, AnimStat] = {}
     anims_node = root.find('Anims')
+    if anims_node is None:
+        raise SpriteVerifyError("Anims tag missing")
     for anim_node in anims_node.iter('Anim'):
-        name = anim_node.find('Name').text
+        maybe_name = anim_node.find('Name')
+        if maybe_name is None or maybe_name.text is None:
+            raise SpriteVerifyError("An Anim have a Name tag missing or empty")
+        name = maybe_name.text
         # verify all names are real
         if name not in Constants.ACTIONS:
             raise SpriteVerifyError("Invalid anim name '{0}' in XML.".format(name))
         index = -1
         index_node = anim_node.find('Index')
-        if index_node is not None:
+        if index_node is not None and index_node.text is not None:
             index = int(index_node.text)
         backref_node = anim_node.find('CopyOf')
-        if backref_node is not None:
+        if backref_node is not None and backref_node.text is not None:
             backref = backref_node.text
             anim_stat = AnimStat(index, name, None, backref)
         else:
             frame_width = anim_node.find('FrameWidth')
             frame_height = anim_node.find('FrameHeight')
+            if frame_width is None or frame_width.text is None:
+                raise SpriteVerifyError("FrameWidth empty or missing for {}".format(name))
+            if frame_height is None or frame_height.text is None:
+                raise SpriteVerifyError("FrameHeight empty or missing for {}".format(name))
             anim_stat = AnimStat(index, name, (int(frame_width.text), int(frame_height.text)), None)
 
             rush_frame = anim_node.find('RushFrame')
-            if rush_frame is not None:
+            if rush_frame is not None and rush_frame.text is not None:
                 anim_stat.rushFrame = int(rush_frame.text)
             hit_frame = anim_node.find('HitFrame')
-            if hit_frame is not None:
+            if hit_frame is not None and hit_frame.text is not None:
                 anim_stat.hitFrame = int(hit_frame.text)
             return_frame = anim_node.find('ReturnFrame')
-            if return_frame is not None:
+            if return_frame is not None and return_frame.text is not None:
                 anim_stat.returnFrame = int(return_frame.text)
 
             durations_node = anim_node.find('Durations')
+            if durations_node is None:
+                raise SpriteVerifyError("Durations missing in {}".format(name))
             for dur_node in durations_node.iter('Duration'):
                 duration = int(dur_node.text)
                 anim_stat.durations.append(duration)
@@ -887,6 +902,7 @@ def verifySpriteLock(dict, chosen_path, precolor_zip, wan_zip, recolor):
 
                 # check for actual change
                 if recolor:
+                    assert frame_mapping is not None
                     prev_img = readZipImg(zip, anim_png_name)
                     anim_img = createRecolorAnim(prev_img, frame_mapping[anim_name], shiny_frames)
                 else:
@@ -1214,8 +1230,11 @@ def prepareSpriteZip(path):
             zip.write(full_file, arcname=file)
     return fileData
 
-def getFramesAndMappings(path, is_zip):
-    anim_dims = {}
+def getFramesAndMappings(path, is_zip) -> Tuple[
+    List[Tuple[Image.Image, FrameOffset]],
+    Dict[str, Dict[Tuple[int, int, int, int], Tuple[int, bool]]]
+]:
+    anim_dims: Dict[str, Tuple[int, int]] = {}
     if is_zip:
         file_data = BytesIO()
         file_data.write(path.read(Constants.MULTI_SHEET_XML))
@@ -1225,18 +1244,25 @@ def getFramesAndMappings(path, is_zip):
         tree = ET.parse(os.path.join(path, Constants.MULTI_SHEET_XML))
     root = tree.getroot()
     anims_node = root.find('Anims')
+    if anims_node is None:
+        raise ValueError("Anims tag not found")
     for anim_node in anims_node.iter('Anim'):
-        name = anim_node.find('Name').text
+        maybe_name = anim_node.find('Name')
+        if maybe_name is None or maybe_name.text is None:
+            raise ValueError("Name missing in an Anim node of the XML")
+        name = maybe_name.text
         backref_node = anim_node.find('CopyOf')
         if backref_node is None:
             frame_width = anim_node.find('FrameWidth')
             frame_height = anim_node.find('FrameHeight')
+            if frame_width is None or frame_width.text is None or frame_height is None or frame_height.text is None:
+                raise ValueError("FrameWidth or FrameHeight missing or empty")
             anim_dims[name] = (int(frame_width.text), int(frame_height.text))
 
-    frames = []
-    frame_mapping = {}
+    frames: List[Tuple[Image.Image, FrameOffset]] = []
+    frame_mapping: Dict[str, Dict[Tuple[int, int, int, int], Tuple[int, bool]]] = {}
     for anim_name in anim_dims:
-        anim_map = {}
+        anim_map: Dict[Tuple[int, int, int, int], Tuple[int, bool]] = {}
         frame_size = anim_dims[anim_name]
         if is_zip:
             img = readZipImg(path, anim_name + '-Anim.png')
@@ -1244,7 +1270,7 @@ def getFramesAndMappings(path, is_zip):
         else:
             img = Image.open(os.path.join(path, anim_name + '-Anim.png')).convert("RGBA")
             offset_img = Image.open(os.path.join(path, anim_name + '-Offsets.png')).convert("RGBA")
-
+        
         for base_yy in range(0, img.size[1], frame_size[1]):
             # standardized to clockwise style
             yy = ((8 - base_yy // frame_size[1]) % 8) * frame_size[1]
@@ -1503,7 +1529,8 @@ def autoRecolor(prev_base_file, cur_base_path, shiny_path, asset_type):
                 updateOffColorTable(total_off_color, off_color_tbl)
 
                 cur_shiny_img.paste(shiny_tex, (abs_bounds[0], abs_bounds[1]), shiny_tex)
-
+    else:
+        raise ValueError("asset_type is neither sprite nor portrait")
 
     # check the shiny against needed tags
     # check against colors compared to original

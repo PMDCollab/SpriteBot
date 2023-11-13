@@ -115,6 +115,8 @@ class CreditEntry:
         self.contact = contact
 
 class TrackerNode:
+    name: str
+    modreward: bool
 
     def __init__(self, node_dict):
         temp_list = [i for i in node_dict]
