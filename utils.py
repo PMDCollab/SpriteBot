@@ -41,7 +41,7 @@ def roundUpBox(minBox: Tuple[int, int, int, int]):
     return startX, startY, startX + newWidth, startY + newHeight
 
 
-def addToBounds(bounds: Tuple[int, int, int, int], add: Tuple[int, int], sub: bool = False):
+def addToBounds(bounds: Tuple[int, int, int, int], add: Tuple[int, int], sub: bool = False) -> Tuple[int, int, int, int]:
     mult = 1
     if sub:
         mult = -1
