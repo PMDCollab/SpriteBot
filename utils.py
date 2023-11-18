@@ -91,31 +91,42 @@ def getOffsetFromRGB(img, bounds: Tuple[int, int, int, int], black: bool, r: boo
         for j in range(bounds[1], bounds[3]):
             color = datas[i + j * img.size[0]]
             if color[3] == 255:
-                if black and color[0] == 0 and color[1] == 0 and color[2] == 0:
-                    if results[0] is None:
-                        results[0] = (i - bounds[0], j - bounds[1])
+                if color[0] == 255 and color[1] == 255 and color[2] == 255:
+                    if white:
+                        if results[4] is None:
+                            results[4] = (i - bounds[0], j - bounds[1])
+                        else:
+                            raise MultipleOffsetError("Multiple white pixels found found when searching for offsets!")
                     else:
-                        raise MultipleOffsetError("Multiple black pixels found when searching for offsets!")
-                if r and color[0] == 255:
-                    if results[1] is None:
-                        results[1] = (i - bounds[0], j - bounds[1])
-                    else:
-                        raise MultipleOffsetError("Multiple red pixels found found when searching for offsets!")
-                if g and color[1] == 255:
-                    if results[2] is None:
-                        results[2] = (i - bounds[0], j - bounds[1])
-                    else:
-                        raise MultipleOffsetError("Multiple green pixels found found when searching for offsets!")
-                if b and color[2] == 255:
-                    if results[3] is None:
-                        results[3] = (i - bounds[0], j - bounds[1])
-                    else:
-                        raise MultipleOffsetError("Multiple blue pixels found found when searching for offsets!")
-                if white and color[0] == 255 and color[1] == 255 and color[2] == 255:
-                    if results[4] is None:
-                        results[4] = (i - bounds[0], j - bounds[1])
-                    else:
-                        raise MultipleOffsetError("Multiple white pixels found found when searching for ofsfets!")
+                        if results[0] is None and results[1] is None and results[2] is None and results[3] is None:
+                            results[0] = (i - bounds[0], j - bounds[1])
+                            results[1] = (i - bounds[0], j - bounds[1])
+                            results[2] = (i - bounds[0], j - bounds[1])
+                            results[3] = (i - bounds[0], j - bounds[1])
+                        else:
+                            raise MultipleOffsetError("Multiple r/g/b pixels found found when searching for offsets!")
+                else:
+                    if black and color[0] == 0 and color[1] == 0 and color[2] == 0:
+                        if results[0] is None:
+                            results[0] = (i - bounds[0], j - bounds[1])
+                        else:
+                            raise MultipleOffsetError("Multiple black pixels found when searching for offsets!")
+                    if r and color[0] == 255:
+                        if results[1] is None:
+                            results[1] = (i - bounds[0], j - bounds[1])
+                        else:
+                            raise MultipleOffsetError("Multiple red pixels found found when searching for offsets!")
+                    if g and color[1] == 255:
+                        if results[2] is None:
+                            results[2] = (i - bounds[0], j - bounds[1])
+                        else:
+                            raise MultipleOffsetError("Multiple green pixels found found when searching for offsets!")
+                    if b and color[2] == 255:
+                        if results[3] is None:
+                            results[3] = (i - bounds[0], j - bounds[1])
+                        else:
+                            raise MultipleOffsetError("Multiple blue pixels found found when searching for offsets!")
+
     return results
 
 

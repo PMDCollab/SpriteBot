@@ -219,7 +219,12 @@ def initSubNode(name, canon):
     sub_dict["subgroups"] = {}
     return TrackerNode(sub_dict)
 
-def getCurrentCompletion(dict, prefix):
+def getCurrentCompletion(orig_dict, dict, prefix):
+
+    for orig_file in orig_dict.__dict__[prefix + "_files"]:
+        if orig_file not in dict.__dict__[prefix + "_files"]:
+            return PHASE_INCOMPLETE
+
     if prefix == "sprite":
         completion = PHASE_FULL
         while completion > PHASE_INCOMPLETE:
@@ -800,4 +805,8 @@ def sanitizeName(str):
 
 def sanitizeCredit(str):
     return re.sub("\t\n", "", str)
+
+def sanitizeLink(url):
+    result = re.sub("\?.+", "", url)
+    return result
 
