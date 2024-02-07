@@ -806,7 +806,3 @@ def sanitizeName(str):
 def sanitizeCredit(str):
     return re.sub("\t\n", "", str)
 
-def sanitizeLink(url):
-    result = re.sub("\?.+", "", url)
-    return result
-

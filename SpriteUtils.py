@@ -148,7 +148,8 @@ def thumbnailFileImg(inFile):
     return file_data
 
 def getLinkData(url):
-    _, file = os.path.split(url)
+    clean_url = sanitizeLink(url)
+    _, file = os.path.split(clean_url)
     req = urllib.request.Request(url, None, RETRIEVE_HEADERS)
 
     with urllib.request.urlopen(req) as response:
@@ -158,7 +159,8 @@ def getLinkData(url):
         return zip_data, file
 
 def getLinkImg(url):
-    full_path, ext = os.path.splitext(url)
+    clean_url = sanitizeLink(url)
+    full_path, ext = os.path.splitext(clean_url)
     unzip = ext == ".zip"
     _, file = os.path.split(full_path)
     req = urllib.request.Request(url, None, RETRIEVE_HEADERS)
@@ -199,7 +201,8 @@ def readZipImg(zip, file_name) -> Image.Image:
     return Image.open(file_data).convert("RGBA")
 
 def getLinkZipGroup(url):
-    full_path, ext = os.path.splitext(url)
+    clean_url = sanitizeLink(url)
+    full_path, ext = os.path.splitext(clean_url)
     _, file = os.path.split(full_path)
     req = urllib.request.Request(url, None, RETRIEVE_HEADERS)
     zip_data = BytesIO()
@@ -210,7 +213,8 @@ def getLinkZipGroup(url):
     return zip_data
 
 def getLinkFile(url, asset_type):
-    full_path, ext = os.path.splitext(url)
+    clean_url = sanitizeLink(url)
+    full_path, ext = os.path.splitext(clean_url)
     unzip = ext == ".zip" and asset_type == "portrait"
     _, file = os.path.split(full_path)
     output_file = file + ext
@@ -1703,3 +1707,7 @@ def simple_quant(img: Image.Image, colors) -> Image.Image:
                 pixels[i, j] = (0, 0, 0, 0)
             k += 1
     return qimg
+
+def sanitizeLink(url):
+    result = re.sub("\?.+", "", url)
+    return result
