@@ -614,6 +614,15 @@ def updateNameStats(name_dict, dict):
     for secondary in dict.portrait_credit.secondary:
         addNameStat(name_dict, secondary, True)
 
+    if dict.portrait_link.endswith(".zip") or dict.portrait_link.endswith(".png"):
+        dict.portrait_link = ""
+    if dict.sprite_link.endswith(".zip") or dict.sprite_link.endswith(".png"):
+        dict.sprite_link = ""
+    if dict.portrait_recolor_link.endswith(".zip") or dict.portrait_recolor_link.endswith(".png"):
+        dict.portrait_recolor_link = ""
+    if dict.sprite_recolor_link.endswith(".zip") or dict.sprite_recolor_link.endswith(".png"):
+        dict.sprite_recolor_link = ""
+
     for sub_dict in dict.subgroups:
         updateNameStats(name_dict, dict.subgroups[sub_dict])
 
