@@ -337,7 +337,7 @@ def fileSystemToJson(dict, species_path, prefix, tier):
 
             fileSystemToJson(dict.subgroups[inFile], fullPath, prefix, tier + 1)
         elif inFile == Constants.CREDIT_TXT:
-            shiftCredits(fullPath)
+            #shiftCredits(fullPath)
             credit_entries = getCreditEntries(species_path)
             credit_data = dict.__dict__[prefix + "_credit"]
             updateCreditFromEntries(credit_data, credit_entries)
