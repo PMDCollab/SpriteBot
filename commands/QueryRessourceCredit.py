@@ -95,7 +95,7 @@ class QueryRessourceCredit(BaseCommand):
                 entry = self.spritebot.names[credit_entry.name]
                 if entry.name != '':
                     credit_id = entry.name
-                credit_line = "{0}\t{1}\t{2}".format(credit_entry.datetime, credit_entry.name, credit_entry.changed)
+                credit_line = "{0}\t{1}\t{2}".format(credit_entry.datetime, credit_id, credit_entry.changed)
                 credit_str += '\n' + credit_line
                 if len(credit_str) >= 1950:
                     too_long = True
