@@ -18,12 +18,23 @@ import xml.dom.minidom as minidom
 import utils as exUtils
 import Constants
 
+CURRENT_LICENSE = "CC_BY-NC_4"
 
 MAX_SECONDARY_CREDIT = 2
 PHASE_INCOMPLETE = 0
 PHASE_EXISTS = 1
 PHASE_FULL = 2
 
+class CreditEvent:
+    """
+    A class for handling credit in credit history
+    """
+    def __init__(self, datetime, name, old, license, changed):
+        self.datetime = datetime
+        self.name = name
+        self.old = old
+        self.license = license
+        self.changed = changed
 
 def getStatusEmoji(chosen_node, asset_type):
     pending = chosen_node.__dict__[asset_type+"_pending"]
@@ -57,8 +68,8 @@ def getCreditEntries(path):
     found_names = {}
     credit_strings = []
     for credit in credits:
-        credit_id = credit[1]
-        if credit[2] == "OLD":
+        credit_id = credit.name
+        if credit.old == "OLD":
             continue
         if credit_id not in found_names:
             credit_strings.append(credit_id)
@@ -71,14 +82,14 @@ def getFileCredits(path):
         with open(os.path.join(path, Constants.CREDIT_TXT), 'r', encoding='utf-8') as txt:
             for line in txt:
                 credit = line.strip().split('\t')
-                id_list.append(credit)
+                id_list.append(CreditEvent(credit[0], credit[1], credit[2], credit[3], credit[4]))
     return id_list
 
 def appendCredits(path, id, diff):
     if diff == '':
         diff = '"'
     with open(os.path.join(path, Constants.CREDIT_TXT), 'a+', encoding='utf-8') as txt:
-        txt.write("{0}\t{1}\tCUR\t{2}\n".format(str(datetime.datetime.utcnow()), id, diff))
+        txt.write("{0}\t{1}\tCUR\t{2}\t{3}\n".format(str(datetime.datetime.utcnow()), id, CURRENT_LICENSE, diff))
 
 def shiftCredits(fullPath):
     id_list = []
@@ -86,10 +97,18 @@ def shiftCredits(fullPath):
         for line in txt:
             id_list.append(line.strip().split('\t'))
     for idx in range(len(id_list)):
-        id_list[idx].insert(2, "CUR")
+        if len(id_list[idx]) > 4:
+            return
+        date = id_list[idx][0].split(' ')[0]
+        if date > "2024-02-19":
+            id_list[idx].insert(3, "CC_BY-NC_4")
+        elif date > "2023-05-14":
+            id_list[idx].insert(3, "PMDCollab_2")
+        else:
+            id_list[idx].insert(3, "PMDCollab_1")
     with open(fullPath, 'w', encoding='utf-8') as txt:
         for entry in id_list:
-            txt.write(entry[0] + "\t" + entry[1] + "\t" + entry[2] + "\t" + entry[3] + "\n")
+            txt.write(entry[0] + "\t" + entry[1] + "\t" + entry[2] + "\t" + entry[3] + "\t" + entry[4] + "\n")
 
 def deleteCredits(path, id):
     id_list = []
@@ -102,7 +121,7 @@ def deleteCredits(path, id):
             entry[2] = "OLD"
     with open(fullPath, 'w', encoding='utf-8') as txt:
         for entry in id_list:
-            txt.write(entry[0] + "\t" + entry[1] + "\t" + entry[2] + "\t" + entry[3] + "\n")
+            txt.write(entry[0] + "\t" + entry[1] + "\t" + entry[2] + "\t" + entry[3] + "\t" + entry[4] + "\n")
 
 class CreditEntry:
     """
@@ -325,6 +344,7 @@ def fileSystemToJson(dict, species_path, prefix, tier):
 
             fileSystemToJson(dict.subgroups[inFile], fullPath, prefix, tier + 1)
         elif inFile == Constants.CREDIT_TXT:
+            shiftCredits(fullPath)
             credit_entries = getCreditEntries(species_path)
             credit_data = dict.__dict__[prefix + "_credit"]
             updateCreditFromEntries(credit_data, credit_entries)

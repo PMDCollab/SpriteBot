@@ -792,7 +792,7 @@ class SpriteBot:
         else:
             cur_credits = TrackerUtils.getFileCredits(gen_path)
             for credit in cur_credits:
-                if credit[1] == orig_author:
+                if credit.name == orig_author:
                     new_credit = False
                     break
 

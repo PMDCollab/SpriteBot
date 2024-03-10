@@ -20,7 +20,7 @@ class DeleteRessourceCredit(BaseCommand):
     
     def getMultiLineHelp(self, server_config: "BotServer") -> str:
         example_args = [
-            "@Audino Unonw Shiny",
+            "@Audino Unoun Shiny",
             "<@!117780585635643396> Unown Shiny",
             "@Audino Calyrex",
             "@Audino Calyrex Shiny",
@@ -85,8 +85,8 @@ class DeleteRessourceCredit(BaseCommand):
         has_credit = False
         latest_credit = False
         for credit_entry in credit_entries:
-            credit_id = credit_entry[1]
-            if credit_entry[2] == "OLD":
+            credit_id = credit_entry.name
+            if credit_entry.old == "OLD":
                 continue
             if credit_id == wanted_author:
                 has_credit = True
