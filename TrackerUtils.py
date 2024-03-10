@@ -97,15 +97,8 @@ def shiftCredits(fullPath):
         for line in txt:
             id_list.append(line.strip().split('\t'))
     for idx in range(len(id_list)):
-        if len(id_list[idx]) > 4:
-            return
-        date = id_list[idx][0].split(' ')[0]
-        if date > "2024-02-19":
-            id_list[idx].insert(3, "CC_BY-NC_4")
-        elif date > "2023-05-14":
-            id_list[idx].insert(3, "PMDCollab_2")
-        else:
-            id_list[idx].insert(3, "PMDCollab_1")
+        if id_list[idx][1] == "CHUNSOFT":
+            id_list[idx][3] = "Unspecified"
     with open(fullPath, 'w', encoding='utf-8') as txt:
         for entry in id_list:
             txt.write(entry[0] + "\t" + entry[1] + "\t" + entry[2] + "\t" + entry[3] + "\t" + entry[4] + "\n")
