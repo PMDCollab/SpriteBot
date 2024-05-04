@@ -669,7 +669,7 @@ def getDirFromIdx(base_path, asset_type, full_idx):
     full_arr = [base_path, asset_type] + full_idx
     return os.path.join(*full_arr)
 
-def moveNodeFiles(dir_from, dir_to, is_dir):
+def moveNodeFiles(dir_from, dir_to, merge_credit, is_dir):
     cur_files = os.listdir(dir_from)
     for file in cur_files:
         # exclude tmp as it is a special folder name for temp files
@@ -689,6 +689,83 @@ def clearCache(chosen_node, recursive):
         for subgroup in chosen_node.subgroups:
             clearCache(chosen_node.subgroups[subgroup], recursive)
 
+def transferNodeMiscFeatures(node_from, node_to):
+    for key in node_from.__dict__:
+        if key.startswith("sprite"):
+            pass
+        elif key.startswith("portrait"):
+            pass
+        elif key == "canon" or key == "modreward" or key == "subgroups":
+            pass
+        else:
+            # TODO
+            node_to.__dict__[key] = node_from.__dict__[key]
+
+def transferNodeAssetFeatures(node_from, node_to, asset_type):
+    # TODO
+    for key in node_from.__dict__:
+        if key.startswith(asset_type):
+            node_to.__dict__[key] = node_from.__dict__[key]
+
+
+def transferFolderPaths(base_path, tracker, asset_type, full_idx_from, full_idx_to):
+
+    # swap the nodes in tracker, don't do it recursively
+    chosen_node_from = getNodeFromIdx(tracker, full_idx_from, 0)
+    chosen_node_to = getNodeFromIdx(tracker, full_idx_to, 0)
+
+    transferNodeAssetFeatures(chosen_node_from, chosen_node_to, asset_type)
+
+    # prepare to swap textures
+    gen_path_from = getDirFromIdx(base_path, asset_type, full_idx_from)
+    gen_path_to = getDirFromIdx(base_path, asset_type, full_idx_to)
+
+    if not os.path.exists(gen_path_to):
+        os.makedirs(gen_path_to, exist_ok=True)
+
+    # swap the folders
+    moveNodeFiles(gen_path_from, gen_path_to, True, False)
+
+
+def transferAllSubNodes(base_path, tracker, full_idx_from, full_idx_to):
+    # swap the subnode objects
+    chosen_node_from = getNodeFromIdx(tracker, full_idx_from, 0)
+    chosen_node_to = getNodeFromIdx(tracker, full_idx_to, 0)
+
+    # TODO
+    tmp = chosen_node_from.subgroups
+    chosen_node_from.subgroups = chosen_node_to.subgroups
+    chosen_node_to.subgroups = tmp
+
+    # swap back the canon-ness and modreward aspect
+    for sub_id in chosen_node_from.subgroups:
+        if sub_id in chosen_node_to.subgroups:
+            sub_from = chosen_node_from.subgroups[sub_id]
+            sub_to = chosen_node_to.subgroups[sub_id]
+            swapNodeMiscCanon(sub_from, sub_to)
+
+    # swap the subfolders for each asset
+    asset_types = ["sprite", "portrait"]
+
+    for asset_type in asset_types:
+        gen_path_from = getDirFromIdx(base_path, asset_type, full_idx_from)
+        gen_path_to = getDirFromIdx(base_path, asset_type, full_idx_to)
+
+        if not os.path.exists(gen_path_from):
+            os.makedirs(gen_path_from, exist_ok=True)
+
+        if not os.path.exists(gen_path_to):
+            os.makedirs(gen_path_to, exist_ok=True)
+
+        # move dirs to a temp folder
+        gen_path_tmp = os.path.join(gen_path_from, "tmp")
+        os.makedirs(gen_path_tmp, exist_ok=True)
+        moveNodeFiles(gen_path_from, gen_path_tmp, True, True)
+
+        # swap the folders
+        moveNodeFiles(gen_path_to, gen_path_from, True, True)
+        moveNodeFiles(gen_path_tmp, gen_path_to, True, True)
+        shutil.rmtree(gen_path_tmp)
 
 def swapNodeMiscFeatures(node_from, node_to):
     for key in node_from.__dict__:
@@ -732,11 +809,11 @@ def swapFolderPaths(base_path, tracker, asset_type, full_idx_from, full_idx_to):
     # move textures to a temp folder
     gen_path_tmp = os.path.join(gen_path_from, "tmp")
     os.makedirs(gen_path_tmp, exist_ok=True)
-    moveNodeFiles(gen_path_from, gen_path_tmp, False)
+    moveNodeFiles(gen_path_from, gen_path_tmp, False, False)
 
     # swap the folders
-    moveNodeFiles(gen_path_to, gen_path_from, False)
-    moveNodeFiles(gen_path_tmp, gen_path_to, False)
+    moveNodeFiles(gen_path_to, gen_path_from, False, False)
+    moveNodeFiles(gen_path_tmp, gen_path_to, False, False)
     shutil.rmtree(gen_path_tmp)
 
 def swapNodeMiscCanon(chosen_node_from, chosen_node_to):
@@ -784,11 +861,11 @@ def swapAllSubNodes(base_path, tracker, full_idx_from, full_idx_to):
         # move dirs to a temp folder
         gen_path_tmp = os.path.join(gen_path_from, "tmp")
         os.makedirs(gen_path_tmp, exist_ok=True)
-        moveNodeFiles(gen_path_from, gen_path_tmp, True)
+        moveNodeFiles(gen_path_from, gen_path_tmp, False, True)
 
         # swap the folders
-        moveNodeFiles(gen_path_to, gen_path_from, True)
-        moveNodeFiles(gen_path_tmp, gen_path_to, True)
+        moveNodeFiles(gen_path_to, gen_path_from, False, True)
+        moveNodeFiles(gen_path_tmp, gen_path_to, False, True)
         shutil.rmtree(gen_path_tmp)
 
 
