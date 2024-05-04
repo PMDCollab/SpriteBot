@@ -96,18 +96,33 @@ def getOffsetFromRGB(img, bounds: Tuple[int, int, int, int], black: bool, r: boo
                         if results[4] is None:
                             results[4] = (i - bounds[0], j - bounds[1])
                         else:
-                            raise MultipleOffsetError("Multiple white pixels found found when searching for offsets!")
+                            raise MultipleOffsetError("Second white pixel found at {0} when already found at {1} when searching for offsets!".format((i, j), (results[4][0] + bounds[0], results[4][1] + bounds[1])))
                     else:
-                        if results[0] is None and results[1] is None and results[2] is None and results[3] is None:
-                            results[0] = (i - bounds[0], j - bounds[1])
+                        if results[1] is None and results[2] is None and results[3] is None:
+                            if results[0] is None:
+                                results[0] = (i - bounds[0], j - bounds[1])
+                            # otherwise, black may already be chosen.  and just leave it alone
+
                             results[1] = (i - bounds[0], j - bounds[1])
                             results[2] = (i - bounds[0], j - bounds[1])
                             results[3] = (i - bounds[0], j - bounds[1])
                         else:
-                            raise MultipleOffsetError("Multiple r/g/b pixels found found when searching for offsets!")
+                            existing_px = []
+                            if results[0] is not None:
+                                existing_px.append((results[0][0] + bounds[0], results[0][1] + bounds[1]))
+                            if results[1] is not None:
+                                existing_px.append((results[0][1] + bounds[0], results[1][1] + bounds[1]))
+                            if results[2] is not None:
+                                existing_px.append((results[0][2] + bounds[0], results[2][1] + bounds[1]))
+                            if results[3] is not None:
+                                existing_px.append((results[0][3] + bounds[0], results[3][1] + bounds[1]))
+                            raise MultipleOffsetError("White pixel found at {0} when r/g/b pixel already found at {1} when searching for offsets!".format((i, j), existing_px))
                 else:
                     if black and color[0] == 0 and color[1] == 0 and color[2] == 0:
-                        if results[0] is None:
+                        # there is one exception: black and white can coexist
+                        # so if black offset already exists, but it was read as part of a white pixel,
+                        # correct it to this black pixel
+                        if results[0] is None or results[0] == results[1] and results[1] == results[2] and results[2] == results[3]:
                             results[0] = (i - bounds[0], j - bounds[1])
                         else:
                             raise MultipleOffsetError("Multiple black pixels found when searching for offsets!")
