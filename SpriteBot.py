@@ -1391,7 +1391,10 @@ class SpriteBot:
 
         # if we already have a link, send that link
         if chosen_node.__dict__[req_link] != "":
-            return chosen_node.__dict__[req_link]
+            old_link = chosen_node.__dict__[req_link]
+            # TODO: we might be able to get a new link by returning to the message used?
+            if SpriteUtils.testLinkFile(old_link):
+                return old_link
 
         # otherwise, generate that link
         # if there is no data in the folder (aka no credit)

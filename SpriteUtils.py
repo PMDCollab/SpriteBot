@@ -212,6 +212,15 @@ def getLinkZipGroup(url):
 
     return zip_data
 
+def testLinkFile(url):
+    req = urllib.request.Request(url, None, RETRIEVE_HEADERS)
+    try:
+        with urllib.request.urlopen(req) as response:
+            return True
+    except:
+        return False
+
+
 def getLinkFile(url, asset_type):
     clean_url = sanitizeLink(url)
     full_path, ext = os.path.splitext(clean_url)
