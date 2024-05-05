@@ -97,7 +97,7 @@ class QueryRessourceCredit(BaseCommand):
                     credit_id = entry.name
                 credit_line = "{0}\t{1}\t{2}".format(credit_entry.datetime, credit_id, credit_entry.changed)
                 credit_str += '\n' + credit_line
-                if len(credit_str) >= 1950:
+                if len(credit_str) >= 1900:
                     too_long = True
         else:
             credit_entries = TrackerUtils.getCreditEntries(gen_path)
@@ -107,7 +107,7 @@ class QueryRessourceCredit(BaseCommand):
                     credit_id = entry.name
                 credit_line = "{0}\t{1}".format(credit_id, entry.contact)
                 credit_str += '\n' + credit_line
-                if len(credit_str) >= 1950:
+                if len(credit_str) >= 1900:
                     too_long = True
         if too_long:
             file_data = io.StringIO()
