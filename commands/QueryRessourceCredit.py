@@ -112,6 +112,7 @@ class QueryRessourceCredit(BaseCommand):
         if too_long:
             file_data = io.StringIO()
             file_data.write(credit_str)
-            await msg.channel.send(response, file=discord.File(file_data, 'credits.txt'))
+            file_data.seek(0)
+            await msg.channel.send(response, file=discord.File(file_data, 'credit_msg.txt'))
         else:
             await msg.channel.send(response + "```" + credit_str + "```")
