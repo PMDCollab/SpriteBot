@@ -118,12 +118,22 @@ def deleteCredits(path, id):
 
 class CreditEntry:
     """
-    A class for handling recolors
+    A class for determining a contributor's contribution
     """
     def __init__(self, name, contact):
         self.name = name
         self.sprites = False
         self.portraits = False
+        self.contact = contact
+
+class CreditCompileEntry:
+    """
+    A class for determining a contributor's contribution
+    """
+    def __init__(self, name, contact):
+        self.name = name
+        self.sprite = {}
+        self.portrait = {}
         self.contact = contact
 
 class TrackerNode:
@@ -603,6 +613,75 @@ def clearSubmissions(node):
 """
 Name operations
 """
+
+def updateCreditCompilation(name_path, credit_dict):
+
+    with open(name_path, 'w+', encoding='utf-8') as txt:
+        txt.write("All custom graphics not originating from official PMD games are licensed under Attribution-NonCommercial 4.0 International http://creativecommons.org/licenses/by/4.0/.\n")
+        txt.write("All graphics referred to in this file can be found in http://sprites.pmdcollab.org/\n\n")
+        for handle in credit_dict:
+            if len(credit_dict[handle].sprite) > 0 or len(credit_dict[handle].portrait) > 0:
+                name_components = []
+                if len(credit_dict[handle].name):
+                    name_components.append(credit_dict[handle].name)
+
+                if handle.startswith("<@!"):
+                    name_components.append("Discord:{0}".format(handle))
+
+                if len(credit_dict[handle].contact):
+                    name_components.append("Contact:{0}".format(credit_dict[handle].contact))
+
+                txt.write("{0}\n".format("\t".join(name_components)))
+
+                if len(credit_dict[handle].portrait) > 0:
+                    txt.write("\tPortrait:\n")
+                    # for each portrait
+                    for id_key in credit_dict[handle].portrait:
+                        all_parts = []
+                        for subpart in credit_dict[handle].portrait[id_key]:
+                            all_parts.append(subpart)
+                        if len(all_parts) > 0:
+                            txt.write("\t\t{0}: {1}\n".format(id_key, ",".join(all_parts)))
+
+                if len(credit_dict[handle].sprite) > 0:
+                    txt.write("\tSprite:\n")
+                    # for each sprite
+                    for id_key in credit_dict[handle].sprite:
+                        all_parts = []
+                        for subpart in credit_dict[handle].sprite[id_key]:
+                            all_parts.append(subpart)
+                        if len(all_parts) > 0:
+                            txt.write("\t\t{0}: {1}\n".format(id_key, ",".join(all_parts)))
+                txt.write("\n")
+
+def updateCompilationStats(name_dict, dict, species_path, prefix, form_name_list, credit_dict):
+    # generate the form name
+    form_name = " ".join([i for i in form_name_list if i != ""])
+    # is there a credits txt?  read it
+    credits = getFileCredits(species_path)
+    # for each entry, update the credit dict
+    for credit in credits:
+        if credit.old == "CUR":
+            # add entry if not existing
+            if credit.name not in credit_dict:
+                if credit.name in name_dict:
+                    credit_dict[credit.name] = CreditCompileEntry(name_dict[credit.name].name, name_dict[credit.name].contact)
+                else:
+                    credit_dict[credit.name] = CreditCompileEntry("", "")
+            compile_entry = credit_dict[credit.name]
+            asset_dict = compile_entry.__dict__[prefix]
+            if form_name not in asset_dict:
+                asset_dict[form_name] = {}
+            subpart_dict = asset_dict[form_name]
+            subpart_list = credit.changed.split(',')
+            for subpart in subpart_list:
+                subpart_dict[subpart] = True
+
+    for sub_dict in dict.subgroups:
+        form_name_list.append(dict.subgroups[sub_dict].name)
+        updateCompilationStats(name_dict, dict.subgroups[sub_dict], os.path.join(species_path, sub_dict), prefix, form_name_list, credit_dict)
+        form_name_list.pop()
+
 def updateNameFile(name_path, name_dict, include_all):
     with open(name_path, 'w+', encoding='utf-8') as txt:
         txt.write("Name\tDiscord\tContact\n")

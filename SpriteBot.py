@@ -30,6 +30,7 @@ from Constants import PHASES
 # Housekeeping for login information
 TOKEN_FILE_PATH = 'discord_token.txt'
 NAME_FILE_PATH = 'credit_names.txt'
+CREDIT_FILE_PATH = 'spritebot_credits.txt'
 INFO_FILE_PATH = 'README.md'
 CONFIG_FILE_PATH = 'config.json'
 SPRITE_CONFIG_FILE_PATH = 'sprite_config.json'
@@ -208,6 +209,17 @@ class SpriteBot:
         ]
 
         print("Info Initiated")
+
+    def generateCreditCompilation(self):
+
+        credit_dict = {}
+        over_dict = TrackerUtils.initSubNode("", True)
+        over_dict.subgroups = self.tracker
+        TrackerUtils.updateCompilationStats(self.names, over_dict, os.path.join(self.config.path, "sprite"), "sprite", [], credit_dict)
+        TrackerUtils.updateCompilationStats(self.names, over_dict, os.path.join(self.config.path, "portrait"), "portrait", [], credit_dict)
+
+        TrackerUtils.updateCreditCompilation(os.path.join(self.config.path, CREDIT_FILE_PATH), credit_dict)
+
 
     def saveNames(self):
         TrackerUtils.updateNameFile(os.path.join(self.path, NAME_FILE_PATH), self.names, True)
@@ -3091,6 +3103,7 @@ async def on_message(msg: discord.Message):
             elif base_arg == "shutdown" and msg.author.id == sprite_bot.config.root:
                 await sprite_bot.shutdown(msg)
             elif base_arg == "forcepush" and msg.author.id == sprite_bot.config.root:
+                sprite_bot.generateCreditCompilation()
                 await sprite_bot.gitCommit("Tracker update from forced push.")
                 await sprite_bot.gitPush()
                 await msg.channel.send(msg.author.mention + " Changes pushed.")
@@ -3137,6 +3150,8 @@ async def periodic_update_status():
                     await sprite_bot.gitCommit("Tracker update from restart.")
                 # update push
                 sprite_bot.writeLog("Performing Push")
+                sprite_bot.generateCreditCompilation()
+                await sprite_bot.gitCommit("Update credits.")
                 await sprite_bot.gitPush()
                 sprite_bot.writeLog("Push Complete")
 
