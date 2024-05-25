@@ -206,7 +206,21 @@ class SpriteBot:
             DeleteRessourceCredit(self, "sprite"),
             GetProfile(self)
         ]
-
+        
+        #self.moveSlot(msg, ["", "->", ""], "sprite")
+        need_starters = []
+        for k in self.tracker:
+            for sk in self.tracker[k].subgroups:
+                if "Starter" in self.tracker[k].subgroups[sk].name:
+                    p = 'X'
+                    if self.tracker[k].subgroups[sk].portrait_required:
+                        p = 'O'
+                    s = 'X'
+                    if self.tracker[k].subgroups[sk].sprite_required:
+                        s = 'O'
+                    need_starters.append((p, s, k, sk))
+                    print("{0}\t{1}\t{2}\t{3}\t{4}\t{5}".format(p, s, k, sk, self.tracker[k].name, self.tracker[k].subgroups[sk].name))
+        
         print("Info Initiated")
 
     def saveNames(self):
