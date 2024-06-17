@@ -748,18 +748,6 @@ def getDirFromIdx(base_path, asset_type, full_idx):
     full_arr = [base_path, asset_type] + full_idx
     return os.path.join(*full_arr)
 
-def deleteNodeFiles(dir_to, include_credit):
-    cur_files = os.listdir(dir_to)
-    for file in cur_files:
-        # exclude tmp as it is a special folder name for temp files
-        if file == "tmp":
-            continue
-        full_base_path = os.path.join(dir_to, file)
-        if os.path.isdir(full_base_path):
-            continue
-        if include_credit or file != Constants.CREDIT_TXT:
-            os.remove(full_base_path)
-
 def moveNodeFiles(dir_from, dir_to, merge_credit, is_dir):
     cur_files = os.listdir(dir_from)
     for file in cur_files:
@@ -772,6 +760,18 @@ def moveNodeFiles(dir_from, dir_to, merge_credit, is_dir):
             shutil.move(full_base_path, os.path.join(dir_to, file))
         elif os.path.isdir(full_base_path) == is_dir:
             shutil.move(full_base_path, os.path.join(dir_to, file))
+
+def deleteNodeFiles(dir_to, include_credit):
+    cur_files = os.listdir(dir_to)
+    for file in cur_files:
+        # exclude tmp as it is a special folder name for temp files
+        if file == "tmp":
+            continue
+        full_base_path = os.path.join(dir_to, file)
+        if os.path.isdir(full_base_path):
+            continue
+        if include_credit or file != Constants.CREDIT_TXT:
+            os.remove(full_base_path)
 
 def clearCache(chosen_node, recursive):
     chosen_node.sprite_link = ""
@@ -859,7 +859,7 @@ def replaceFolderPaths(base_path, tracker, asset_type, full_idx_from, full_idx_t
         os.makedirs(gen_path_to, exist_ok=True)
 
     # swap the folders
-    clearNodeFiles(gen_path_to)
+    deleteNodeFiles(gen_path_to)
     moveNodeFiles(gen_path_from, gen_path_to, True, False)
 
 
