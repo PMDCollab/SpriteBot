@@ -91,6 +91,24 @@ def appendCredits(path, id, diff):
     with open(os.path.join(path, Constants.CREDIT_TXT), 'a+', encoding='utf-8') as txt:
         txt.write("{0}\t{1}\tCUR\t{2}\t{3}\n".format(str(datetime.datetime.utcnow()), id, CURRENT_LICENSE, diff))
 
+def mergeCredits(path_from, path_to):
+    id_list = []
+    with open(path_to, 'r', encoding='utf-8') as txt:
+        for line in txt:
+            credit = line.strip().split('\t')
+            id_list.append(CreditEvent(credit[0], credit[1], credit[2], credit[3], credit[4]))
+
+    with open(path_from, 'r', encoding='utf-8') as txt:
+        for line in txt:
+            credit = line.strip().split('\t')
+            id_list.append(CreditEvent(credit[0], credit[1], credit[2], credit[3], credit[4]))
+
+    id_list = sorted(id_list, key=lambda x: x.datetime)
+
+    with open(path_to, 'w', encoding='utf-8') as txt:
+        for credit in id_list:
+            txt.write("{0}\t{1}\t{2}\t{3}\t{4}\n".format(credit.datetime, credit.name, credit.old, credit.license, credit.changed))
+
 def shiftCredits(fullPath):
     id_list = []
     with open(fullPath, 'r', encoding='utf-8') as txt:
@@ -118,12 +136,22 @@ def deleteCredits(path, id):
 
 class CreditEntry:
     """
-    A class for handling recolors
+    A class for determining a contributor's contribution
     """
     def __init__(self, name, contact):
         self.name = name
         self.sprites = False
         self.portraits = False
+        self.contact = contact
+
+class CreditCompileEntry:
+    """
+    A class for determining a contributor's contribution
+    """
+    def __init__(self, name, contact):
+        self.name = name
+        self.sprite = {}
+        self.portrait = {}
         self.contact = contact
 
 class TrackerNode:
@@ -368,9 +396,31 @@ def isDataPopulated(sub_dict):
             return True
     return False
 
-def deleteData(path):
-    if os.path.exists(path):
-        shutil.rmtree(path)
+def deleteData(tracker_dict, portrait_path, sprite_path, idx):
+    next_idx = "{:04d}".format(int(idx) + 1)
+    while next_idx in tracker_dict:
+        # replace with the index in front
+        tracker_dict[idx] = tracker_dict[next_idx]
+        # replace the path with the index in front
+        if os.path.exists(os.path.join(portrait_path, idx)):
+            shutil.rmtree(os.path.join(portrait_path, idx))
+        if os.path.exists(os.path.join(sprite_path, idx)):
+            shutil.rmtree(os.path.join(sprite_path, idx))
+
+        if os.path.exists(os.path.join(portrait_path, next_idx)):
+            shutil.move(os.path.join(portrait_path, next_idx), os.path.join(portrait_path, idx))
+        if os.path.exists(os.path.join(sprite_path, next_idx)):
+            shutil.move(os.path.join(sprite_path, next_idx), os.path.join(sprite_path, idx))
+
+        idx = next_idx
+        next_idx = "{:04d}".format(int(idx) + 1)
+
+    del tracker_dict[idx]
+    if os.path.exists(os.path.join(portrait_path, idx)):
+        shutil.rmtree(os.path.join(portrait_path, idx))
+    if os.path.exists(os.path.join(sprite_path, idx)):
+        shutil.rmtree(os.path.join(sprite_path, idx))
+
 
 def getIdxName(tracker_dict, full_idx):
     if len(full_idx) == 0:
@@ -603,6 +653,75 @@ def clearSubmissions(node):
 """
 Name operations
 """
+
+def updateCreditCompilation(name_path, credit_dict):
+
+    with open(name_path, 'w+', encoding='utf-8') as txt:
+        txt.write("All custom graphics not originating from official PMD games are licensed under Attribution-NonCommercial 4.0 International http://creativecommons.org/licenses/by/4.0/.\n")
+        txt.write("All graphics referred to in this file can be found in http://sprites.pmdcollab.org/\n\n")
+        for handle in credit_dict:
+            if len(credit_dict[handle].sprite) > 0 or len(credit_dict[handle].portrait) > 0:
+                name_components = []
+                if len(credit_dict[handle].name):
+                    name_components.append(credit_dict[handle].name)
+
+                if handle.startswith("<@!"):
+                    name_components.append("Discord:{0}".format(handle))
+
+                if len(credit_dict[handle].contact):
+                    name_components.append("Contact:{0}".format(credit_dict[handle].contact))
+
+                txt.write("{0}\n".format("\t".join(name_components)))
+
+                if len(credit_dict[handle].portrait) > 0:
+                    txt.write("\tPortrait:\n")
+                    # for each portrait
+                    for id_key in credit_dict[handle].portrait:
+                        all_parts = []
+                        for subpart in credit_dict[handle].portrait[id_key]:
+                            all_parts.append(subpart)
+                        if len(all_parts) > 0:
+                            txt.write("\t\t{0}: {1}\n".format(id_key, ",".join(all_parts)))
+
+                if len(credit_dict[handle].sprite) > 0:
+                    txt.write("\tSprite:\n")
+                    # for each sprite
+                    for id_key in credit_dict[handle].sprite:
+                        all_parts = []
+                        for subpart in credit_dict[handle].sprite[id_key]:
+                            all_parts.append(subpart)
+                        if len(all_parts) > 0:
+                            txt.write("\t\t{0}: {1}\n".format(id_key, ",".join(all_parts)))
+                txt.write("\n")
+
+def updateCompilationStats(name_dict, dict, species_path, prefix, form_name_list, credit_dict):
+    # generate the form name
+    form_name = " ".join([i for i in form_name_list if i != ""])
+    # is there a credits txt?  read it
+    credits = getFileCredits(species_path)
+    # for each entry, update the credit dict
+    for credit in credits:
+        if credit.old == "CUR":
+            # add entry if not existing
+            if credit.name not in credit_dict:
+                if credit.name in name_dict:
+                    credit_dict[credit.name] = CreditCompileEntry(name_dict[credit.name].name, name_dict[credit.name].contact)
+                else:
+                    credit_dict[credit.name] = CreditCompileEntry("", "")
+            compile_entry = credit_dict[credit.name]
+            asset_dict = compile_entry.__dict__[prefix]
+            if form_name not in asset_dict:
+                asset_dict[form_name] = {}
+            subpart_dict = asset_dict[form_name]
+            subpart_list = credit.changed.split(',')
+            for subpart in subpart_list:
+                subpart_dict[subpart] = True
+
+    for sub_dict in dict.subgroups:
+        form_name_list.append(dict.subgroups[sub_dict].name)
+        updateCompilationStats(name_dict, dict.subgroups[sub_dict], os.path.join(species_path, sub_dict), prefix, form_name_list, credit_dict)
+        form_name_list.pop()
+
 def updateNameFile(name_path, name_dict, include_all):
     with open(name_path, 'w+', encoding='utf-8') as txt:
         txt.write("Name\tDiscord\tContact\n")
@@ -669,15 +788,31 @@ def getDirFromIdx(base_path, asset_type, full_idx):
     full_arr = [base_path, asset_type] + full_idx
     return os.path.join(*full_arr)
 
-def moveNodeFiles(dir_from, dir_to, is_dir):
+def moveNodeFiles(dir_from, dir_to, merge_credit, is_dir):
     cur_files = os.listdir(dir_from)
     for file in cur_files:
         # exclude tmp as it is a special folder name for temp files
         if file == "tmp":
             continue
         full_base_path = os.path.join(dir_from, file)
-        if os.path.isdir(full_base_path) == is_dir:
+        if merge_credit and file == Constants.CREDIT_TXT:
+            #mergeCredits(full_base_path, os.path.join(dir_to, file))
+            #os.remove(full_base_path)
             shutil.move(full_base_path, os.path.join(dir_to, file))
+        elif os.path.isdir(full_base_path) == is_dir:
+            shutil.move(full_base_path, os.path.join(dir_to, file))
+
+def deleteNodeFiles(dir_to, include_credit):
+    cur_files = os.listdir(dir_to)
+    for file in cur_files:
+        # exclude tmp as it is a special folder name for temp files
+        if file == "tmp":
+            continue
+        full_base_path = os.path.join(dir_to, file)
+        if os.path.isdir(full_base_path):
+            continue
+        if include_credit or file != Constants.CREDIT_TXT:
+            os.remove(full_base_path)
 
 def clearCache(chosen_node, recursive):
     chosen_node.sprite_link = ""
@@ -688,7 +823,6 @@ def clearCache(chosen_node, recursive):
     if recursive:
         for subgroup in chosen_node.subgroups:
             clearCache(chosen_node.subgroups[subgroup], recursive)
-
 
 def swapNodeMiscFeatures(node_from, node_to):
     for key in node_from.__dict__:
@@ -732,12 +866,52 @@ def swapFolderPaths(base_path, tracker, asset_type, full_idx_from, full_idx_to):
     # move textures to a temp folder
     gen_path_tmp = os.path.join(gen_path_from, "tmp")
     os.makedirs(gen_path_tmp, exist_ok=True)
-    moveNodeFiles(gen_path_from, gen_path_tmp, False)
+    moveNodeFiles(gen_path_from, gen_path_tmp, False, False)
 
     # swap the folders
-    moveNodeFiles(gen_path_to, gen_path_from, False)
-    moveNodeFiles(gen_path_tmp, gen_path_to, False)
+    moveNodeFiles(gen_path_to, gen_path_from, False, False)
+    moveNodeFiles(gen_path_tmp, gen_path_to, False, False)
     shutil.rmtree(gen_path_tmp)
+
+
+def replaceNodeAssetFeatures(node_from, node_to, asset_type):
+    node_new = initSubNode("", False)
+    for key in node_from.__dict__:
+        if key.startswith(asset_type):
+            if key == asset_type + "_files":
+                # pass in keys and set to false, only if new keys are introduced
+                for file_key in node_from.__dict__[key]:
+                    if file_key not in node_to.__dict__[key]:
+                        node_to.__dict__[key][file_key] = False
+            elif key == asset_type + "_talk":
+                # do not overwrite
+                pass
+            else:
+                node_to.__dict__[key] = node_from.__dict__[key]
+            node_from.__dict__[key] = node_new.__dict__[key]
+
+def replaceFolderPaths(base_path, tracker, asset_type, full_idx_from, full_idx_to):
+
+    # swap the nodes in tracker, don't do it recursively
+    chosen_node_from = getNodeFromIdx(tracker, full_idx_from, 0)
+    chosen_node_to = getNodeFromIdx(tracker, full_idx_to, 0)
+
+    replaceNodeAssetFeatures(chosen_node_from, chosen_node_to, asset_type)
+
+    # prepare to swap textures
+    gen_path_from = getDirFromIdx(base_path, asset_type, full_idx_from)
+    gen_path_to = getDirFromIdx(base_path, asset_type, full_idx_to)
+
+    if not os.path.exists(gen_path_from):
+        os.makedirs(gen_path_from, exist_ok=True)
+
+    if not os.path.exists(gen_path_to):
+        os.makedirs(gen_path_to, exist_ok=True)
+
+    # swap the folders
+    deleteNodeFiles(gen_path_to, False)
+    moveNodeFiles(gen_path_from, gen_path_to, True, False)
+
 
 def swapNodeMiscCanon(chosen_node_from, chosen_node_to):
     for key in chosen_node_from.__dict__:
@@ -784,11 +958,11 @@ def swapAllSubNodes(base_path, tracker, full_idx_from, full_idx_to):
         # move dirs to a temp folder
         gen_path_tmp = os.path.join(gen_path_from, "tmp")
         os.makedirs(gen_path_tmp, exist_ok=True)
-        moveNodeFiles(gen_path_from, gen_path_tmp, True)
+        moveNodeFiles(gen_path_from, gen_path_tmp, False, True)
 
         # swap the folders
-        moveNodeFiles(gen_path_to, gen_path_from, True)
-        moveNodeFiles(gen_path_tmp, gen_path_to, True)
+        moveNodeFiles(gen_path_to, gen_path_from, False, True)
+        moveNodeFiles(gen_path_tmp, gen_path_to, False, True)
         shutil.rmtree(gen_path_tmp)
 
 
