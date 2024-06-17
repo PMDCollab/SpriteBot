@@ -396,9 +396,31 @@ def isDataPopulated(sub_dict):
             return True
     return False
 
-def deleteData(path):
-    if os.path.exists(path):
-        shutil.rmtree(path)
+def deleteData(tracker_dict, portrait_path, sprite_path, idx):
+    next_idx = "{:04d}".format(int(idx) + 1)
+    while next_idx in tracker_dict:
+        # replace with the index in front
+        tracker_dict[idx] = tracker_dict[next_idx]
+        # replace the path with the index in front
+        if os.path.exists(os.path.join(portrait_path, idx)):
+            shutil.rmtree(os.path.join(portrait_path, idx))
+        if os.path.exists(os.path.join(sprite_path, idx)):
+            shutil.rmtree(os.path.join(sprite_path, idx))
+
+        if os.path.exists(os.path.join(portrait_path, next_idx)):
+            shutil.move(os.path.join(portrait_path, next_idx), os.path.join(portrait_path, idx))
+        if os.path.exists(os.path.join(sprite_path, next_idx)):
+            shutil.move(os.path.join(sprite_path, next_idx), os.path.join(sprite_path, idx))
+
+        idx = next_idx
+        next_idx = "{:04d}".format(int(idx) + 1)
+
+    del tracker_dict[idx]
+    if os.path.exists(os.path.join(portrait_path, idx)):
+        shutil.rmtree(os.path.join(portrait_path, idx))
+    if os.path.exists(os.path.join(sprite_path, idx)):
+        shutil.rmtree(os.path.join(sprite_path, idx))
+
 
 def getIdxName(tracker_dict, full_idx):
     if len(full_idx) == 0:

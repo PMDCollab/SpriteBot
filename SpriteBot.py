@@ -2386,20 +2386,15 @@ class SpriteBot:
 
         species_dict = self.tracker[species_idx]
         if len(args) == 1:
-            # check against count
-            if int(species_idx) != len(self.tracker) - 1:
-                await msg.channel.send(msg.author.mention + " Can only delete the last species!")
-                return
 
             # check against data population
             if TrackerUtils.isDataPopulated(species_dict) and msg.author.id != self.config.root:
                 await msg.channel.send(msg.author.mention + " Can only delete empty slots!")
                 return
 
+            TrackerUtils.deleteData(self.tracker, os.path.join(self.config.path, 'sprite'),
+                                       os.path.join(self.config.path, 'portrait'), species_idx)
 
-            del self.tracker[species_idx]
-            TrackerUtils.deleteData(os.path.join(self.config.path, 'sprite', species_idx))
-            TrackerUtils.deleteData(os.path.join(self.config.path, 'portrait', species_idx))
             await msg.channel.send(msg.author.mention + " Deleted #{0:03d}: {1}!".format(int(species_idx), species_name))
         else:
 
@@ -2409,25 +2404,21 @@ class SpriteBot:
                 await msg.channel.send(msg.author.mention + " {2} doesn't exist within #{0:03d}: {1}!".format(int(species_idx), species_name, form_name))
                 return
 
-            # check against count
-            if int(form_idx) != len(species_dict.subgroups) - 1:
-                await msg.channel.send(msg.author.mention + " Can only delete the last form!")
-                return
-
             # check against data population
             form_dict = species_dict.subgroups[form_idx]
             if TrackerUtils.isDataPopulated(form_dict) and msg.author.id != self.config.root:
                 await msg.channel.send(msg.author.mention + " Can only delete empty slots!")
                 return
 
-            del species_dict.subgroups[form_idx]
-            TrackerUtils.deleteData(os.path.join(self.config.path, 'sprite', species_idx, form_idx))
-            TrackerUtils.deleteData(os.path.join(self.config.path, 'portrait', species_idx, form_idx))
+            TrackerUtils.deleteData(species_dict.subgroups, os.path.join(self.config.path, 'sprite', species_idx),
+                                       os.path.join(self.config.path, 'portrait', species_idx), form_idx)
+
             await msg.channel.send(msg.author.mention + " Deleted #{0:03d}: {1} {2}!".format(int(species_idx), species_name, form_name))
 
         self.saveTracker()
         self.changed = True
 
+        await self.gitCommit("Removed {0}".format(" ".join(args)))
 
     async def setNeed(self, msg, args, needed):
         if len(args) < 2 or len(args) > 5:
@@ -2707,8 +2698,7 @@ class SpriteBot:
                 return_msg = "**Command Help**\n" \
                              f"`{prefix}delete <Pokemon Name> [Form Name]`\n" \
                              "Deletes a Pokemon or form of an existing Pokemon.  " \
-                             "Only works if the slot + its children are empty.  " \
-                             "Must be on the last slot in its list.\n" \
+                             "Only works if the slot + its children are empty.\n" \
                              "`Pokemon Name` - Name of the Pokemon\n" \
                              "`Form Name` - [Optional] Form name of the Pokemon\n" \
                              "**Examples**\n" \
