@@ -748,6 +748,18 @@ def getDirFromIdx(base_path, asset_type, full_idx):
     full_arr = [base_path, asset_type] + full_idx
     return os.path.join(*full_arr)
 
+def deleteNodeFiles(dir_to, include_credit):
+    cur_files = os.listdir(dir_to)
+    for file in cur_files:
+        # exclude tmp as it is a special folder name for temp files
+        if file == "tmp":
+            continue
+        full_base_path = os.path.join(dir_to, file)
+        if os.path.isdir(full_base_path):
+            continue
+        if include_credit or file != Constants.CREDIT_TXT:
+            os.remove(full_base_path)
+
 def moveNodeFiles(dir_from, dir_to, merge_credit, is_dir):
     cur_files = os.listdir(dir_from)
     for file in cur_files:
@@ -755,7 +767,10 @@ def moveNodeFiles(dir_from, dir_to, merge_credit, is_dir):
         if file == "tmp":
             continue
         full_base_path = os.path.join(dir_from, file)
-        if os.path.isdir(full_base_path) == is_dir:
+        if merge_credit and file == Constants.CREDIT_TXT:
+            #mergeCredit(full_base_path, os.path.join(dir_to, file))
+            shutil.move(full_base_path, os.path.join(dir_to, file))
+        elif os.path.isdir(full_base_path) == is_dir:
             shutil.move(full_base_path, os.path.join(dir_to, file))
 
 def clearCache(chosen_node, recursive):
@@ -767,84 +782,6 @@ def clearCache(chosen_node, recursive):
     if recursive:
         for subgroup in chosen_node.subgroups:
             clearCache(chosen_node.subgroups[subgroup], recursive)
-
-def transferNodeMiscFeatures(node_from, node_to):
-    for key in node_from.__dict__:
-        if key.startswith("sprite"):
-            pass
-        elif key.startswith("portrait"):
-            pass
-        elif key == "canon" or key == "modreward" or key == "subgroups":
-            pass
-        else:
-            # TODO
-            node_to.__dict__[key] = node_from.__dict__[key]
-
-def transferNodeAssetFeatures(node_from, node_to, asset_type):
-    # TODO
-    for key in node_from.__dict__:
-        if key.startswith(asset_type):
-            node_to.__dict__[key] = node_from.__dict__[key]
-
-
-def transferFolderPaths(base_path, tracker, asset_type, full_idx_from, full_idx_to):
-
-    # swap the nodes in tracker, don't do it recursively
-    chosen_node_from = getNodeFromIdx(tracker, full_idx_from, 0)
-    chosen_node_to = getNodeFromIdx(tracker, full_idx_to, 0)
-
-    transferNodeAssetFeatures(chosen_node_from, chosen_node_to, asset_type)
-
-    # prepare to swap textures
-    gen_path_from = getDirFromIdx(base_path, asset_type, full_idx_from)
-    gen_path_to = getDirFromIdx(base_path, asset_type, full_idx_to)
-
-    if not os.path.exists(gen_path_to):
-        os.makedirs(gen_path_to, exist_ok=True)
-
-    # swap the folders
-    moveNodeFiles(gen_path_from, gen_path_to, True, False)
-
-
-def transferAllSubNodes(base_path, tracker, full_idx_from, full_idx_to):
-    # swap the subnode objects
-    chosen_node_from = getNodeFromIdx(tracker, full_idx_from, 0)
-    chosen_node_to = getNodeFromIdx(tracker, full_idx_to, 0)
-
-    # TODO
-    tmp = chosen_node_from.subgroups
-    chosen_node_from.subgroups = chosen_node_to.subgroups
-    chosen_node_to.subgroups = tmp
-
-    # swap back the canon-ness and modreward aspect
-    for sub_id in chosen_node_from.subgroups:
-        if sub_id in chosen_node_to.subgroups:
-            sub_from = chosen_node_from.subgroups[sub_id]
-            sub_to = chosen_node_to.subgroups[sub_id]
-            swapNodeMiscCanon(sub_from, sub_to)
-
-    # swap the subfolders for each asset
-    asset_types = ["sprite", "portrait"]
-
-    for asset_type in asset_types:
-        gen_path_from = getDirFromIdx(base_path, asset_type, full_idx_from)
-        gen_path_to = getDirFromIdx(base_path, asset_type, full_idx_to)
-
-        if not os.path.exists(gen_path_from):
-            os.makedirs(gen_path_from, exist_ok=True)
-
-        if not os.path.exists(gen_path_to):
-            os.makedirs(gen_path_to, exist_ok=True)
-
-        # move dirs to a temp folder
-        gen_path_tmp = os.path.join(gen_path_from, "tmp")
-        os.makedirs(gen_path_tmp, exist_ok=True)
-        moveNodeFiles(gen_path_from, gen_path_tmp, True, True)
-
-        # swap the folders
-        moveNodeFiles(gen_path_to, gen_path_from, True, True)
-        moveNodeFiles(gen_path_tmp, gen_path_to, True, True)
-        shutil.rmtree(gen_path_tmp)
 
 def swapNodeMiscFeatures(node_from, node_to):
     for key in node_from.__dict__:
@@ -894,6 +831,37 @@ def swapFolderPaths(base_path, tracker, asset_type, full_idx_from, full_idx_to):
     moveNodeFiles(gen_path_to, gen_path_from, False, False)
     moveNodeFiles(gen_path_tmp, gen_path_to, False, False)
     shutil.rmtree(gen_path_tmp)
+
+
+def replaceNodeAssetFeatures(node_from, node_to, asset_type):
+    node_new = initSubNode("", False)
+    for key in node_from.__dict__:
+        if key.startswith(asset_type):
+            node_to.__dict__[key] = node_from.__dict__[key]
+            node_from.__dict__[key] = node_new.__dict__[key]
+
+def replaceFolderPaths(base_path, tracker, asset_type, full_idx_from, full_idx_to):
+
+    # swap the nodes in tracker, don't do it recursively
+    chosen_node_from = getNodeFromIdx(tracker, full_idx_from, 0)
+    chosen_node_to = getNodeFromIdx(tracker, full_idx_to, 0)
+
+    replaceNodeAssetFeatures(chosen_node_from, chosen_node_to, asset_type)
+
+    # prepare to swap textures
+    gen_path_from = getDirFromIdx(base_path, asset_type, full_idx_from)
+    gen_path_to = getDirFromIdx(base_path, asset_type, full_idx_to)
+
+    if not os.path.exists(gen_path_from):
+        os.makedirs(gen_path_from, exist_ok=True)
+
+    if not os.path.exists(gen_path_to):
+        os.makedirs(gen_path_to, exist_ok=True)
+
+    # swap the folders
+    clearNodeFiles(gen_path_to)
+    moveNodeFiles(gen_path_from, gen_path_to, True, False)
+
 
 def swapNodeMiscCanon(chosen_node_from, chosen_node_to):
     for key in chosen_node_from.__dict__:

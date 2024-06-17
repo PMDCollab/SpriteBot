@@ -1566,7 +1566,7 @@ class SpriteBot:
         await self.gitCommit("Swapped {0} with {1} recursively".format(" ".join(name_seq_from), " ".join(name_seq_to)))
 
 
-    async def promoteSlotRecursive(self, msg, name_args):
+    async def replaceSlot(self, msg, name_args, asset_type):
         try:
             delim_idx = name_args.index("->")
         except:
@@ -1581,17 +1581,11 @@ class SpriteBot:
         if full_idx_from is None:
             await msg.channel.send(msg.author.mention + " No such Pokemon specified as source.")
             return
-        if len(full_idx_from) != 2:
-            await msg.channel.send(msg.author.mention + " Can move only form. Source specified different from that.")
-            return
 
         name_seq_to = [TrackerUtils.sanitizeName(i) for i in name_args_to]
         full_idx_to = TrackerUtils.findFullTrackerIdx(self.tracker, name_seq_to, 0)
         if full_idx_to is None:
             await msg.channel.send(msg.author.mention + " No such Pokemon specified as destination.")
-            return
-        if len(full_idx_to) != 2:
-            await msg.channel.send(msg.author.mention + " Can move only form. Destination specified different than that.")
             return
 
         chosen_node_from = TrackerUtils.getNodeFromIdx(self.tracker, full_idx_from, 0)
@@ -1601,65 +1595,40 @@ class SpriteBot:
             await msg.channel.send(msg.author.mention + " Cannot move to the same location.")
             return
 
-        explicit_idx_from = full_idx_from.copy()
-        if len(explicit_idx_from) < 2:
-            explicit_idx_from.append("0000")
-        explicit_idx_to = full_idx_to.copy()
-        if len(explicit_idx_to) < 2:
-            explicit_idx_to.append("0000")
-
-        explicit_node_from = TrackerUtils.getNodeFromIdx(self.tracker, full_idx_from, 0)
-        explicit_node_to = TrackerUtils.getNodeFromIdx(self.tracker, full_idx_to, 0)
-
-        # check the main nodes
-        try:
-            await self.checkMoveLock(full_idx_from, chosen_node_from, full_idx_to, chosen_node_to, "sprite")
-            await self.checkMoveLock(full_idx_from, chosen_node_from, full_idx_to, chosen_node_to, "portrait")
-        except SpriteUtils.SpriteVerifyError as e:
-            await msg.channel.send(msg.author.mention + " Cannot delete the locked Pokemon specified as source:\n{0}".format(e.message))
+        if not chosen_node_from.__dict__[asset_type + "_required"]:
+            await msg.channel.send(msg.author.mention + " Cannot move when source {0} is unneeded.".format(asset_type))
+            return
+        if not chosen_node_to.__dict__[asset_type + "_required"]:
+            await msg.channel.send(msg.author.mention + " Cannot move when destination {0} is unneeded.".format(asset_type))
             return
 
         try:
-            await self.checkMoveLock(full_idx_to, chosen_node_to, full_idx_from, chosen_node_from, "sprite")
-            await self.checkMoveLock(full_idx_to, chosen_node_to, full_idx_from, chosen_node_from, "portrait")
+            await self.checkMoveLock(full_idx_from, chosen_node_from, full_idx_to, chosen_node_to, asset_type)
         except SpriteUtils.SpriteVerifyError as e:
-            await msg.channel.send(msg.author.mention + " Cannot overwrite the locked Pokemon specified as destination:\n{0}".format(e.message))
+            await msg.channel.send(msg.author.mention + " Cannot move the locked Pokemon specified as source:\n{0}".format(e.message))
             return
 
-        # check the subnodes
-        for sub_idx in explicit_node_from.subgroups:
-            sub_node = explicit_node_from.subgroups[sub_idx]
-            if TrackerUtils.hasLock(sub_node, "sprite", True) or TrackerUtils.hasLock(sub_node, "portrait", True):
-                await msg.channel.send(msg.author.mention + " Cannot delete the locked subgroup specified as source.")
-                return
-        for sub_idx in explicit_node_to.subgroups:
-            sub_node = explicit_node_to.subgroups[sub_idx]
-            if TrackerUtils.hasLock(sub_node, "sprite", True) or TrackerUtils.hasLock(sub_node, "portrait", True):
-                await msg.channel.send(msg.author.mention + " Cannot overwrite the locked subgroup specified as destination.")
-                return
+        try:
+            await self.checkMoveLock(full_idx_to, chosen_node_to, full_idx_from, chosen_node_from, asset_type)
+        except SpriteUtils.SpriteVerifyError as e:
+            await msg.channel.send(msg.author.mention + " Cannot move the locked Pokemon specified as destination:\n{0}".format(e.message))
+            return
 
         # clear caches
         TrackerUtils.clearCache(chosen_node_from, True)
         TrackerUtils.clearCache(chosen_node_to, True)
 
-        # perform the transfer
-        TrackerUtils.transferFolderPaths(self.config.path, self.tracker, "sprite", full_idx_from, full_idx_to)
-        TrackerUtils.transferFolderPaths(self.config.path, self.tracker, "portrait", full_idx_from, full_idx_to)
-        TrackerUtils.transferNodeMiscFeatures(chosen_node_from, chosen_node_to)
+        TrackerUtils.replaceFolderPaths(self.config.path, self.tracker, asset_type, full_idx_from, full_idx_to)
 
-        # then, transfer the subnodes
-        TrackerUtils.transferAllSubNodes(self.config.path, self.tracker, explicit_idx_from, explicit_idx_to)
-
-        await msg.channel.send(msg.author.mention + " Promoted {0} to {1}.".format(" ".join(name_seq_from), " ".join(name_seq_to)))
+        await msg.channel.send(msg.author.mention + " Swapped {0} with {1}.".format(" ".join(name_seq_from), " ".join(name_seq_to)))
         # if the source is empty in sprite and portrait, and its subunits are empty in sprite and portrait
         # remind to delete
-        if not TrackerUtils.isDataPopulated(chosen_node_from):
-            await msg.channel.send(msg.author.mention + " {0} is now empty. Use `!delete` if it is no longer needed.".format(" ".join(name_seq_to)))
+        await msg.channel.send(msg.author.mention + " {0} is now empty. Use `!delete` if it is no longer needed.".format(" ".join(name_seq_to)))
 
         self.saveTracker()
         self.changed = True
 
-        await self.gitCommit("Promoted {0} to {1} recursively".format(" ".join(name_seq_from), " ".join(name_seq_to)))
+        await self.gitCommit("Replaced {0} with {1}".format(" ".join(name_seq_from), " ".join(name_seq_to)))
 
     async def moveSlot(self, msg, name_args, asset_type):
         try:
@@ -2851,6 +2820,28 @@ class SpriteBot:
                              f"`{prefix}move Zoroark Alternate -> Zoroark`\n" \
                              f"`{prefix}move Missingno_ Kleavor -> Kleavor`\n" \
                              f"`{prefix}move Minior Blue -> Minior Indigo`"
+            elif base_arg == "replacesprite":
+                return_msg = "**Command Help**\n" \
+                             f"`{prefix}replacesprite <Pokemon Name> [Pokemon Form] [Shiny] [Gender] -> <Pokemon Name 2> [Pokemon Form 2] [Shiny 2] [Gender 2]`\n" \
+                             "Replaces the contents of one sprite with another.  " \
+                             "Good for promoting scratch-made alternates to main.\n" \
+                             "`Pokemon Name` - Name of the Pokemon\n" \
+                             "`Form Name` - [Optional] Form name of the Pokemon\n" \
+                             "`Shiny` - [Optional] Specifies if you want the shiny sprite or not\n" \
+                             "`Gender` - [Optional] Specifies the gender of the Pokemon\n" \
+                             "**Examples**\n" \
+                             f"`{prefix}replacesprite Zoroark Alternate -> Zoroark`"
+            elif base_arg == "replaceportrait":
+                return_msg = "**Command Help**\n" \
+                             f"`{prefix}replaceportrait <Pokemon Name> [Pokemon Form] [Shiny] [Gender] -> <Pokemon Name 2> [Pokemon Form 2] [Shiny 2] [Gender 2]`\n" \
+                             "Replaces the contents of one portrait with another.  " \
+                             "Good for promoting scratch-made alternates to main.\n" \
+                             "`Pokemon Name` - Name of the Pokemon\n" \
+                             "`Form Name` - [Optional] Form name of the Pokemon\n" \
+                             "`Shiny` - [Optional] Specifies if you want the shiny sprite or not\n" \
+                             "`Gender` - [Optional] Specifies the gender of the Pokemon\n" \
+                             "**Examples**\n" \
+                             f"`{prefix}replaceportrait Zoroark Alternate -> Zoroark`"
             elif base_arg == "spritewip":
                 return_msg = "**Command Help**\n" \
                              f"`{prefix}spritewip <Pokemon Name> [Form Name] [Shiny] [Gender]`\n" \
@@ -3152,8 +3143,10 @@ async def on_message(msg: discord.Message):
                 await sprite_bot.moveSlot(msg, args[1:], "portrait")
             elif base_arg == "move" and authorized:
                 await sprite_bot.moveSlotRecursive(msg, args[1:])
-            elif base_arg == "promote" and authorized:
-                await sprite_bot.promoteSlotRecursive(msg, args[1:])
+            elif base_arg == "replacesprite" and authorized:
+                await sprite_bot.replaceSlot(msg, args[1:], "sprite")
+            elif base_arg == "replaceportrait" and authorized:
+                await sprite_bot.replaceSlot(msg, args[1:], "portrait")
             elif base_arg == "spritewip" and authorized:
                 await sprite_bot.completeSlot(msg, args[1:], "sprite", TrackerUtils.PHASE_INCOMPLETE)
             elif base_arg == "portraitwip" and authorized:
