@@ -91,6 +91,24 @@ def appendCredits(path, id, diff):
     with open(os.path.join(path, Constants.CREDIT_TXT), 'a+', encoding='utf-8') as txt:
         txt.write("{0}\t{1}\tCUR\t{2}\t{3}\n".format(str(datetime.datetime.utcnow()), id, CURRENT_LICENSE, diff))
 
+def mergeCredits(path_from, path_to):
+    id_list = []
+    with open(path_to, 'r', encoding='utf-8') as txt:
+        for line in txt:
+            credit = line.strip().split('\t')
+            id_list.append(CreditEvent(credit[0], credit[1], credit[2], credit[3], credit[4]))
+
+    with open(path_from, 'r', encoding='utf-8') as txt:
+        for line in txt:
+            credit = line.strip().split('\t')
+            id_list.append(CreditEvent(credit[0], credit[1], credit[2], credit[3], credit[4]))
+
+    id_list = sorted(id_list, key=lambda x: x.datetime)
+
+    with open(path_to, 'w', encoding='utf-8') as txt:
+        for credit in id_list:
+            txt.write("{0}\t{1}\t{2}\t{3}\t{4}\n".format(credit.datetime, credit.name, credit.old, credit.license, credit.changed))
+
 def shiftCredits(fullPath):
     id_list = []
     with open(fullPath, 'r', encoding='utf-8') as txt:
@@ -756,7 +774,8 @@ def moveNodeFiles(dir_from, dir_to, merge_credit, is_dir):
             continue
         full_base_path = os.path.join(dir_from, file)
         if merge_credit and file == Constants.CREDIT_TXT:
-            #mergeCredit(full_base_path, os.path.join(dir_to, file))
+            #mergeCredits(full_base_path, os.path.join(dir_to, file))
+            #os.remove(full_base_path)
             shutil.move(full_base_path, os.path.join(dir_to, file))
         elif os.path.isdir(full_base_path) == is_dir:
             shutil.move(full_base_path, os.path.join(dir_to, file))
@@ -837,7 +856,16 @@ def replaceNodeAssetFeatures(node_from, node_to, asset_type):
     node_new = initSubNode("", False)
     for key in node_from.__dict__:
         if key.startswith(asset_type):
-            node_to.__dict__[key] = node_from.__dict__[key]
+            if key == asset_type + "_files":
+                # pass in keys and set to false, only if new keys are introduced
+                for file_key in node_from.__dict__[key]:
+                    if file_key not in node_to.__dict__[key]:
+                        node_to.__dict__[key][file_key] = False
+            elif key == asset_type + "_talk":
+                # do not overwrite
+                pass
+            else:
+                node_to.__dict__[key] = node_from.__dict__[key]
             node_from.__dict__[key] = node_new.__dict__[key]
 
 def replaceFolderPaths(base_path, tracker, asset_type, full_idx_from, full_idx_to):
@@ -859,7 +887,7 @@ def replaceFolderPaths(base_path, tracker, asset_type, full_idx_from, full_idx_t
         os.makedirs(gen_path_to, exist_ok=True)
 
     # swap the folders
-    deleteNodeFiles(gen_path_to)
+    deleteNodeFiles(gen_path_to, False)
     moveNodeFiles(gen_path_from, gen_path_to, True, False)
 
 

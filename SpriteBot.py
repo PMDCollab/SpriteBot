@@ -1605,13 +1605,13 @@ class SpriteBot:
         try:
             await self.checkMoveLock(full_idx_from, chosen_node_from, full_idx_to, chosen_node_to, asset_type)
         except SpriteUtils.SpriteVerifyError as e:
-            await msg.channel.send(msg.author.mention + " Cannot move the locked Pokemon specified as source:\n{0}".format(e.message))
+            await msg.channel.send(msg.author.mention + " Cannot move out the locked Pokemon specified as source:\n{0}".format(e.message))
             return
 
         try:
             await self.checkMoveLock(full_idx_to, chosen_node_to, full_idx_from, chosen_node_from, asset_type)
         except SpriteUtils.SpriteVerifyError as e:
-            await msg.channel.send(msg.author.mention + " Cannot move the locked Pokemon specified as destination:\n{0}".format(e.message))
+            await msg.channel.send(msg.author.mention + " Cannot replace the locked Pokemon specified as destination:\n{0}".format(e.message))
             return
 
         # clear caches
@@ -1620,7 +1620,7 @@ class SpriteBot:
 
         TrackerUtils.replaceFolderPaths(self.config.path, self.tracker, asset_type, full_idx_from, full_idx_to)
 
-        await msg.channel.send(msg.author.mention + " Swapped {0} with {1}.".format(" ".join(name_seq_from), " ".join(name_seq_to)))
+        await msg.channel.send(msg.author.mention + " Replaced {0} with {1}.".format(" ".join(name_seq_from), " ".join(name_seq_to)))
         # if the source is empty in sprite and portrait, and its subunits are empty in sprite and portrait
         # remind to delete
         await msg.channel.send(msg.author.mention + " {0} is now empty. Use `!delete` if it is no longer needed.".format(" ".join(name_seq_to)))
