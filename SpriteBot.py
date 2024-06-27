@@ -1620,15 +1620,15 @@ class SpriteBot:
 
         TrackerUtils.replaceFolderPaths(self.config.path, self.tracker, asset_type, full_idx_from, full_idx_to)
 
-        await msg.channel.send(msg.author.mention + " Replaced {0} with {1}.".format(" ".join(name_seq_from), " ".join(name_seq_to)))
+        await msg.channel.send(msg.author.mention + " Replaced {0} with {1}.".format(" ".join(name_seq_to), " ".join(name_seq_from)))
         # if the source is empty in sprite and portrait, and its subunits are empty in sprite and portrait
         # remind to delete
-        await msg.channel.send(msg.author.mention + " {0} is now empty. Use `!delete` if it is no longer needed.".format(" ".join(name_seq_to)))
+        await msg.channel.send(msg.author.mention + " {0} is now empty. Use `!delete` if it is no longer needed.".format(" ".join(name_seq_from)))
 
         self.saveTracker()
         self.changed = True
 
-        await self.gitCommit("Replaced {0} with {1}".format(" ".join(name_seq_from), " ".join(name_seq_to)))
+        await self.gitCommit("Replaced {0} with {1}".format(" ".join(name_seq_to), " ".join(name_seq_from)))
 
     async def moveSlot(self, msg, name_args, asset_type):
         try:
