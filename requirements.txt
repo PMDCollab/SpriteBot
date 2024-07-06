@@ -16,4 +16,4 @@ requests~=2.27.1
 tweepy~=4.10.0
 oauthlib~=3.2.0
 urllib3~=1.26.9
-certifi~=2022.5.18.1
+certifi~=2024.07.04
