@@ -618,6 +618,13 @@ class SpriteBot:
         else:
             diff_str = "No Changes."
 
+        review_thread = await self.retrieveDiscussion(full_idx, chosen_node, asset_type, channel.guild.id)
+
+        thread_link = ""
+        if review_thread:
+            thread_link = "\n{0}".format(review_thread.mention)
+
+
         add_msg = ""
         if not recolor and asset_type == "sprite":
             preview_img = SpriteUtils.getCombinedZipImg(return_file)
@@ -645,8 +652,8 @@ class SpriteBot:
             if recolor or asset_type == "portrait":
                 orig_link = await self.retrieveLinkMsg(full_idx, chosen_node, asset_type, recolor)
                 add_msg += "\nCurrent Version: {0}".format(orig_link)
-        new_msg = await channel.send("{0} {1}\n{2}\n{3}\n{4}".format(author, " ".join(title), cmd_str, diff_str,
-                                                                     formatted_content + add_msg), files=send_files)
+        new_msg = await channel.send("{0} {1}\n{2}\n{3}{4}\n{5}".format(author, " ".join(title), cmd_str, diff_str,
+                                                                        thread_link, formatted_content + add_msg), files=send_files)
 
         pending_dict = chosen_node.__dict__[asset_type+"_pending"]
         change_status = len(pending_dict) == 0
@@ -656,7 +663,6 @@ class SpriteBot:
         await new_msg.add_reaction('\U00002705')
         await new_msg.add_reaction('\U0000274C')
 
-        review_thread = await self.retrieveDiscussion(full_idx, chosen_node, asset_type, new_msg.guild.id)
         if review_thread:
             await review_thread.send("New post by {0}: {1}".format(author, new_msg.jump_url))
 
