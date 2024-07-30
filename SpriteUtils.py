@@ -1155,6 +1155,18 @@ def verifyPortraitFilled(species_path):
 
     return True
 
+def isCopyOf(species_path, anim):
+    if os.path.exists(os.path.join(species_path, Constants.MULTI_SHEET_XML)):
+        tree = ET.parse(os.path.join(species_path, Constants.MULTI_SHEET_XML))
+        root = tree.getroot()
+        anims_node = root.find('Anims')
+        for anim_node in anims_node.iter('Anim'):
+            name = anim_node.find('Name').text
+            if name == anim:
+                backref_node = anim_node.find('CopyOf')
+                return backref_node is not None
+    return False
+
 """
 File data writeback
 """

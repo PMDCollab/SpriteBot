@@ -76,6 +76,14 @@ def getCreditEntries(path):
             found_names[credit_id] = True
     return credit_strings
 
+def hasExistingCredits(cur_credits, orig_author, diff):
+    for credit in cur_credits:
+        if credit.name == orig_author:
+            event_diffs = credit.changed.split(',')
+            if diff in event_diffs:
+                return True
+    return False
+
 def getFileCredits(path):
     id_list = []
     if os.path.exists(os.path.join(path, Constants.CREDIT_TXT)):

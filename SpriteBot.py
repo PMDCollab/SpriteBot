@@ -36,11 +36,6 @@ CONFIG_FILE_PATH = 'config.json'
 SPRITE_CONFIG_FILE_PATH = 'sprite_config.json'
 TRACKER_FILE_PATH = 'tracker.json'
 
-SPRITE_WORTH = 10
-PORTRAIT_WORTH = 1
-SPRITE_SHINY_WORTH = 2
-PORTRAIT_SHINY_WORTH = 1
-
 MESSAGE_BOUNTIES_DISABLED = "Bounties are disabled for this instance of SpriteBot"
 
 scdir = os.path.dirname(os.path.abspath(__file__))
@@ -150,6 +145,8 @@ class SpriteBot:
             Constants.EMOTIONS = sprite_config['emotions']
             Constants.COMPLETION_ACTIONS = sprite_config['completion_actions']
             Constants.ACTIONS = sprite_config['actions']
+            Constants.DUNGEON_ACTIONS = sprite_config['dungeon_actions']
+            Constants.STARTER_ACTIONS = sprite_config['starter_actions']
             for key in sprite_config['action_map']:
                 Constants.ACTION_MAP[int(key)] = sprite_config['action_map'][key]
 
@@ -792,6 +789,7 @@ class SpriteBot:
         prev_completion_file = TrackerUtils.getCurrentCompletion(orig_node, chosen_node, asset_type)
 
         new_credit = True
+        cur_credits = []
         if delete_author:
             new_credit = False
             TrackerUtils.deleteCredits(gen_path, orig_author)
@@ -861,7 +859,7 @@ class SpriteBot:
         mentions = ["<@!"+str(ii)+">" for ii in approvals]
         approve_msg = "{0} {1} approved by {2}: #{3:03d}: {4}".format(new_revise, asset_type, str(mentions), int(full_idx[0]), new_name_str)
 
-        give_points = 0
+        reward_changes = []
         if not add_author and not delete_author:
             if len(diffs) > 0:
                 approve_msg += "\nChanges: {0}".format(", ".join(diffs))
@@ -880,28 +878,48 @@ class SpriteBot:
                     approve_msg += "\nNote: Shiny form now marked as {0} due to this change.".format(PHASES[TrackerUtils.PHASE_INCOMPLETE])
 
 
-            give_points = current_completion_file - prev_completion_file
-
             if TrackerUtils.isShinyIdx(full_idx):
-                give_points = 1
-                if current_completion_file < TrackerUtils.PHASE_FULL:
-                    give_points = 0
-
-                if asset_type == "sprite":
-                    give_points *= SPRITE_SHINY_WORTH
-                elif asset_type == "portrait":
-                    give_points *= PORTRAIT_SHINY_WORTH
+                reward_changes.append("{0}sr".format(1))
             else:
-                if asset_type == "sprite":
-                    give_points *= SPRITE_WORTH
-                elif asset_type == "portrait":
-                    give_points *= PORTRAIT_WORTH
+                paid_diffs = []
+                for diff in diffs:
+                    if not TrackerUtils.hasExistingCredits(cur_credits, orig_author, diff) and not SpriteUtils.isCopyOf(gen_path, diff):
+                        paid_diffs.append(diff)
 
-            if give_points < 1 and new_credit:
-                give_points = 1
+                if asset_type == "sprite":
+                    dungeon_anims = 0
+                    starter_anims = 0
+                    other_anims = 0
+                    for diff in paid_diffs:
+                        if diff in Constants.DUNGEON_ACTIONS:
+                            dungeon_anims += 1
+                        elif diff in Constants.STARTER_ACTIONS:
+                            starter_anims += 1
+                        else:
+                            other_anims += 1
+
+                    if dungeon_anims > 0:
+                        reward_changes.append("{0}da".format(dungeon_anims))
+                    if starter_anims > 0:
+                        reward_changes.append("{0}sa".format(starter_anims))
+                    if other_anims > 0:
+                        reward_changes.append("{0}oa".format(other_anims))
+
+                elif asset_type == "portrait":
+                    sym_portraits = 0
+                    asym_portraits = 0
+                    for diff in paid_diffs:
+                        if diff.endswith("^"):
+                            asym_portraits += 1
+                        else:
+                            sym_portraits += 1
+                    if sym_portraits > 0:
+                        reward_changes.append("{0}p".format(sym_portraits))
+                    if asym_portraits > 0:
+                        reward_changes.append("{0}ap".format(asym_portraits))
 
             if chosen_node.modreward:
-                give_points = 0
+                reward_changes = []
                 approve_msg += "\nThe non-bounty GP Reward for this {0} will be handled by the approvers.".format(asset_type)
 
         # save the tracker
@@ -930,16 +948,20 @@ class SpriteBot:
                 await self.getChatChannel(msg.guild.id).send("{0}\nPlease use `!register <your name> <contact info>` to register your name and contact info in the credits (use `!help register` for more info).\nWe recommended using an external contact in case you lose access to your Discord account.".format(orig_author))
 
             # add bounty
+            bounty_points = 0
             result_phase = current_completion_file
             while result_phase > 0:
                 if str(result_phase) in chosen_node.__dict__[asset_type + "_bounty"]:
-                    give_points += chosen_node.__dict__[asset_type + "_bounty"][str(result_phase)]
+                    bounty_points += chosen_node.__dict__[asset_type + "_bounty"][str(result_phase)]
                     del chosen_node.__dict__[asset_type + "_bounty"][str(result_phase)]
                 result_phase -= 1
 
-            if give_points > 0 and orig_author.startswith("<@!") and self.config.points_ch != 0:
+            if bounty_points > 0:
+                reward_changes.append(str(bounty_points))
+
+            if len(reward_changes) > 0 and orig_author.startswith("<@!") and self.config.points_ch != 0:
                 orig_author_id = orig_author[3:-1]
-                await self.client.get_channel(self.config.points_ch).send("!gr {0} {1} {2}".format(orig_author_id, give_points, self.config.servers[str(msg.guild.id)].chat))
+                await self.client.get_channel(self.config.points_ch).send("!gr {0} {1} {2}".format(orig_author_id, "+".join(reward_changes), self.config.servers[str(msg.guild.id)].chat))
 
 
             if not is_shiny:
