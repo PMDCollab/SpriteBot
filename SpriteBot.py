@@ -879,7 +879,13 @@ class SpriteBot:
 
 
             if TrackerUtils.isShinyIdx(full_idx):
-                reward_changes.append("{0}sr".format(1))
+                new_author = False
+                for credit in cur_credits:
+                    if credit.name == orig_author:
+                        new_author = True
+                        break
+                if new_author:
+                    reward_changes.append("{0}sr".format(1))
             else:
                 paid_diffs = []
                 for diff in diffs:
