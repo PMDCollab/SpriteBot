@@ -884,7 +884,7 @@ class SpriteBot:
                     if credit.name == orig_author:
                         new_author = True
                         break
-                if new_author:
+                if not new_author:
                     reward_changes.append("{0}sr".format(1))
             else:
                 paid_diffs = []
