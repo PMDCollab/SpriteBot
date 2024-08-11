@@ -553,10 +553,12 @@ class SpriteBot:
     async def returnMsgFile(self, msg, thread, msg_body, asset_type, quant_img=None):
         try:
             return_file, return_name = SpriteUtils.getLinkFile(msg.attachments[0].url, asset_type)
-            await self.getChatChannel(msg.guild.id).send(msg_body, file=discord.File(return_file, return_name))
             if thread:
+                await self.getChatChannel(msg.guild.id).send(msg_body + "\n" + thread.mention, file=discord.File(return_file, return_name))
                 return_file, return_name = SpriteUtils.getLinkFile(msg.attachments[0].url, asset_type)
                 await thread.send(msg_body, file=discord.File(return_file, return_name))
+            else:
+                await self.getChatChannel(msg.guild.id).send(msg_body, file=discord.File(return_file, return_name))
 
             if quant_img is not None:
                 fileData = io.BytesIO()
@@ -938,7 +940,7 @@ class SpriteBot:
         # post about it
         for server_id in self.config.servers:
             if server_id == str(msg.guild.id):
-                await self.getChatChannel(msg.guild.id).send(sender_info + " " + approve_msg + "\n" + new_link)
+                await self.getChatChannel(msg.guild.id).send(sender_info + " " + approve_msg + "\n" + review_thread.mention + "\n" + new_link)
                 await review_thread.send(sender_info + " " + approve_msg + "\n" + new_link)
             else:
                 await self.getChatChannel(int(server_id)).send("{1}: {0}".format(update_msg, msg.guild.name))
