@@ -894,6 +894,11 @@ def replaceNodeAssetFeatures(node_from, node_to, asset_type):
             elif key == asset_type + "_talk":
                 # do not overwrite
                 pass
+            elif key == asset_type + "_bounty":
+                for status_key in node_from.__dict__[key]:
+                    if status_key not in node_to.__dict__[key]:
+                        node_to.__dict__[key][status_key] = 0
+                    node_to.__dict__[key][status_key] = node_to.__dict__[key][status_key] + node_from.__dict__[key][status_key]
             else:
                 node_to.__dict__[key] = node_from.__dict__[key]
             node_from.__dict__[key] = node_new.__dict__[key]
