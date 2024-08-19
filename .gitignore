@@ -6,5 +6,5 @@ venv_*/
 config.json
 credit_names.txt
 info.txt
-discord_token.txt
+discord_token*.txt
 out.log

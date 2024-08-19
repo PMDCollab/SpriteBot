@@ -1378,6 +1378,9 @@ class SpriteBot:
                 continue
 
             chosen_node = TrackerUtils.getNodeFromIdx(self.tracker, full_idx, 0)
+            if chosen_node is None:
+                await self.sendError("Could not get node when updating thread {0}!".format(thread.name))
+                continue
             pending_dict = chosen_node.__dict__[asset_name+"_pending"]
 
             if len(pending_dict) > 0:
