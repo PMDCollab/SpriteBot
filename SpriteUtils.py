@@ -269,7 +269,7 @@ def verifyZipFile(zip, file_name):
     if info.file_size > ZIP_SIZE_LIMIT:
         raise SpriteVerifyError("Zipped file {0} is too large, at {1} bytes.".format(file_name, info.file_size))
 
-def readZipImg(zip, file_name) -> Image.Image:
+def readZipImg(zip, file_name: str) -> Image.Image:
     verifyZipFile(zip, file_name)
 
     file_data = BytesIO()

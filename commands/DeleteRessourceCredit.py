@@ -107,7 +107,7 @@ class DeleteRessourceCredit(BaseCommand):
             return
 
         guild = msg.guild
-        if guild == None:
+        if guild is None:
             raise BaseException("The message has not been posted to a guild!")
 
         chat_id = self.spritebot.config.servers[str(guild.id)].submit
