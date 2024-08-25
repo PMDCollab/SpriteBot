@@ -8,7 +8,8 @@ if TYPE_CHECKING:
     from SpriteBot import SpriteBot, BotServer
 
 class GetProfile(BaseCommand):
-    DEFAULT_PERMISSION: PermissionLevel = PermissionLevel.EVERYONE
+    def getRequiredPermission(self) -> PermissionLevel:
+        return PermissionLevel.EVERYONE
 
     def getCommand(self) -> str:
         return "profile"

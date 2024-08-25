@@ -8,11 +8,12 @@ if TYPE_CHECKING:
     from SpriteBot import SpriteBot, BotServer
 
 class ListRessource(BaseCommand):
-    DEFAULT_PERMISSION: PermissionLevel = PermissionLevel.EVERYONE
-
     def __init__(self, spritebot: "SpriteBot", ressource_type: str):
         super().__init__(spritebot)
         self.ressource_type = ressource_type
+    
+    def getRequiredPermission(self) -> PermissionLevel:
+        return PermissionLevel.EVERYONE
     
     def getCommand(self) -> str:
         return f"list{self.ressource_type}"
