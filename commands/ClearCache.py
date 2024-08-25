@@ -8,10 +8,11 @@ if TYPE_CHECKING:
     from SpriteBot import SpriteBot, BotServer
 
 class ClearCache(BaseCommand):
-    DEFAULT_PERMISSION: PermissionLevel = PermissionLevel.STAFF
-
     def __init__(self, spritebot: "SpriteBot") -> None:
         self.spritebot = spritebot
+    
+    def getRequiredPermission(self) -> PermissionLevel:
+        return PermissionLevel.STAFF
 
     def getCommand(self) -> str:
         return "clearcache"

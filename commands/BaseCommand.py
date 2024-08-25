@@ -7,11 +7,13 @@ if TYPE_CHECKING:
     from SpriteBot import SpriteBot, BotServer
 
 class BaseCommand:
-    # The default permission level required to execute this command
-    DEFAULT_PERMISSION: PermissionLevel = PermissionLevel.ADMIN
-
     def __init__(self, spritebot: "SpriteBot") -> None:
         self.spritebot = spritebot
+    
+    @abstractmethod
+    def getRequiredPermission(self) -> PermissionLevel:
+        """return the permission level required to execute this command"""
+        raise NotImplementedError()
     
     @abstractmethod
     def getCommand(self) -> str:

@@ -2755,7 +2755,7 @@ class SpriteBot:
                   f"`{prefix}transferprofile` - Transfers the credit from absentee profile to a real one\n"
             
             for command in self.commands:
-                if permission_level == command.DEFAULT_PERMISSION:
+                if permission_level == command.getRequiredPermission():
                     return_msg += f"`{prefix}{command.getCommand()}` - {command.getSingleLineHelp(server_config)}\n"
             
             if permission_level == PermissionLevel.EVERYONE:
@@ -2768,7 +2768,7 @@ class SpriteBot:
             base_arg = args[0]
             return_msg = None
             for command in self.commands:
-                if command.getCommand() == base_arg and permission_level == command.DEFAULT_PERMISSION:
+                if command.getCommand() == base_arg and permission_level == command.getRequiredPermission():
                     return_msg = "**Command Help**\n" \
                         + command.getMultiLineHelp(server_config)
             if return_msg != None:
@@ -3226,10 +3226,10 @@ async def on_message(msg: discord.Message):
             for command in sprite_bot.commands:
                 if base_arg == command.getCommand():
                     #TODO: a way to overwrite this value for certain command via config is needed is needed for NotSpriteCollab, but just compare to default for now
-                    if user_permission.canPerformAction(command.DEFAULT_PERMISSION):
+                    if user_permission.canPerformAction(command.getRequiredPermission()):
                         await command.executeCommand(msg, args[1:])
                     else:
-                        await msg.channel.send("{} Not authorized (you need the permission level of at least “{}” to run this command)".format(msg.author.mention, command.DEFAULT_PERMISSION.name()))
+                        await msg.channel.send("{} Not authorized (you need the permission level of at least “{}” to run this command)".format(msg.author.mention, command.getRequiredPermission().name()))
                     return
 
             if base_arg == "help":

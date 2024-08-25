@@ -9,12 +9,13 @@ if TYPE_CHECKING:
     from SpriteBot import SpriteBot, BotServer
 
 class QueryRessourceCredit(BaseCommand):
-    DEFAULT_PERMISSION: PermissionLevel = PermissionLevel.EVERYONE
-
     def __init__(self, spritebot: "SpriteBot", ressource_type: str, display_history: bool):
         super().__init__(spritebot)
         self.ressource_type = ressource_type
         self.display_history = display_history
+    
+    def getRequiredPermission(self) -> PermissionLevel:
+        return PermissionLevel.EVERYONE
     
     def getCommand(self) -> str:
         if self.display_history:
