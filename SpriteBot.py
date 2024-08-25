@@ -25,9 +25,10 @@ from commands.AutoRecolorRessource import AutoRecolorRessource
 from commands.ListRessource import ListRessource
 from commands.QueryRessourceCredit import QueryRessourceCredit
 from commands.DeleteRessourceCredit import DeleteRessourceCredit
+from commands.ClearCache import ClearCache
 from commands.GetProfile import GetProfile
 
-from Constants import PHASES
+from Constants import PHASES, PermissionLevel
 import psutil
 
 # Housekeeping for login information
@@ -204,6 +205,7 @@ class SpriteBot:
 
         # register commands
         self.commands = [
+            # everyone
             QueryRessourceStatus(self, "portrait", False),
             QueryRessourceStatus(self, "portrait", True),
             QueryRessourceStatus(self, "sprite", False),
@@ -218,7 +220,13 @@ class SpriteBot:
             QueryRessourceCredit(self, "sprite", True),
             DeleteRessourceCredit(self, "portrait"),
             DeleteRessourceCredit(self, "sprite"),
-            GetProfile(self)
+            GetProfile(self),
+
+            # staff
+            ClearCache(self)
+
+            # admin
+            # (empty for now)
         ]
 
         self.writeLog("Startup Memory: {0}".format(psutil.Process().memory_info().rss))
@@ -411,16 +419,16 @@ class SpriteBot:
             self.getBountiesFromDict(asset_type, tracker_dict.subgroups[sub_dict], entries, indices + [sub_dict])
 
 
-    async def isAuthorized(self, user, guild):
-
+    async def getUserPermission(self, user, guild):
+        """Get a user permission level"""
         if user.id == self.client.user.id:
-            return False
+            return PermissionLevel.EVERYONE
         if user.id == self.config.root:
-            return True
+            return PermissionLevel.ADMIN
         guild_id_str = str(guild.id)
 
         if self.config.servers[guild_id_str].approval == 0:
-            return False
+            return PermissionLevel.EVERYONE
 
         approve_role = guild.get_role(self.config.servers[guild_id_str].approval)
 
@@ -430,10 +438,10 @@ class SpriteBot:
             user_member = None
 
         if user_member is None:
-            return False
+            return PermissionLevel.EVERYONE
         if approve_role in user_member.roles:
-            return True
-        return False
+            return PermissionLevel.STAFF
+        return PermissionLevel.EVERYONE
 
     async def generateLink(self, file_data, filename):
         # file_data is a file-like object to post with
@@ -1179,14 +1187,14 @@ class SpriteBot:
                     if deleting and user_author_id == orig_author:
                         approve.append(user.id)
                         consent = True
-                    elif await self.isAuthorized(user, msg.guild):
+                    elif (await self.getUserPermission(user, msg.guild)).canPerformAction(PermissionLevel.STAFF):
                         approve.append(user.id)
                     elif user.id != self.client.user.id:
                         remove_users.append((cks, user))
 
             if ws:
                 async for user in ws.users():
-                    if await self.isAuthorized(user, msg.guild):
+                    if (await self.getUserPermission(user, msg.guild)).canPerformAction(PermissionLevel.STAFF):
                         warn = True
                     else:
                         remove_users.append((ws, user))
@@ -1194,7 +1202,7 @@ class SpriteBot:
             if xs:
                 async for user in xs.users():
                     user_author_id = "<@!{0}>".format(user.id)
-                    if await self.isAuthorized(user, msg.guild) or user.id == orig_sender_id:
+                    if (await self.getUserPermission(user, msg.guild)).canPerformAction(PermissionLevel.STAFF) or user.id == orig_sender_id:
                         decline.append(user.id)
                     elif deleting and user_author_id == orig_author:
                         decline.append(user.id)
@@ -1807,7 +1815,7 @@ class SpriteBot:
             return
 
         if self.config.points == 0:
-            if not await self.isAuthorized(msg.author, msg.guild):
+            if not (await self.getUserPermission(msg.author, msg.guild)).canPerformAction(PermissionLevel.STAFF):
                 await msg.channel.send(msg.author.mention + " Not authorized.")
                 return
         else:
@@ -2016,20 +2024,6 @@ class SpriteBot:
 
         msgs_used, changed = await self.sendInfoPosts(msg.channel, posts, [], 0)
 
-    async def clearCache(self, msg, name_args):
-        name_seq = [TrackerUtils.sanitizeName(i) for i in name_args]
-        full_idx = TrackerUtils.findFullTrackerIdx(self.tracker, name_seq, 0)
-        if full_idx is None:
-            await msg.channel.send(msg.author.mention + " No such Pokemon.")
-            return
-        chosen_node = TrackerUtils.getNodeFromIdx(self.tracker, full_idx, 0)
-
-        TrackerUtils.clearCache(chosen_node, True)
-
-        self.saveTracker()
-
-        await msg.channel.send(msg.author.mention + " Cleared links for #{0:03d}: {1}.".format(int(full_idx[0]), " ".join(name_seq)))
-
     def createCreditAttribution(self, mention, plainName=False):
         if plainName:
             # "plainName" actually refers to "social-media-ready name"
@@ -2170,7 +2164,7 @@ class SpriteBot:
         elif len(args) == 2:
             new_credit = TrackerUtils.CreditEntry(args[0], args[1])
         elif len(args) == 3:
-            if not await self.isAuthorized(msg.author, msg.guild):
+            if not (await self.getUserPermission(msg.author, msg.guild)).canPerformAction(PermissionLevel.STAFF):
                 await msg.channel.send(msg.author.mention + " Not authorized to create absent registration.")
                 return
             msg_mention = self.getFormattedCredit(args[0])
@@ -2234,7 +2228,7 @@ class SpriteBot:
                                                         "If you wish to proceed, rerun the command with your discord ID and username (with discriminator) as arguments.")
             return
         elif len(args) == 1:
-            if not await self.isAuthorized(msg.author, msg.guild):
+            if not (await self.getUserPermission(msg.author, msg.guild)).canPerformAction(PermissionLevel.STAFF):
                 await msg.channel.send(msg.author.mention + " Not authorized to delete registration.")
                 return
             msg_mention = self.getFormattedCredit(args[0])
@@ -2720,27 +2714,61 @@ class SpriteBot:
         self.saveTracker()
         self.changed = True
 
-    async def help(self, msg, args):
+    async def help(self, msg, args, permission_level: PermissionLevel):
         server_config = self.config.servers[str(msg.guild.id)]
         prefix = server_config.prefix
         use_bounties = self.config.use_bounties
         if len(args) == 0:
             return_msg = "**Commands**\n"
+            
+            if permission_level == PermissionLevel.EVERYONE:
+                return_msg += f"`{prefix}register` - Register your profile\n"
+                if use_bounties:
+                    return_msg += f"`{prefix}spritebounty` - Place a bounty on a sprite\n" \
+                      f"`{prefix}portraitbounty` - Place a bounty on a portrait\n" \
+                      f"`{prefix}bounties` - View top bounties\n"
 
+            elif permission_level == PermissionLevel.STAFF:
+                return_msg = "**Approver Commands**\n" \
+                  f"`{prefix}add` - Adds a Pokemon or forme to the current list\n" \
+                  f"`{prefix}delete` - Deletes an empty Pokemon or forme\n" \
+                  f"`{prefix}rename` - Renames a Pokemon or forme\n" \
+                  f"`{prefix}addgender` - Adds the female sprite/portrait to the Pokemon\n" \
+                  f"`{prefix}deletegender` - Removes the female sprite/portrait from the Pokemon\n" \
+                  f"`{prefix}need` - Marks a sprite/portrait as needed\n" \
+                  f"`{prefix}dontneed` - Marks a sprite/portrait as unneeded\n" \
+                  f"`{prefix}movesprite` - Swaps the sprites for two Pokemon/formes\n" \
+                  f"`{prefix}moveportrait` - Swaps the portraits for two Pokemon/formes\n" \
+                  f"`{prefix}move` - Swaps the sprites, portraits, and names for two Pokemon/formes\n" \
+                  f"`{prefix}spritewip` - Sets the sprite status as Incomplete\n" \
+                  f"`{prefix}portraitwip` - Sets the portrait status as Incomplete\n" \
+                  f"`{prefix}spriteexists` - Sets the sprite status as Exists\n" \
+                  f"`{prefix}portraitexists` - Sets the portrait status as Exists\n" \
+                  f"`{prefix}spritefilled` - Sets the sprite status as Fully Featured\n" \
+                  f"`{prefix}portraitfilled` - Sets the portrait status as Fully Featured\n" \
+                  f"`{prefix}setspritecredit` - Sets the primary author of the sprite\n" \
+                  f"`{prefix}setportraitcredit` - Sets the primary author of the portrait\n" \
+                  f"`{prefix}addspritecredit` - Adds a new author to the credits of the sprite\n" \
+                  f"`{prefix}addportraitcredit` - Adds a new author to the credits of the portrait\n" \
+                  f"`{prefix}modreward` - Toggles whether a sprite/portrait will have a custom reward\n" \
+                  f"`{prefix}adminregister` - Use with arguments to make absentee profiles\n" \
+                  f"`{prefix}transferprofile` - Transfers the credit from absentee profile to a real one\n"
+            
             for command in self.commands:
-                return_msg += f"`{prefix}{command.getCommand()}` - {command.getSingleLineHelp(server_config)}\n"
-            if use_bounties:
-                return_msg += f"`{prefix}spritebounty` - Place a bounty on a sprite\n" \
-                              f"`{prefix}portraitbounty` - Place a bounty on a portrait\n" \
-                              f"`{prefix}bounties` - View top bounties\n"
-            return_msg += f"`{prefix}register` - Register your profile\n" \
-                          f"Type `{prefix}help` with the name of a command to learn more about it."
+                if permission_level == command.DEFAULT_PERMISSION:
+                    return_msg += f"`{prefix}{command.getCommand()}` - {command.getSingleLineHelp(server_config)}\n"
+            
+            if permission_level == PermissionLevel.EVERYONE:
+                return_msg += f"`{prefix}staffhelp` - Show staff commands\n" \
+                              f"`{prefix}adminhelp` - Show admin commands\n"
+            
+            return_msg +=  f"Type `{prefix}{permission_level.helpprefix()}help` with the name of a command to learn more about it."
 
         else:
             base_arg = args[0]
             return_msg = None
             for command in self.commands:
-                if command.getCommand() == base_arg:
+                if command.getCommand() == base_arg and permission_level == command.DEFAULT_PERMISSION:
                     return_msg = "**Command Help**\n" \
                         + command.getMultiLineHelp(server_config)
             if return_msg != None:
@@ -2806,44 +2834,7 @@ class SpriteBot:
                              "`Contact` - Your preferred contact info; can be email, url, etc.\n" \
                              "**Examples**\n" \
                              f"`{prefix}register Audino https://github.com/audinowho`"
-            else:
-                return_msg = "Unknown Command."
-        await msg.channel.send(msg.author.mention + " {0}".format(return_msg))
-
-
-    async def staffhelp(self, msg, args):
-        prefix = self.config.servers[str(msg.guild.id)].prefix
-        if len(args) == 0:
-            return_msg = "**Approver Commands**\n" \
-                  f"`{prefix}add` - Adds a Pokemon or forme to the current list\n" \
-                  f"`{prefix}delete` - Deletes an empty Pokemon or forme\n" \
-                  f"`{prefix}rename` - Renames a Pokemon or forme\n" \
-                  f"`{prefix}addgender` - Adds the female sprite/portrait to the Pokemon\n" \
-                  f"`{prefix}deletegender` - Removes the female sprite/portrait from the Pokemon\n" \
-                  f"`{prefix}need` - Marks a sprite/portrait as needed\n" \
-                  f"`{prefix}dontneed` - Marks a sprite/portrait as unneeded\n" \
-                  f"`{prefix}movesprite` - Swaps the sprites for two Pokemon/formes\n" \
-                  f"`{prefix}moveportrait` - Swaps the portraits for two Pokemon/formes\n" \
-                  f"`{prefix}move` - Swaps the sprites, portraits, and names for two Pokemon/formes\n" \
-                  f"`{prefix}spritewip` - Sets the sprite status as Incomplete\n" \
-                  f"`{prefix}portraitwip` - Sets the portrait status as Incomplete\n" \
-                  f"`{prefix}spriteexists` - Sets the sprite status as Exists\n" \
-                  f"`{prefix}portraitexists` - Sets the portrait status as Exists\n" \
-                  f"`{prefix}spritefilled` - Sets the sprite status as Fully Featured\n" \
-                  f"`{prefix}portraitfilled` - Sets the portrait status as Fully Featured\n" \
-                  f"`{prefix}setspritecredit` - Sets the primary author of the sprite\n" \
-                  f"`{prefix}setportraitcredit` - Sets the primary author of the portrait\n" \
-                  f"`{prefix}addspritecredit` - Adds a new author to the credits of the sprite\n" \
-                  f"`{prefix}addportraitcredit` - Adds a new author to the credits of the portrait\n" \
-                  f"`{prefix}modreward` - Toggles whether a sprite/portrait will have a custom reward\n" \
-                  f"`{prefix}register` - Use with arguments to make absentee profiles\n" \
-                  f"`{prefix}transferprofile` - Transfers the credit from absentee profile to a real one\n" \
-                  f"`{prefix}clearcache` - Clears the image/zip links for a Pokemon/forme/shiny/gender\n" \
-                  f"Type `{prefix}staffhelp` with the name of a command to learn more about it."
-
-        else:
-            base_arg = args[0]
-            if base_arg == "add":
+            elif base_arg == "add":
                 return_msg = "**Command Help**\n" \
                              f"`{prefix}add <Pokemon Name> [Form Name]`\n" \
                              "Adds a Pokemon to the dex, or a form to the existing Pokemon.\n" \
@@ -3155,9 +3146,9 @@ class SpriteBot:
                              "**Examples**\n" \
                              f"`{prefix}modreward Unown`\n" \
                              f"`{prefix}modreward Minior Red`"
-            elif base_arg == "register":
+            elif base_arg == "adminregister":
                 return_msg = "**Command Help**\n" \
-                             f"`{prefix}register <Author ID> <Name> <Contact>`\n" \
+                             f"`{prefix}adminregister <Author ID> <Name> <Contact>`\n" \
                              "Registers an absentee profile with name and contact info for crediting purposes.  " \
                              "If a discord ID is provided, the profile is force-edited " \
                              "(can be used to remove inappropriate content)." \
@@ -3167,9 +3158,9 @@ class SpriteBot:
                              "`Name` - The person's preferred name\n" \
                              "`Contact` - The person's preferred contact info\n" \
                              "**Examples**\n" \
-                             f"`{prefix}register SUGIMORI Sugimori https://twitter.com/SUPER_32X`\n" \
-                             f"`{prefix}register @Audino Audino https://github.com/audinowho`\n" \
-                             f"`{prefix}register <@!117780585635643396> Audino https://github.com/audinowho`"
+                             f"`{prefix}adminregister SUGIMORI Sugimori https://twitter.com/SUPER_32X`\n" \
+                             f"`{prefix}adminregister @Audino Audino https://github.com/audinowho`\n" \
+                             f"`{prefix}adminregister <@!117780585635643396> Audino https://github.com/audinowho`"
             elif base_arg == "transferprofile":
                 return_msg = "**Command Help**\n" \
                              f"`{prefix}transferprofile <Author ID> <New Author ID>`\n" \
@@ -3183,27 +3174,9 @@ class SpriteBot:
                              "**Examples**\n" \
                              f"`{prefix}transferprofile AUDINO_WHO <@!117780585635643396>`\n" \
                              f"`{prefix}transferprofile AUDINO_WHO @Audino`"
-            elif base_arg == "clearcache":
-                return_msg = "**Command Help**\n" \
-                             f"`{prefix}clearcache <Pokemon Name> [Form Name] [Shiny] [Gender]`\n" \
-                             "Clears the all uploaded images related to a Pokemon, allowing them to be regenerated.  " \
-                             "This includes all portrait image and sprite zip links, " \
-                             "meant to be used whenever those links somehow become stale.\n" \
-                             "`Pokemon Name` - Name of the Pokemon\n" \
-                             "`Form Name` - [Optional] Form name of the Pokemon\n" \
-                             "`Shiny` - [Optional] Specifies if you want the shiny sprite or not\n" \
-                             "`Gender` - [Optional] Specifies the gender of the Pokemon\n" \
-                             "**Examples**\n" \
-                             f"`{prefix}clearcache Pikachu`\n" \
-                             f"`{prefix}clearcache Pikachu Shiny`\n" \
-                             f"`{prefix}clearcache Pikachu Female`\n" \
-                             f"`{prefix}clearcache Pikachu Shiny Female`\n" \
-                             f"`{prefix}clearcache Shaymin Sky`\n" \
-                             f"`{prefix}clearcache Shaymin Sky Shiny`"
             else:
                 return_msg = "Unknown Command."
         await msg.channel.send(msg.author.mention + " {0}".format(return_msg))
-
 
 @client.event
 async def on_ready():
@@ -3246,18 +3219,25 @@ async def on_message(msg: discord.Message):
                 return
             args = content[len(prefix):].split()
 
-            authorized = await sprite_bot.isAuthorized(msg.author, msg.guild)
+            user_permission = await sprite_bot.getUserPermission(msg.author, msg.guild)
+            authorized = user_permission.canPerformAction(PermissionLevel.STAFF)
             base_arg = args[0].lower()
 
             for command in sprite_bot.commands:
                 if base_arg == command.getCommand():
-                    await command.executeCommand(msg, args[1:])
+                    #TODO: a way to overwrite this value for certain command via config is needed is needed for NotSpriteCollab, but just compare to default for now
+                    if user_permission.canPerformAction(command.DEFAULT_PERMISSION):
+                        await command.executeCommand(msg, args[1:])
+                    else:
+                        await msg.channel.send("{} Not authorized (you need the permission level of at least “{}” to run this command)".format(msg.author.mention, command.DEFAULT_PERMISSION.name()))
                     return
 
             if base_arg == "help":
-                await sprite_bot.help(msg, args[1:])
+                await sprite_bot.help(msg, args[1:], PermissionLevel.EVERYONE)
             elif base_arg == "staffhelp":
-                await sprite_bot.staffhelp(msg, args[1:])
+                await sprite_bot.help(msg, args[1:], PermissionLevel.STAFF)
+            elif base_arg == "adminhelp":
+                await sprite_bot.help(msg, args[1:], PermissionLevel.ADMIN)
                 # primary commands
             elif base_arg == "spritebounty":
                 await sprite_bot.placeBounty(msg, args[1:], "sprite")
@@ -3265,7 +3245,7 @@ async def on_message(msg: discord.Message):
                 await sprite_bot.placeBounty(msg, args[1:], "portrait")
             elif base_arg == "bounties":
                 await sprite_bot.listBounties(msg, args[1:])
-            elif base_arg == "register":
+            elif base_arg == "register" or base_arg == "adminregister":
                 await sprite_bot.setProfile(msg, args[1:])
             elif base_arg == "absentprofiles":
                 await sprite_bot.getAbsentProfiles(msg)
@@ -3320,8 +3300,6 @@ async def on_message(msg: discord.Message):
                 await sprite_bot.modSpeciesForm(msg, args[1:])
             elif base_arg == "transferprofile" and authorized:
                 await sprite_bot.transferProfile(msg, args[1:])
-            elif base_arg == "clearcache" and authorized:
-                await sprite_bot.clearCache(msg, args[1:])
                 # root commands
             elif base_arg == "promote" and msg.author.id == sprite_bot.config.root:
                 await sprite_bot.promote(msg, args[1:])

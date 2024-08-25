@@ -1,5 +1,6 @@
 from typing import TYPE_CHECKING, List
 from .BaseCommand import BaseCommand
+from Constants import PermissionLevel
 import TrackerUtils
 import discord
 import io
@@ -8,6 +9,8 @@ if TYPE_CHECKING:
     from SpriteBot import SpriteBot, BotServer
 
 class QueryRessourceCredit(BaseCommand):
+    DEFAULT_PERMISSION: PermissionLevel = PermissionLevel.EVERYONE
+
     def __init__(self, spritebot: "SpriteBot", ressource_type: str, display_history: bool):
         super().__init__(spritebot)
         self.ressource_type = ressource_type

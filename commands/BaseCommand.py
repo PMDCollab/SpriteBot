@@ -1,11 +1,15 @@
 from abc import ABCMeta, abstractmethod
 from typing import TYPE_CHECKING, List
+from Constants import PermissionLevel
 import discord
 
 if TYPE_CHECKING:
     from SpriteBot import SpriteBot, BotServer
 
 class BaseCommand:
+    # The default permission level required to execute this command
+    DEFAULT_PERMISSION: PermissionLevel = PermissionLevel.ADMIN
+
     def __init__(self, spritebot: "SpriteBot") -> None:
         self.spritebot = spritebot
     
