@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Dict, Any
 
 
 import os
@@ -100,18 +100,17 @@ class BotConfig:
         self.update_ch = 0
         self.update_msg = 0
         self.use_bounties = False
-        self.servers = {}
+        self.servers: Dict[str, BotServer] = {}
 
         if main_dict is None:
             return
 
         for key in main_dict:
-            self.__dict__[key] = main_dict[key]
-
-        sub_dict = {}
-        for key in self.servers:
-            sub_dict[key] = BotServer(self.servers[key])
-        self.servers = sub_dict
+            if key == "servers":
+                for server_key in main_dict[key]:
+                    self.servers[server_key] = BotServer(main_dict[key][server_key])
+            else:
+                self.__dict__[key] = main_dict[key]
 
     def getDict(self):
         node_dict = { }
@@ -3229,7 +3228,7 @@ async def on_message(msg: discord.Message):
                     if user_permission.canPerformAction(command.getRequiredPermission()):
                         await command.executeCommand(msg, args[1:])
                     else:
-                        await msg.channel.send("{} Not authorized (you need the permission level of at least “{}” to run this command)".format(msg.author.mention, command.getRequiredPermission().name()))
+                        await msg.channel.send("{} Not authorized (you need the permission level of at least “{}” to run this command)".format(msg.author.mention, command.getRequiredPermission().displayname()))
                     return
 
             if base_arg == "help":

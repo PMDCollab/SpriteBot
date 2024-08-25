@@ -1,4 +1,6 @@
+from typing import Dict, List
 
+import sys
 import os
 import re
 import shutil
@@ -690,7 +692,7 @@ def updateCreditCompilation(name_path, credit_dict):
                             txt.write("\t\t{0}: {1}\n".format(id_key, ",".join(all_parts)))
                 txt.write("\n")
 
-def updateCompilationStats(name_dict, dict, species_path, prefix, form_name_list, credit_dict):
+def updateCompilationStats(name_dict, dict, species_path, prefix, form_name_list, credit_dict: Dict[str, CreditCompileEntry]):
     # generate the form name
     form_name = " ".join([i for i in form_name_list if i != ""])
     # is there a credits txt?  read it

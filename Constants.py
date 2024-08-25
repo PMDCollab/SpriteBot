@@ -20,8 +20,8 @@ ACTION_MAP: Dict[int, str] = { }
 COMPLETION_ACTIONS: List[List[int]] = []
 
 ACTIONS: List[str] = []
-DUNGEON_ACTIONS = []
-STARTER_ACTIONS = []
+DUNGEON_ACTIONS: List[str] = []
+STARTER_ACTIONS: List[str] = []
 
 DIRECTIONS = [ "Down",
                "DownRight",
@@ -45,7 +45,7 @@ class PermissionLevel(Enum):
     def canPerformAction(self, required_level) -> bool:
         return required_level.value <= self.value
     
-    def name(self) -> str:
+    def displayname(self) -> str:
         if self == self.EVERYONE:
             return "everyone"
         elif self == self.STAFF:

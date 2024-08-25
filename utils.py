@@ -55,7 +55,7 @@ def addLoc(loc1: Tuple[int, int], loc2: Tuple[int, int], sub: bool = False):
     return (loc1[0] + loc2[0] * mult, loc1[1] + loc2[1] * mult)
 
 
-def getCoveredBounds(inImg, max_box: Tuple[int, int, int, int] = None):
+def getCoveredBounds(inImg, max_box: Optional[Tuple[int, int, int, int]] = None):
     if max_box is None:
         max_box = (0, 0, inImg.size[0], inImg.size[1])
     minX, minY = inImg.size
@@ -86,7 +86,7 @@ def addToPalette(palette, img):
 
 def getOffsetFromRGB(img, bounds: Tuple[int, int, int, int], black: bool, r: bool, g: bool, b: bool, white: bool):
     datas = img.getdata()
-    results = [None] * 5
+    results: List[Optional[Tuple[int, int]]] = [None] * 5
     for i in range(bounds[0], bounds[2]):
         for j in range(bounds[1], bounds[3]):
             color = datas[i + j * img.size[0]]
