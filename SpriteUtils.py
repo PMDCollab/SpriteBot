@@ -1084,7 +1084,7 @@ def verifyPortrait(msg_args, img):
         raise SpriteVerifyError("Portrait has an invalid size of {0}, exceeding max of {1}".format(str(img.size), str(max_size)))
 
     in_data = img.getdata()
-    occupied = [[]] * Constants.PORTRAIT_TILE_X
+    occupied: List[List[bool]] = [[]] * Constants.PORTRAIT_TILE_X
     for ii in range(Constants.PORTRAIT_TILE_X):
         occupied[ii] = [False] * Constants.PORTRAIT_TILE_Y
 

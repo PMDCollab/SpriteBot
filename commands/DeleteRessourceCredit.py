@@ -1,5 +1,6 @@
 from typing import TYPE_CHECKING, List
 from .BaseCommand import BaseCommand
+from Constants import PermissionLevel
 import TrackerUtils
 import discord
 import SpriteUtils
@@ -8,6 +9,8 @@ if TYPE_CHECKING:
     from SpriteBot import SpriteBot, BotServer
 
 class DeleteRessourceCredit(BaseCommand):
+    DEFAULT_PERMISSION: PermissionLevel = PermissionLevel.EVERYONE
+
     def __init__(self, spritebot: "SpriteBot", ressource_type: str):
         super().__init__(spritebot)
         self.ressource_type = ressource_type
@@ -62,7 +65,7 @@ class DeleteRessourceCredit(BaseCommand):
             await msg.channel.send(msg.author.mention + " No such profile ID.")
             return
 
-        authorized = await self.spritebot.isAuthorized(msg.author, msg.guild)
+        authorized = (await self.spritebot.getUserPermission(msg.author, msg.guild)).canPerformAction(PermissionLevel.STAFF)
         author = "<@!{0}>".format(msg.author.id)
         if not authorized and author != wanted_author:
             await msg.channel.send(msg.author.mention + " You must specify your own user ID.")
@@ -102,10 +105,11 @@ class DeleteRessourceCredit(BaseCommand):
             await msg.channel.send(msg.author.mention + " The author cannot be the latest contributor.")
             return
 
-        if msg.guild == None:
+        guild = msg.guild
+        if guild == None:
             raise BaseException("The message has not been posted to a guild!")
 
-        chat_id = self.spritebot.config.servers[str(msg.guild.id)].submit
+        chat_id = self.spritebot.config.servers[str(guild.id)].submit
         if chat_id == 0:
             await msg.channel.send(msg.author.mention + " This server does not support submissions.")
             return

@@ -2,12 +2,14 @@ from typing import TYPE_CHECKING, List
 from .BaseCommand import BaseCommand
 import discord
 import TrackerUtils
-from Constants import PHASES
+from Constants import PHASES, PermissionLevel
 
 if TYPE_CHECKING:
     from SpriteBot import SpriteBot, BotServer
 
 class QueryRessourceStatus(BaseCommand):
+    DEFAULT_PERMISSION: PermissionLevel = PermissionLevel.EVERYONE
+    
     def __init__(self, spritebot: "SpriteBot", ressource_type: str, is_derivation: bool):
         super().__init__(spritebot)
         self.ressource_type = ressource_type
