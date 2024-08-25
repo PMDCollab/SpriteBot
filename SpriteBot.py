@@ -27,6 +27,7 @@ from commands.QueryRessourceCredit import QueryRessourceCredit
 from commands.DeleteRessourceCredit import DeleteRessourceCredit
 from commands.ClearCache import ClearCache
 from commands.GetProfile import GetProfile
+from commands.SetProfile import SetProfile
 
 from Constants import PHASES, PermissionLevel
 import psutil
@@ -220,9 +221,11 @@ class SpriteBot:
             DeleteRessourceCredit(self, "portrait"),
             DeleteRessourceCredit(self, "sprite"),
             GetProfile(self),
+            SetProfile(self, False),
 
             # staff
-            ClearCache(self)
+            ClearCache(self),
+            SetProfile(self, True),
 
             # admin
             # (empty for now)
@@ -2721,7 +2724,6 @@ class SpriteBot:
             return_msg = "**Commands**\n"
             
             if permission_level == PermissionLevel.EVERYONE:
-                return_msg += f"`{prefix}register` - Register your profile\n"
                 if use_bounties:
                     return_msg += f"`{prefix}spritebounty` - Place a bounty on a sprite\n" \
                       f"`{prefix}portraitbounty` - Place a bounty on a portrait\n" \
@@ -2750,7 +2752,6 @@ class SpriteBot:
                   f"`{prefix}addspritecredit` - Adds a new author to the credits of the sprite\n" \
                   f"`{prefix}addportraitcredit` - Adds a new author to the credits of the portrait\n" \
                   f"`{prefix}modreward` - Toggles whether a sprite/portrait will have a custom reward\n" \
-                  f"`{prefix}adminregister` - Use with arguments to make absentee profiles\n" \
                   f"`{prefix}transferprofile` - Transfers the credit from absentee profile to a real one\n"
             
             for command in self.commands:
@@ -2824,15 +2825,6 @@ class SpriteBot:
                                 f"`{prefix}bounties sprite`"
                 else:
                     return_msg = MESSAGE_BOUNTIES_DISABLED
-            elif base_arg == "register":
-                return_msg = "**Command Help**\n" \
-                             f"`{prefix}register <Name> <Contact>`\n" \
-                             "Registers your name and contact info for crediting purposes.  " \
-                             "If you do not register, credits will be given to your discord ID instead.\n" \
-                             "`Name` - Your preferred name\n" \
-                             "`Contact` - Your preferred contact info; can be email, url, etc.\n" \
-                             "**Examples**\n" \
-                             f"`{prefix}register Audino https://github.com/audinowho`"
             elif base_arg == "add":
                 return_msg = "**Command Help**\n" \
                              f"`{prefix}add <Pokemon Name> [Form Name]`\n" \
@@ -3145,21 +3137,6 @@ class SpriteBot:
                              "**Examples**\n" \
                              f"`{prefix}modreward Unown`\n" \
                              f"`{prefix}modreward Minior Red`"
-            elif base_arg == "adminregister":
-                return_msg = "**Command Help**\n" \
-                             f"`{prefix}adminregister <Author ID> <Name> <Contact>`\n" \
-                             "Registers an absentee profile with name and contact info for crediting purposes.  " \
-                             "If a discord ID is provided, the profile is force-edited " \
-                             "(can be used to remove inappropriate content)." \
-                             "This command is also available for self-registration.  " \
-                             f"Check the `{prefix}help` version for more.\n" \
-                             "`Author ID` - The desired ID of the absentee profile\n" \
-                             "`Name` - The person's preferred name\n" \
-                             "`Contact` - The person's preferred contact info\n" \
-                             "**Examples**\n" \
-                             f"`{prefix}adminregister SUGIMORI Sugimori https://twitter.com/SUPER_32X`\n" \
-                             f"`{prefix}adminregister @Audino Audino https://github.com/audinowho`\n" \
-                             f"`{prefix}adminregister <@!117780585635643396> Audino https://github.com/audinowho`"
             elif base_arg == "transferprofile":
                 return_msg = "**Command Help**\n" \
                              f"`{prefix}transferprofile <Author ID> <New Author ID>`\n" \
@@ -3244,8 +3221,6 @@ async def on_message(msg: discord.Message):
                 await sprite_bot.placeBounty(msg, args[1:], "portrait")
             elif base_arg == "bounties":
                 await sprite_bot.listBounties(msg, args[1:])
-            elif base_arg == "register" or base_arg == "adminregister":
-                await sprite_bot.setProfile(msg, args[1:])
             elif base_arg == "absentprofiles":
                 await sprite_bot.getAbsentProfiles(msg)
             elif base_arg == "unregister":
