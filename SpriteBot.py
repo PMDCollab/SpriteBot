@@ -28,6 +28,7 @@ from commands.DeleteRessourceCredit import DeleteRessourceCredit
 from commands.ClearCache import ClearCache
 from commands.GetProfile import GetProfile
 from commands.SetProfile import SetProfile
+from commands.RenameNode import RenameNode
 
 from Constants import PHASES, PermissionLevel
 import psutil
@@ -226,6 +227,7 @@ class SpriteBot:
             # staff
             ClearCache(self),
             SetProfile(self, True),
+            RenameNode(self),
 
             # admin
             # (empty for now)
@@ -2156,33 +2158,6 @@ class SpriteBot:
                 total_names.append(name + "\nName: \"{0}\"    Contact: \"{1}\"".format(self.names[name].name, self.names[name].contact))
         await self.sendInfoPosts(msg.channel, total_names, msg_ids, 0)
 
-    async def setProfile(self, msg, args):
-        msg_mention = "<@!{0}>".format(msg.author.id)
-
-        if len(args) == 0:
-            new_credit = TrackerUtils.CreditEntry("", "")
-        elif len(args) == 1:
-            new_credit = TrackerUtils.CreditEntry(args[0], "")
-        elif len(args) == 2:
-            new_credit = TrackerUtils.CreditEntry(args[0], args[1])
-        elif len(args) == 3:
-            if not (await self.getUserPermission(msg.author, msg.guild)).canPerformAction(PermissionLevel.STAFF):
-                await msg.channel.send(msg.author.mention + " Not authorized to create absent registration.")
-                return
-            msg_mention = self.getFormattedCredit(args[0])
-            new_credit = TrackerUtils.CreditEntry(args[1], args[2])
-        else:
-            await msg.channel.send(msg.author.mention + " Invalid args")
-            return
-
-        if msg_mention in self.names:
-            new_credit.sprites = self.names[msg_mention].sprites
-            new_credit.portraits = self.names[msg_mention].portraits
-        self.names[msg_mention] = new_credit
-        self.saveNames()
-
-        await msg.channel.send(msg_mention + " registered profile:\nName: \"{0}\"    Contact: \"{1}\"".format(self.names[msg_mention].name, self.names[msg_mention].contact))
-
     async def transferProfile(self, msg, args):
         if len(args) != 2:
             await msg.channel.send(msg.author.mention + " Invalid args")
@@ -2444,50 +2419,6 @@ class SpriteBot:
         self.saveTracker()
         self.changed = True
 
-    async def renameSpeciesForm(self, msg, args):
-        if len(args) < 2 or len(args) > 3:
-            await msg.channel.send(msg.author.mention + " Invalid number of args!")
-            return
-
-        species_name = TrackerUtils.sanitizeName(args[0])
-        new_name = TrackerUtils.sanitizeName(args[-1])
-        species_idx = TrackerUtils.findSlotIdx(self.tracker, species_name)
-        if species_idx is None:
-            await msg.channel.send(msg.author.mention + " {0} does not exist!".format(species_name))
-            return
-
-        species_dict = self.tracker[species_idx]
-
-        if len(args) == 2:
-            new_species_idx = TrackerUtils.findSlotIdx(self.tracker, new_name)
-            if new_species_idx is not None:
-                await msg.channel.send(msg.author.mention + " #{0:03d}: {1} already exists!".format(int(new_species_idx), new_name))
-                return
-
-            species_dict.name = new_name
-            await msg.channel.send(msg.author.mention + " Changed #{0:03d}: {1} to {2}!".format(int(species_idx), species_name, new_name))
-        else:
-
-            form_name = TrackerUtils.sanitizeName(args[1])
-            form_idx = TrackerUtils.findSlotIdx(species_dict.subgroups, form_name)
-            if form_idx is None:
-                await msg.channel.send(msg.author.mention + " {2} doesn't exist within #{0:03d}: {1}!".format(int(species_idx), species_name, form_name))
-                return
-
-            new_form_idx = TrackerUtils.findSlotIdx(species_dict.subgroups, new_name)
-            if new_form_idx is not None:
-                await msg.channel.send(msg.author.mention + " {2} already exists within #{0:03d}: {1}!".format(int(species_idx), species_name, new_name))
-                return
-
-            form_dict = species_dict.subgroups[form_idx]
-            form_dict.name = new_name
-
-            await msg.channel.send(msg.author.mention + " Changed {2} to {3} in #{0:03d}: {1}!".format(int(species_idx), species_name, form_name, new_name))
-
-        self.saveTracker()
-        self.changed = True
-
-
     async def modSpeciesForm(self, msg, args):
         if len(args) < 1 or len(args) > 2:
             await msg.channel.send(msg.author.mention + " Invalid number of args!")
@@ -2733,7 +2664,6 @@ class SpriteBot:
                 return_msg = "**Approver Commands**\n" \
                   f"`{prefix}add` - Adds a Pokemon or forme to the current list\n" \
                   f"`{prefix}delete` - Deletes an empty Pokemon or forme\n" \
-                  f"`{prefix}rename` - Renames a Pokemon or forme\n" \
                   f"`{prefix}addgender` - Adds the female sprite/portrait to the Pokemon\n" \
                   f"`{prefix}deletegender` - Removes the female sprite/portrait from the Pokemon\n" \
                   f"`{prefix}need` - Marks a sprite/portrait as needed\n" \
@@ -2845,16 +2775,6 @@ class SpriteBot:
                              "**Examples**\n" \
                              f"`{prefix}delete Pikablu`\n" \
                              f"`{prefix}delete Arceus Mega`"
-            elif base_arg == "rename":
-                return_msg = "**Command Help**\n" \
-                             f"`{prefix}rename <Pokemon Name> [Form Name] <New Name>`\n" \
-                             "Changes the existing species or form to the new name.\n" \
-                             "`Pokemon Name` - Name of the Pokemon\n" \
-                             "`Form Name` - [Optional] Form name of the Pokemon\n" \
-                             "`New Name` - New Pokemon of Form name\n" \
-                             "**Examples**\n" \
-                             f"`{prefix}rename Calrex Calyrex`\n" \
-                             f"`{prefix}rename Vulpix Aloha Alola`"
             elif base_arg == "addgender":
                 return_msg = "**Command Help**\n" \
                              f"`{prefix}addgender <Asset Type> <Pokemon Name> [Pokemon Form] <Male or Female>`\n" \
@@ -3230,8 +3150,6 @@ async def on_message(msg: discord.Message):
                 await sprite_bot.addSpeciesForm(msg, args[1:])
             elif base_arg == "delete" and authorized:
                 await sprite_bot.removeSpeciesForm(msg, args[1:])
-            elif base_arg == "rename" and authorized:
-                await sprite_bot.renameSpeciesForm(msg, args[1:])
             elif base_arg == "addgender" and authorized:
                 await sprite_bot.addGender(msg, args[1:])
             elif base_arg == "deletegender" and authorized:
