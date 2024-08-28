@@ -249,7 +249,7 @@ class SpriteBot:
 
     def generateCreditCompilation(self):
 
-        credit_dict = {}
+        credit_dict: Dict[str, TrackerUtils.CreditCompileEntry] = {}
         over_dict = TrackerUtils.initSubNode("", True)
         over_dict.subgroups = self.tracker
         TrackerUtils.updateCompilationStats(self.names, over_dict, os.path.join(self.config.path, "sprite"), "sprite", [], credit_dict)
@@ -682,7 +682,7 @@ class SpriteBot:
                 reduced_img = SpriteUtils.simple_quant_portraits(overcolor_img, overpalette)
 
             reduced_file = io.BytesIO()
-            reduced_img.save(reduced_file, format='PNG')
+            reduced_img.save(reduced_file, format='PNG') # type: ignore
             reduced_file.seek(0)
             send_files.append(discord.File(reduced_file, return_name.replace('.png', '_reduced.png')))
             add_msg += "\nReduced Color Preview included."
@@ -1053,7 +1053,7 @@ class SpriteBot:
                         return
 
                     # post it as a staged submission
-                    return_name = "{0}-{1}{2}".format(asset_type + "_recolor", "-".join(shiny_idx), ".png")
+                    return_name = "{0}-{1}{2}".format(asset_type + "_recolor", "-".join(shiny_idx), ".png") # type: ignore
                     auto_recolor_file = io.BytesIO()
                     auto_recolor_img.save(auto_recolor_file, format='PNG')
                     auto_recolor_file.seek(0)
@@ -1784,7 +1784,7 @@ class SpriteBot:
                 await msg.channel.send(msg.author.mention + " Use 'sprite' or 'portrait' as argument.")
                 return
 
-        entries = []
+        entries = [] # type: ignore
         over_dict = TrackerUtils.initSubNode("", True)
         over_dict.subgroups = self.tracker
 
@@ -1895,7 +1895,7 @@ class SpriteBot:
 
     async def getAbsentProfiles(self, msg):
         total_names = ["Absentee profiles:"]
-        msg_ids = []
+        msg_ids = [] # type: ignore
         for name in self.names:
             if not name.startswith("<@!"):
                 total_names.append(name + "\nName: \"{0}\"    Contact: \"{1}\"".format(self.names[name].name, self.names[name].contact))
@@ -2089,8 +2089,8 @@ class SpriteBot:
         new_server.chat = bot_ch.id
         if submit_ch is not None:
             new_server.submit = submit_ch.id
-            new_server.approval_chat = reviewer_ch.id
-            new_server.approval = reviewer_role.id
+            new_server.approval_chat = reviewer_ch.id # type: ignore
+            new_server.approval = reviewer_role.id # type: ignore
         else:
             new_server.submit = 0
             new_server.approval_chat = 0
@@ -2731,8 +2731,8 @@ class SpriteBot:
 @client.event
 async def on_ready():
     print('Logged in as')
-    print(client.user.name)
-    print(client.user.id)
+    print(client.user.name) # type: ignore
+    print(client.user.id) # type: ignore
     global sprite_bot
     await sprite_bot.checkAllSubmissions()
     await sprite_bot.checkRestarted()
@@ -2874,11 +2874,11 @@ async def on_message(msg: discord.Message):
 async def on_raw_reaction_add(payload):
     await client.wait_until_ready()
     try:
-        if payload.user_id == client.user.id:
+        if payload.user_id == client.user.id: # type: ignore
             return
         guild_id_str = str(payload.guild_id)
         if payload.channel_id == sprite_bot.config.servers[guild_id_str].submit:
-            msg = await client.get_channel(payload.channel_id).fetch_message(payload.message_id)
+            msg = await client.get_channel(payload.channel_id).fetch_message(payload.message_id) # type: ignore
             changed_tracker = await sprite_bot.pollSubmission(msg)
             if changed_tracker:
                 sprite_bot.saveTracker()
