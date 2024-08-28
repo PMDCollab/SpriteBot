@@ -31,6 +31,7 @@ from commands.SetProfile import SetProfile
 from commands.RenameNode import RenameNode
 from commands.ReplaceRessource import ReplaceRessource
 from commands.MoveNode import MoveNode
+from commands.MoveRessource import MoveRessource
 from commands.SetRessourceCredit import SetRessourceCredit
 
 from Constants import PHASES, PermissionLevel
@@ -234,6 +235,8 @@ class SpriteBot:
             ReplaceRessource(self, "portrait"),
             ReplaceRessource(self, "sprite"),
             MoveNode(self),
+            MoveRessource(self, "portrait"),
+            MoveRessource(self, "sprite"),
             SetRessourceCredit(self, "portrait"),
             SetRessourceCredit(self, "sprite"),
 
@@ -1569,73 +1572,7 @@ class SpriteBot:
         elif asset_type == "portrait":
             chosen_img_to = SpriteUtils.getLinkImg(chosen_img_to_link)
             SpriteUtils.verifyPortraitLock(chosen_node_from, chosen_path_from, chosen_img_to, False)
-
-    async def moveSlot(self, msg, name_args, asset_type):
-        try:
-            delim_idx = name_args.index("->")
-        except:
-            await msg.channel.send(msg.author.mention + " Command needs to separate the source and destination with `->`.")
-            return
-
-        name_args_from = name_args[:delim_idx]
-        name_args_to = name_args[delim_idx+1:]
-
-        name_seq_from = [TrackerUtils.sanitizeName(i) for i in name_args_from]
-        full_idx_from = TrackerUtils.findFullTrackerIdx(self.tracker, name_seq_from, 0)
-        if full_idx_from is None:
-            await msg.channel.send(msg.author.mention + " No such Pokemon specified as source.")
-            return
-
-        name_seq_to = [TrackerUtils.sanitizeName(i) for i in name_args_to]
-        full_idx_to = TrackerUtils.findFullTrackerIdx(self.tracker, name_seq_to, 0)
-        if full_idx_to is None:
-            await msg.channel.send(msg.author.mention + " No such Pokemon specified as destination.")
-            return
-
-        chosen_node_from = TrackerUtils.getNodeFromIdx(self.tracker, full_idx_from, 0)
-        chosen_node_to = TrackerUtils.getNodeFromIdx(self.tracker, full_idx_to, 0)
-
-        if chosen_node_from == chosen_node_to:
-            await msg.channel.send(msg.author.mention + " Cannot move to the same location.")
-            return
-
-        if not chosen_node_from.__dict__[asset_type + "_required"]:
-            await msg.channel.send(msg.author.mention + " Cannot move when source {0} is unneeded.".format(asset_type))
-            return
-        if not chosen_node_to.__dict__[asset_type + "_required"]:
-            await msg.channel.send(msg.author.mention + " Cannot move when destination {0} is unneeded.".format(asset_type))
-            return
-
-        try:
-            await self.checkMoveLock(full_idx_from, chosen_node_from, full_idx_to, chosen_node_to, asset_type)
-        except SpriteUtils.SpriteVerifyError as e:
-            await msg.channel.send(msg.author.mention + " Cannot move the locked Pokemon specified as source:\n{0}".format(e.message))
-            return
-
-        try:
-            await self.checkMoveLock(full_idx_to, chosen_node_to, full_idx_from, chosen_node_from, asset_type)
-        except SpriteUtils.SpriteVerifyError as e:
-            await msg.channel.send(msg.author.mention + " Cannot move the locked Pokemon specified as destination:\n{0}".format(e.message))
-            return
-
-        # clear caches
-        TrackerUtils.clearCache(chosen_node_from, True)
-        TrackerUtils.clearCache(chosen_node_to, True)
-
-        TrackerUtils.swapFolderPaths(self.config.path, self.tracker, asset_type, full_idx_from, full_idx_to)
-
-        await msg.channel.send(msg.author.mention + " Swapped {0} with {1}.".format(" ".join(name_seq_from), " ".join(name_seq_to)))
-        # if the source is empty in sprite and portrait, and its subunits are empty in sprite and portrait
-        # remind to delete
-        if not TrackerUtils.isDataPopulated(chosen_node_from):
-            await msg.channel.send(msg.author.mention + " {0} is now empty. Use `!delete` if it is no longer needed.".format(" ".join(name_seq_from)))
-        if not TrackerUtils.isDataPopulated(chosen_node_to):
-            await msg.channel.send(msg.author.mention + " {0} is now empty. Use `!delete` if it is no longer needed.".format(" ".join(name_seq_to)))
-
-        self.saveTracker()
-        self.changed = True
-
-        await self.gitCommit("Swapped {0} with {1}".format(" ".join(name_seq_from), " ".join(name_seq_to)))
+        
 
     async def placeBounty(self, msg, name_args, asset_type):
         if not self.config.use_bounties:
@@ -2488,8 +2425,6 @@ class SpriteBot:
                   f"`{prefix}deletegender` - Removes the female sprite/portrait from the Pokemon\n" \
                   f"`{prefix}need` - Marks a sprite/portrait as needed\n" \
                   f"`{prefix}dontneed` - Marks a sprite/portrait as unneeded\n" \
-                  f"`{prefix}movesprite` - Swaps the sprites for two Pokemon/formes\n" \
-                  f"`{prefix}moveportrait` - Swaps the portraits for two Pokemon/formes\n" \
                   f"`{prefix}spritewip` - Sets the sprite status as Incomplete\n" \
                   f"`{prefix}portraitwip` - Sets the portrait status as Incomplete\n" \
                   f"`{prefix}spriteexists` - Sets the sprite status as Exists\n" \
@@ -2644,36 +2579,6 @@ class SpriteBot:
                              f"`{prefix}dontneed Portrait Minior Red`\n" \
                              f"`{prefix}dontneed Portrait Minior Shiny`\n" \
                              f"`{prefix}dontneed Sprite Alcremie Shiny`"
-            elif base_arg == "movesprite":
-                return_msg = "**Command Help**\n" \
-                             f"`{prefix}movesprite <Pokemon Name> [Pokemon Form] [Shiny] [Gender] -> <Pokemon Name 2> [Pokemon Form 2] [Shiny 2] [Gender 2]`\n" \
-                             "Swaps the contents of one sprite with another.  " \
-                             "Good for promoting alternates to main, temp Pokemon to newly revealed dex numbers, " \
-                             "or just fixing mistakes.\n" \
-                             "`Pokemon Name` - Name of the Pokemon\n" \
-                             "`Form Name` - [Optional] Form name of the Pokemon\n" \
-                             "`Shiny` - [Optional] Specifies if you want the shiny sprite or not\n" \
-                             "`Gender` - [Optional] Specifies the gender of the Pokemon\n" \
-                             "**Examples**\n" \
-                             f"`{prefix}movesprite Escavalier -> Accelgor`\n" \
-                             f"`{prefix}movesprite Zoroark Alternate -> Zoroark`\n" \
-                             f"`{prefix}movesprite Missingno_ Kleavor -> Kleavor`\n" \
-                             f"`{prefix}movesprite Minior Blue -> Minior Indigo`"
-            elif base_arg == "moveportrait":
-                return_msg = "**Command Help**\n" \
-                             f"`{prefix}moveportrait <Pokemon Name> [Pokemon Form] [Shiny] [Gender] -> <Pokemon Name 2> [Pokemon Form 2] [Shiny 2] [Gender 2]`\n" \
-                             "Swaps the contents of one portrait with another.  " \
-                             "Good for promoting alternates to main, temp Pokemon to newly revealed dex numbers, " \
-                             "or just fixing mistakes.\n" \
-                             "`Pokemon Name` - Name of the Pokemon\n" \
-                             "`Form Name` - [Optional] Form name of the Pokemon\n" \
-                             "`Shiny` - [Optional] Specifies if you want the shiny sprite or not\n" \
-                             "`Gender` - [Optional] Specifies the gender of the Pokemon\n" \
-                             "**Examples**\n" \
-                             f"`{prefix}moveportrait Escavalier -> Accelgor`\n" \
-                             f"`{prefix}moveportrait Zoroark Alternate -> Zoroark`\n" \
-                             f"`{prefix}moveportrait Missingno_ Kleavor -> Kleavor`\n" \
-                             f"`{prefix}moveportrait Minior Blue -> Minior Indigo`"
             elif base_arg == "spritewip":
                 return_msg = "**Command Help**\n" \
                              f"`{prefix}spritewip <Pokemon Name> [Form Name] [Shiny] [Gender]`\n" \
@@ -2906,10 +2811,6 @@ async def on_message(msg: discord.Message):
                 await sprite_bot.setNeed(msg, args[1:], True)
             elif base_arg == "dontneed" and authorized:
                 await sprite_bot.setNeed(msg, args[1:], False)
-            elif base_arg == "movesprite" and authorized:
-                await sprite_bot.moveSlot(msg, args[1:], "sprite")
-            elif base_arg == "moveportrait" and authorized:
-                await sprite_bot.moveSlot(msg, args[1:], "portrait")
             elif base_arg == "spritewip" and authorized:
                 await sprite_bot.completeSlot(msg, args[1:], "sprite", TrackerUtils.PHASE_INCOMPLETE)
             elif base_arg == "portraitwip" and authorized:
