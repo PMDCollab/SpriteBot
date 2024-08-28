@@ -117,6 +117,6 @@ class QueryRessourceCredit(BaseCommand):
             file_data = io.StringIO()
             file_data.write(credit_str)
             file_data.seek(0)
-            await msg.channel.send(response, file=discord.File(file_data, 'credit_msg.txt'))
+            await msg.channel.send(response, file=discord.File(file_data, 'credit_msg.txt')) # type: ignore
         else:
             await msg.channel.send(response + "```" + credit_str + "```")

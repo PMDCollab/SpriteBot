@@ -48,7 +48,7 @@ def addToBounds(bounds: Tuple[int, int, int, int], add: Tuple[int, int], sub: bo
     return (bounds[0] + add[0] * mult, bounds[1] + add[1] * mult, bounds[2] + add[0] * mult, bounds[3] + add[1] * mult)
 
 
-def addLoc(loc1: Tuple[int, int], loc2: Tuple[int, int], sub: bool = False):
+def addLoc(loc1, loc2, sub: bool = False):
     mult = 1
     if sub:
         mult = -1
@@ -111,11 +111,11 @@ def getOffsetFromRGB(img, bounds: Tuple[int, int, int, int], black: bool, r: boo
                             if results[0] is not None:
                                 existing_px.append((results[0][0] + bounds[0], results[0][1] + bounds[1]))
                             if results[1] is not None:
-                                existing_px.append((results[0][1] + bounds[0], results[1][1] + bounds[1]))
+                                existing_px.append((results[0][1] + bounds[0], results[1][1] + bounds[1])) # type: ignore
                             if results[2] is not None:
-                                existing_px.append((results[0][2] + bounds[0], results[2][1] + bounds[1]))
+                                existing_px.append((results[0][2] + bounds[0], results[2][1] + bounds[1])) # type: ignore
                             if results[3] is not None:
-                                existing_px.append((results[0][3] + bounds[0], results[3][1] + bounds[1]))
+                                existing_px.append((results[0][3] + bounds[0], results[3][1] + bounds[1])) # type: ignore
                             raise MultipleOffsetError("White pixel found at {0} when r/g/b pixel already found at {1} when searching for offsets!".format((i, j), existing_px))
                 else:
                     if black and color[0] == 0 and color[1] == 0 and color[2] == 0:

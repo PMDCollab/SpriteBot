@@ -136,7 +136,7 @@ def thumbnailFileImg(inFile):
     factor = 400 // length
     new_size = (img.size[0] * factor, img.size[1] * factor)
     # expand to 400px wide at most
-    img = img.resize(new_size, resample=Image.NEAREST)
+    img = img.resize(new_size, resample=Image.NEAREST) # type: ignore
 
     file_data = BytesIO()
     img.save(file_data, format='PNG')
@@ -401,6 +401,8 @@ def getStatsFromTree(file_data):
             if durations_node is None:
                 raise SpriteVerifyError("Durations missing in {}".format(name))
             for dur_node in durations_node.iter('Duration'):
+                if dur_node.text is None:
+                    raise SpriteVerifyError("Duration text missing in a Duration entry in {}".format(name))
                 duration = int(dur_node.text)
                 anim_stat.durations.append(duration)
 
@@ -476,10 +478,10 @@ def compareSpriteRecolorDiff(orig_anim_img, shiny_anim_img, anim_name,
                 shiny_palette[shiny_color] += 1
 
 def verifySpriteRecolor(msg_args, precolor_zip, wan_zip, recolor, checkSilhouette):
-    orig_palette = {}
-    shiny_palette = {}
-    trans_diff = {}
-    black_diff = {}
+    orig_palette = {} # type: ignore
+    shiny_palette = {} # type: ignore
+    trans_diff = {} # type: ignore
+    black_diff = {} # type: ignore
 
     if recolor:
         if precolor_zip.size != wan_zip.size:
@@ -518,8 +520,8 @@ def verifySpriteRecolor(msg_args, precolor_zip, wan_zip, recolor, checkSilhouett
                             if orig_anim_data != shiny_anim_data:
                                 bin_diff.append(shiny_name)
                         elif not shiny_name.endswith("-Anim.png"):
-                            orig_anim_data = readZipImg(zip, shiny_name)
-                            shiny_anim_data = readZipImg(shiny_zip, shiny_name)
+                            orig_anim_data = readZipImg(zip, shiny_name) # type: ignore
+                            shiny_anim_data = readZipImg(shiny_zip, shiny_name) # type: ignore
                             if not exUtils.imgsEqual(orig_anim_data, shiny_anim_data):
                                 bin_diff.append(shiny_name)
 
@@ -683,7 +685,7 @@ def getLRSwappedOffset(offset):
     return swapped_offset
 
 def mapDuplicateImportImgs(imgs, final_imgs, img_map, offset_diffs):
-    map_back = {}
+    map_back = {} # type: ignore
     for idx, img in enumerate(imgs):
         dupe = False
         flip = -1
@@ -873,9 +875,9 @@ def verifySprite(msg_args, wan_zip):
         if len(rogue_pixels) > 0:
             raise SpriteVerifyError("Semi-transparent pixels found at: {0}".format(str(rogue_pixels)[:1900]))
 
-        offset_diffs = {}
+        offset_diffs = {} # type: ignore
         frame_map = [None] * len(frames)
-        final_frames = []
+        final_frames = [] # type: ignore
         mapDuplicateImportImgs(frames, final_frames, frame_map, offset_diffs)
         if len(offset_diffs) > 0:
             if not msg_args.multioffset:
@@ -919,7 +921,7 @@ def verifySpriteLock(dict, chosen_path, precolor_zip, wan_zip, recolor):
             frame_size = getFrameSizeFromFrames(frames)
 
             # obtain a mapping from the color image of the shiny path
-            shiny_frames = []
+            shiny_frames = [] # type: ignore
             for yy in range(0, wan_zip.size[1], frame_size[1]):
                 for xx in range(0, wan_zip.size[0], frame_size[0]):
                     tile_bounds = (xx, yy, xx + frame_size[0], yy + frame_size[1])
@@ -1241,8 +1243,8 @@ def isCopyOf(species_path, anim):
         tree = ET.parse(os.path.join(species_path, Constants.MULTI_SHEET_XML))
         root = tree.getroot()
         anims_node = root.find('Anims')
-        for anim_node in anims_node.iter('Anim'):
-            name = anim_node.find('Name').text
+        for anim_node in anims_node.iter('Anim'): # type: ignore
+            name = anim_node.find('Name').text # type: ignore
             if name == anim:
                 backref_node = anim_node.find('CopyOf')
                 return backref_node is not None
@@ -1272,7 +1274,7 @@ def placeSpriteRecolorToPath(orig_path, outImg, dest_path):
     frame_size = getFrameSizeFromFrames(frames)
 
     # obtain a mapping from the color image of the shiny path
-    shiny_frames = []
+    shiny_frames = [] # type: ignore
     for yy in range(0, outImg.size[1], frame_size[1]):
         for xx in range(0, outImg.size[0], frame_size[0]):
             tile_bounds = (xx, yy, xx + frame_size[0], yy + frame_size[1])
@@ -1304,7 +1306,7 @@ def createRecolorAnim(template_img, anim_map, shiny_frames):
         frame_idx, flip = anim_map[abs_bounds]
         imgPiece = shiny_frames[frame_idx]
         if flip:
-            imgPiece = imgPiece.transpose(Image.FLIP_LEFT_RIGHT)
+            imgPiece = imgPiece.transpose(Image.FLIP_LEFT_RIGHT) # type: ignore
         anim_img.paste(imgPiece, (abs_bounds[0], abs_bounds[1]), imgPiece)
     return anim_img
 
@@ -1501,7 +1503,7 @@ def getSpriteRecolorMap(frames, shiny_frames):
                 img_tbl.append((frame_tex, shiny_tex))
                 break
 
-    color_lookup = {}
+    color_lookup = {} # type: ignore
 
     # only do a color mapping for frames that have been known to fit
     for frame_tex, shiny_tex in img_tbl:
@@ -1546,7 +1548,7 @@ def getPortraitRecolorMap(img, shinyImg, frame_size):
             shiny_tex = shinyImg.crop(abs_bounds)
             img_tbl.append((frame_tex, shiny_tex))
 
-    color_lookup = {}
+    color_lookup = {} # type: ignore
     datas = img.getdata()
     shinyDatas = shinyImg.getdata()
     for idx in range(len(datas)):
@@ -1575,11 +1577,11 @@ def getRecoloredTex(color_tbl, img_tbl, frame_tex):
         if exUtils.imgsEqual(frame, frame_tex):
             return shiny_frame, { }
         if exUtils.imgsEqual(frame, frame_tex, True):
-            return shiny_frame.transpose(Image.FLIP_LEFT_RIGHT), { }
+            return shiny_frame.transpose(Image.FLIP_LEFT_RIGHT), { } # type: ignore
     # attempt to recolor the image
     datas = frame_tex.getdata()
     shiny_datas = [(0,0,0,0)] * len(datas)
-    off_color_tbl = { }
+    off_color_tbl = { } # type: ignore
     for idx in range(len(datas)):
         color = datas[idx]
         if color[3] != 255:
@@ -1611,7 +1613,7 @@ def updateOffColorTable(total_off_color, off_color_tbl):
 
 def autoRecolor(prev_base_file, cur_base_path, shiny_path, asset_type):
     cur_shiny_img = None
-    total_off_color = {}
+    total_off_color = {} # type: ignore
     if asset_type == "sprite":
         with zipfile.ZipFile(prev_base_file, 'r') as prev_base_zip:
             prev_frames, _ = getFramesAndMappings(prev_base_zip, True)
@@ -1799,7 +1801,7 @@ def simple_quant(img: Image.Image, colors) -> Image.Image:
     if img.mode != 'RGBA':
         img = img.convert('RGBA')
     transparency_map = [px[3] == 0 for px in img.getdata()]
-    qimg = img.quantize(colors, dither=0).convert('RGBA')
+    qimg = img.quantize(colors, dither=0).convert('RGBA') # type: ignore
     # Shift up all pixel values by 1 and add the transparent pixels
     pixels = qimg.load()
     k = 0
