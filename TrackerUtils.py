@@ -1,4 +1,4 @@
-from typing import Dict, List
+from typing import Dict, List, Any
 
 import sys
 import os
@@ -93,13 +93,13 @@ def mergeCredits(path_from, path_to):
     id_list = []
     with open(path_to, 'r', encoding='utf-8') as txt:
         for line in txt:
-            credit = line.strip().split('\t')
-            id_list.append(CreditEvent(credit[0], credit[1], credit[2], credit[3], credit[4]))
+            splited = line.strip().split('\t')
+            id_list.append(CreditEvent(splited[0], splited[1], splited[2], splited[3], splited[4]))
 
     with open(path_from, 'r', encoding='utf-8') as txt:
         for line in txt:
-            credit = line.strip().split('\t')
-            id_list.append(CreditEvent(credit[0], credit[1], credit[2], credit[3], credit[4]))
+            splited = line.strip().split('\t')
+            id_list.append(CreditEvent(splited[0], splited[1], splited[2], splited[3], splited[4]))
 
     id_list = sorted(id_list, key=lambda x: x.datetime)
 
@@ -160,11 +160,14 @@ class TrackerNode:
         temp_list = [i for i in node_dict]
         temp_list = sorted(temp_list)
 
-        main_dict = { }
-        for key in temp_list:
-            main_dict[key] = node_dict[key]
+        self.subgroups = { }
 
-        self.__dict__ = main_dict
+        for key in temp_list:
+            if key == "subgroups":
+                for sub_key, sub in node_dict[key].items():
+                    self.subgroups[sub_key] = TrackerNode(sub)
+            else:
+                self.__dict__[key] = node_dict[key]
 
         if "sprite_talk" not in self.__dict__:
             self.sprite_talk = {}
@@ -172,11 +175,6 @@ class TrackerNode:
 
         self.sprite_credit = CreditNode(node_dict["sprite_credit"])
         self.portrait_credit = CreditNode(node_dict["portrait_credit"])
-
-        sub_dict = { }
-        for key in self.subgroups:
-            sub_dict[key] = TrackerNode(self.subgroups[key])
-        self.subgroups = sub_dict
 
     def getDict(self):
         node_dict = { }
@@ -223,7 +221,7 @@ def loadNameFile(name_path):
     return name_dict
 
 def initCreditDict():
-    credit_dict = { }
+    credit_dict: Dict[str, Any] = { }
     credit_dict["primary"] = ""
     credit_dict["secondary"] = []
     credit_dict["total"] = 0
@@ -309,8 +307,8 @@ def updateFiles(dict, species_path, prefix):
             tree = ET.parse(os.path.join(species_path, Constants.MULTI_SHEET_XML))
             root = tree.getroot()
             anims_node = root.find('Anims')
-            for anim_node in anims_node.iter('Anim'):
-                name = anim_node.find('Name').text
+            for anim_node in anims_node.iter('Anim'): # type: ignore
+                name = anim_node.find('Name').text # type: ignore
                 file_list.append(name)
     else:
         for inFile in os.listdir(species_path):
