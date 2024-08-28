@@ -1,4 +1,4 @@
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 
 
 import os
@@ -31,6 +31,7 @@ from commands.SetProfile import SetProfile
 from commands.RenameNode import RenameNode
 from commands.ReplaceRessource import ReplaceRessource
 from commands.MoveNode import MoveNode
+from commands.SetRessourceCredit import SetRessourceCredit
 
 from Constants import PHASES, PermissionLevel
 import psutil
@@ -233,6 +234,8 @@ class SpriteBot:
             ReplaceRessource(self, "portrait"),
             ReplaceRessource(self, "sprite"),
             MoveNode(self),
+            SetRessourceCredit(self, "portrait"),
+            SetRessourceCredit(self, "sprite"),
 
             # admin
             # (empty for now)
@@ -1915,46 +1918,6 @@ class SpriteBot:
             block += " +{0} more".format(credit_diff)
         return block
 
-    async def resetCredit(self, msg, name_args, asset_type):
-        # compute answer from current status
-        if len(name_args) < 2:
-            await msg.channel.send(msg.author.mention + " Specify a user ID and Pokemon.")
-            return
-
-        wanted_author = self.getFormattedCredit(name_args[0])
-        name_seq = [TrackerUtils.sanitizeName(i) for i in name_args[1:]]
-        full_idx = TrackerUtils.findFullTrackerIdx(self.tracker, name_seq, 0)
-        if full_idx is None:
-            await msg.channel.send(msg.author.mention + " No such Pokemon.")
-            return
-
-        chosen_node = TrackerUtils.getNodeFromIdx(self.tracker, full_idx, 0)
-
-        if chosen_node.__dict__[asset_type + "_credit"].primary == "":
-            await msg.channel.send(msg.author.mention + " No credit found.")
-            return
-        gen_path = TrackerUtils.getDirFromIdx(self.config.path, asset_type, full_idx)
-
-        credit_entries = TrackerUtils.getCreditEntries(gen_path)
-
-        if wanted_author not in credit_entries:
-            await msg.channel.send(msg.author.mention + " Could not find ID `{0}` in credits for {1}.".format(wanted_author, asset_type))
-            return
-
-        # make the credit array into the most current author by itself
-        credit_data = chosen_node.__dict__[asset_type + "_credit"]
-        if credit_data.primary == "CHUNSOFT":
-            await msg.channel.send(msg.author.mention + " Cannot reset credit for a CHUNSOFT {0}.".format(asset_type))
-            return
-
-        credit_data.primary = wanted_author
-        TrackerUtils.updateCreditFromEntries(credit_data, credit_entries)
-
-        await msg.channel.send(msg.author.mention + " Credit display has been reset for {0} {1}:\n{2}".format(asset_type, " ".join(name_seq), self.createCreditBlock(credit_data, None)))
-
-        self.saveTracker()
-        self.changed = True
-
     async def addCredit(self, msg, name_args, asset_type):
         # compute answer from current status
         if len(name_args) < 2:
@@ -2490,7 +2453,7 @@ class SpriteBot:
         self.saveTracker()
         self.changed = True
 
-    async def help(self, msg, args, permission_level: PermissionLevel):
+    async def help(self, msg, args, permission_level: Optional[PermissionLevel]):
         list_commands = len(args) == 0
         if permission_level == None:
             if len(args) > 0:
@@ -2533,8 +2496,6 @@ class SpriteBot:
                   f"`{prefix}portraitexists` - Sets the portrait status as Exists\n" \
                   f"`{prefix}spritefilled` - Sets the sprite status as Fully Featured\n" \
                   f"`{prefix}portraitfilled` - Sets the portrait status as Fully Featured\n" \
-                  f"`{prefix}setspritecredit` - Sets the primary author of the sprite\n" \
-                  f"`{prefix}setportraitcredit` - Sets the primary author of the portrait\n" \
                   f"`{prefix}addspritecredit` - Adds a new author to the credits of the sprite\n" \
                   f"`{prefix}addportraitcredit` - Adds a new author to the credits of the portrait\n" \
                   f"`{prefix}modreward` - Toggles whether a sprite/portrait will have a custom reward\n" \
@@ -2803,38 +2764,6 @@ class SpriteBot:
                              f"`{prefix}portraitfilled Pikachu Shiny Female`\n" \
                              f"`{prefix}portraitfilled Shaymin Sky`\n" \
                              f"`{prefix}portraitfilled Shaymin Sky Shiny`"
-            elif base_arg == "setspritecredit":
-                return_msg = "**Command Help**\n" \
-                             f"`{prefix}setspritecredit <Author ID> <Pokemon Name> [Form Name] [Shiny] [Gender]`\n" \
-                             "Manually sets the primary author of a sprite to the specified author.  " \
-                             "The specified author must already exist in the credits for the sprite.\n" \
-                             "`Author ID` - The discord ID of the author to set as primary\n" \
-                             "`Pokemon Name` - Name of the Pokemon\n" \
-                             "`Form Name` - [Optional] Form name of the Pokemon\n" \
-                             "`Shiny` - [Optional] Specifies if you want the shiny sprite or not\n" \
-                             "`Gender` - [Optional] Specifies the gender of the Pokemon\n" \
-                             "**Examples**\n" \
-                             f"`{prefix}setspritecredit @Audino Unown Shiny`\n" \
-                             f"`{prefix}setspritecredit <@!117780585635643396> Unown Shiny`\n" \
-                             f"`{prefix}setspritecredit POWERCRISTAL Calyrex`\n" \
-                             f"`{prefix}setspritecredit POWERCRISTAL Calyrex Shiny`\n" \
-                             f"`{prefix}setspritecredit POWERCRISTAL Jellicent Shiny Female`"
-            elif base_arg == "setportraitcredit":
-                return_msg = "**Command Help**\n" \
-                             f"`{prefix}setportraitcredit <Author ID> <Pokemon Name> [Form Name] [Shiny] [Gender]`\n" \
-                             "Manually sets the primary author of a portrait to the specified author.  " \
-                             "The specified author must already exist in the credits for the portrait.\n" \
-                             "`Author ID` - The discord ID of the author to set as primary\n" \
-                             "`Pokemon Name` - Name of the Pokemon\n" \
-                             "`Form Name` - [Optional] Form name of the Pokemon\n" \
-                             "`Shiny` - [Optional] Specifies if you want the shiny sprite or not\n" \
-                             "`Gender` - [Optional] Specifies the gender of the Pokemon\n" \
-                             "**Examples**\n" \
-                             f"`{prefix}setportraitcredit @Audino Unown Shiny`\n" \
-                             f"`{prefix}setportraitcredit <@!117780585635643396> Unown Shiny`\n" \
-                             f"`{prefix}setportraitcredit POWERCRISTAL Calyrex`\n" \
-                             f"`{prefix}setportraitcredit POWERCRISTAL Calyrex Shiny`\n" \
-                             f"`{prefix}setportraitcredit POWERCRISTAL Jellicent Shiny Female`"
             elif base_arg == "addspritecredit":
                 return_msg = "**Command Help**\n" \
                              f"`{prefix}addspritecredit <Author ID> <Pokemon Name> [Form Name] [Shiny] [Gender]`\n" \
@@ -2993,10 +2922,6 @@ async def on_message(msg: discord.Message):
                 await sprite_bot.completeSlot(msg, args[1:], "sprite", TrackerUtils.PHASE_FULL)
             elif base_arg == "portraitfilled" and authorized:
                 await sprite_bot.completeSlot(msg, args[1:], "portrait", TrackerUtils.PHASE_FULL)
-            elif base_arg == "setspritecredit" and authorized:
-                await sprite_bot.resetCredit(msg, args[1:], "sprite")
-            elif base_arg == "setportraitcredit" and authorized:
-                await sprite_bot.resetCredit(msg, args[1:], "portrait")
             elif base_arg == "addspritecredit" and authorized:
                 await sprite_bot.addCredit(msg, args[1:], "sprite")
             elif base_arg == "addportraitcredit" and authorized:
