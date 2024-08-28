@@ -54,13 +54,3 @@ class PermissionLevel(Enum):
             return "admin"
         else:
             return "unknown"
-    
-    def helpprefix(self) -> str:
-        if self == self.EVERYONE:
-            return ""
-        elif self == self.STAFF:
-            return "staff"
-        elif self == self.ADMIN:
-            return "admin"
-        else:
-            return ""

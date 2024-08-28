@@ -2491,10 +2491,24 @@ class SpriteBot:
         self.changed = True
 
     async def help(self, msg, args, permission_level: PermissionLevel):
+        list_commands = len(args) == 0
+        if permission_level == None:
+            if len(args) > 0:
+                if args[0] == "staff":
+                    permission_level = PermissionLevel.STAFF
+                    list_commands = True
+                elif args[0] == "admin":
+                    permission_level = PermissionLevel.ADMIN
+                    list_commands = True
+                else:
+                    permission_level = PermissionLevel.EVERYONE
+            else:
+                permission_level = PermissionLevel.EVERYONE
+
         server_config = self.config.servers[str(msg.guild.id)]
         prefix = server_config.prefix
         use_bounties = self.config.use_bounties
-        if len(args) == 0:
+        if list_commands:
             return_msg = "**Commands**\n"
             
             if permission_level == PermissionLevel.EVERYONE:
@@ -2531,16 +2545,16 @@ class SpriteBot:
                     return_msg += f"`{prefix}{command.getCommand()}` - {command.getSingleLineHelp(server_config)}\n"
             
             if permission_level == PermissionLevel.EVERYONE:
-                return_msg += f"`{prefix}staffhelp` - Show staff commands\n" \
-                              f"`{prefix}adminhelp` - Show admin commands\n"
+                return_msg += f"`{prefix}help staff` - List staff commands\n" \
+                              f"`{prefix}help admin` - List admin commands\n"
             
-            return_msg +=  f"Type `{prefix}{permission_level.helpprefix()}help` with the name of a command to learn more about it."
+            return_msg +=  f"Type `{prefix}help` with the name of a command to learn more about it."
 
         else:
             base_arg = args[0]
             return_msg = None
             for command in self.commands:
-                if command.getCommand() == base_arg and permission_level == command.getRequiredPermission():
+                if command.getCommand() == base_arg:
                     return_msg = "**Command Help**\n" \
                         + command.getMultiLineHelp(server_config)
             if return_msg != None:
@@ -2935,11 +2949,10 @@ async def on_message(msg: discord.Message):
                     return
 
             if base_arg == "help":
-                await sprite_bot.help(msg, args[1:], PermissionLevel.EVERYONE)
+                await sprite_bot.help(msg, args[1:], None)
+            # legacy link to help staff
             elif base_arg == "staffhelp":
                 await sprite_bot.help(msg, args[1:], PermissionLevel.STAFF)
-            elif base_arg == "adminhelp":
-                await sprite_bot.help(msg, args[1:], PermissionLevel.ADMIN)
                 # primary commands
             elif base_arg == "spritebounty":
                 await sprite_bot.placeBounty(msg, args[1:], "sprite")
