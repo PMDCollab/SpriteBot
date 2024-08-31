@@ -33,6 +33,7 @@ from commands.ReplaceRessource import ReplaceRessource
 from commands.MoveNode import MoveNode
 from commands.MoveRessource import MoveRessource
 from commands.SetRessourceCredit import SetRessourceCredit
+from commands.AddNode import AddNode
 from commands.SetRessourceLock import SetRessourceLock
 
 from Constants import PHASES, PermissionLevel
@@ -230,6 +231,7 @@ class SpriteBot:
             SetProfile(self, False),
 
             # staff
+            AddNode(self),
             ClearCache(self),
             SetProfile(self, True),
             RenameNode(self),
@@ -2078,62 +2080,6 @@ class SpriteBot:
         #self.saveTracker()
         await msg.channel.send(msg.author.mention + " Rescan complete.")
 
-    async def addSpeciesForm(self, msg, args):
-        if len(args) < 1 or len(args) > 2:
-            await msg.channel.send(msg.author.mention + " Invalid number of args!")
-            return
-
-        species_name = TrackerUtils.sanitizeName(args[0])
-        species_idx = TrackerUtils.findSlotIdx(self.tracker, species_name)
-        if len(args) == 1:
-            if species_idx is not None:
-                await msg.channel.send(msg.author.mention + " {0} already exists!".format(species_name))
-                return
-
-            count = len(self.tracker)
-            new_idx = "{:04d}".format(count)
-            self.tracker[new_idx] = TrackerUtils.createSpeciesNode(species_name)
-
-            await msg.channel.send(msg.author.mention + " Added #{0:03d}: {1}!".format(count, species_name))
-        else:
-            if species_idx is None:
-                await msg.channel.send(msg.author.mention + " {0} doesn't exist! Create it first!".format(species_name))
-                return
-
-            form_name = TrackerUtils.sanitizeName(args[1])
-            species_dict = self.tracker[species_idx]
-            form_idx = TrackerUtils.findSlotIdx(species_dict.subgroups, form_name)
-            if form_idx is not None:
-                await msg.channel.send(msg.author.mention +
-                                       " {2} already exists within #{0:03d}: {1}!".format(int(species_idx), species_name, form_name))
-                return
-
-            if form_name == "Shiny" or form_name == "Male" or form_name == "Female":
-                await msg.channel.send(msg.author.mention + " Invalid form name!")
-                return
-
-            canon = True
-            if re.search(r"_?Alternate\d*$", form_name):
-                canon = False
-            if re.search(r"_?Starter\d*$", form_name):
-                canon = False
-            if re.search(r"_?Altcolor\d*$", form_name):
-                canon = False
-            if re.search(r"_?Beta\d*$", form_name):
-                canon = False
-            if species_name == "Missingno_":
-                canon = False
-
-            count = len(species_dict.subgroups)
-            new_count = "{:04d}".format(count)
-            species_dict.subgroups[new_count] = TrackerUtils.createFormNode(form_name, canon)
-
-            await msg.channel.send(msg.author.mention +
-                                   " Added #{0:03d}: {1} {2}!".format(int(species_idx), species_name, form_name))
-
-        self.saveTracker()
-        self.changed = True
-
     async def modSpeciesForm(self, msg, args):
         if len(args) < 1 or len(args) > 2:
             await msg.channel.send(msg.author.mention + " Invalid number of args!")
@@ -2391,7 +2337,6 @@ class SpriteBot:
 
             elif permission_level == PermissionLevel.STAFF:
                 return_msg = "**Approver Commands**\n" \
-                  f"`{prefix}add` - Adds a Pokemon or forme to the current list\n" \
                   f"`{prefix}delete` - Deletes an empty Pokemon or forme\n" \
                   f"`{prefix}addgender` - Adds the female sprite/portrait to the Pokemon\n" \
                   f"`{prefix}deletegender` - Removes the female sprite/portrait from the Pokemon\n" \
@@ -2479,16 +2424,6 @@ class SpriteBot:
                                 f"`{prefix}bounties sprite`"
                 else:
                     return_msg = MESSAGE_BOUNTIES_DISABLED
-            elif base_arg == "add":
-                return_msg = "**Command Help**\n" \
-                             f"`{prefix}add <Pokemon Name> [Form Name]`\n" \
-                             "Adds a Pokemon to the dex, or a form to the existing Pokemon.\n" \
-                             "`Pokemon Name` - Name of the Pokemon\n" \
-                             "`Form Name` - [Optional] Form name of the Pokemon\n" \
-                             "**Examples**\n" \
-                             f"`{prefix}add Calyrex`\n" \
-                             f"`{prefix}add Mr_Mime Galar`\n" \
-                             f"`{prefix}add Missingno_ Kotora`"
             elif base_arg == "delete":
                 return_msg = "**Command Help**\n" \
                              f"`{prefix}delete <Pokemon Name> [Form Name]`\n" \
@@ -2771,8 +2706,6 @@ async def on_message(msg: discord.Message):
             elif base_arg == "unregister":
                 await sprite_bot.deleteProfile(msg, args[1:])
                 # authorized commands
-            elif base_arg == "add" and authorized:
-                await sprite_bot.addSpeciesForm(msg, args[1:])
             elif base_arg == "delete" and authorized:
                 await sprite_bot.removeSpeciesForm(msg, args[1:])
             elif base_arg == "addgender" and authorized:
