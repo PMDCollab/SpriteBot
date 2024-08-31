@@ -33,6 +33,7 @@ from commands.ReplaceRessource import ReplaceRessource
 from commands.MoveNode import MoveNode
 from commands.MoveRessource import MoveRessource
 from commands.SetRessourceCredit import SetRessourceCredit
+from commands.SetRessourceLock import SetRessourceLock
 
 from Constants import PHASES, PermissionLevel
 import psutil
@@ -241,7 +242,10 @@ class SpriteBot:
             SetRessourceCredit(self, "sprite"),
 
             # admin
-            # (empty for now)
+            SetRessourceLock(self, "portrait", True),
+            SetRessourceLock(self, "portrait", False),
+            SetRessourceLock(self, "sprite", True),
+            SetRessourceLock(self, "sprite", False),
         ]
 
         self.writeLog("Startup Memory: {0}".format(psutil.Process().memory_info().rss))
@@ -1735,38 +1739,6 @@ class SpriteBot:
 
         await msg.channel.send(msg.author.mention + " {0}".format("\n".join(urls)))
 
-
-    async def setLock(self, msg, name_args, asset_type, lock_state):
-
-        name_seq = [TrackerUtils.sanitizeName(i) for i in name_args[:-1]]
-        full_idx = TrackerUtils.findFullTrackerIdx(self.tracker, name_seq, 0)
-        if full_idx is None:
-            await msg.channel.send(msg.author.mention + " No such Pokemon.")
-            return
-        chosen_node = TrackerUtils.getNodeFromIdx(self.tracker, full_idx, 0)
-
-        file_name = name_args[-1]
-        for k in chosen_node.__dict__[asset_type + "_files"]:
-            if file_name.lower() == k.lower():
-                file_name = k
-                break
-
-        if file_name not in chosen_node.__dict__[asset_type + "_files"]:
-            await msg.channel.send(msg.author.mention + " Specify a Pokemon and an existing emotion/animation.")
-            return
-        chosen_node.__dict__[asset_type + "_files"][file_name] = lock_state
-
-        status = TrackerUtils.getStatusEmoji(chosen_node, asset_type)
-
-        lock_str = "unlocked"
-        if lock_state:
-            lock_str = "locked"
-        # set to complete
-        await msg.channel.send(msg.author.mention + " {0} #{1:03d}: {2} {3} is now {4}.".format(status, int(full_idx[0]), " ".join(name_seq), file_name, lock_str))
-
-        self.saveTracker()
-        self.changed = True
-
     async def listBounties(self, msg, name_args):
         if not self.config.use_bounties:
             await msg.channel.send(msg.author.mention + " " + MESSAGE_BOUNTIES_DISABLED)
@@ -2836,14 +2808,6 @@ async def on_message(msg: discord.Message):
                 await sprite_bot.promote(msg, args[1:])
             elif base_arg == "rescan" and msg.author.id == sprite_bot.config.root:
                 await sprite_bot.rescan(msg)
-            elif base_arg == "unlockportrait" and msg.author.id == sprite_bot.config.root:
-                await sprite_bot.setLock(msg, args[1:], "portrait", False)
-            elif base_arg == "unlocksprite" and msg.author.id == sprite_bot.config.root:
-                await sprite_bot.setLock(msg, args[1:], "sprite", False)
-            elif base_arg == "lockportrait" and msg.author.id == sprite_bot.config.root:
-                await sprite_bot.setLock(msg, args[1:], "portrait", True)
-            elif base_arg == "locksprite" and msg.author.id == sprite_bot.config.root:
-                await sprite_bot.setLock(msg, args[1:], "sprite", True)
             elif base_arg == "canon" and msg.author.id == sprite_bot.config.root:
                 await sprite_bot.setCanon(msg, args[1:], True)
             elif base_arg == "noncanon" and msg.author.id == sprite_bot.config.root:
