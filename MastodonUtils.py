@@ -49,19 +49,18 @@ def post_text(api, orig_post, msg, media):
             media_ids=media,
         )
 
-    print(str(status))
 
 async def query_text(sprite_bot, api, tracker, orig_post, name_args):
     asset_type = "portrait"
 
     if len(name_args) == 0:
-        post_text(api, orig_post, "Specify a Pokemon.", [])
+        post_text(api, orig_post, "Specify a Pokemon.", None)
         return
 
     name_seq = [TrackerUtils.sanitizeName(i) for i in name_args]
     full_idx = TrackerUtils.findFullTrackerIdx(tracker, name_seq, 0)
     if full_idx is None:
-        post_text(api, orig_post, "No such Pokemon.", [])
+        post_text(api, orig_post, "No such Pokemon.", None)
         return
 
     chosen_node = TrackerUtils.getNodeFromIdx(tracker, full_idx, 0)
@@ -73,7 +72,7 @@ async def query_text(sprite_bot, api, tracker, orig_post, name_args):
     if chosen_node.__dict__[asset_type + "_required"]:
         file_exists = chosen_node.__dict__[asset_type + "_credit"].primary != ""
         if not file_exists:
-            post_text(api, orig_post, "This Pokemon doesn't have a {0}.".format(asset_type), [])
+            post_text(api, orig_post, "This Pokemon doesn't have a {0}.".format(asset_type), None)
             return
         else:
             credit = chosen_node.__dict__[asset_type + "_credit"]
@@ -88,7 +87,7 @@ async def query_text(sprite_bot, api, tracker, orig_post, name_args):
         post_text(api, orig_post, response, media)
     else:
         response += " does not need a {0}.".format(asset_type)
-        post_text(api, orig_post, response, [])
+        post_text(api, orig_post, response, None)
 
 
 async def reply_mentions(sprite_bot, api, since_id):
