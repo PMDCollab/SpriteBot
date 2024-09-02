@@ -3371,16 +3371,17 @@ async def periodic_update_status():
             # twitter updates every minute
             if sprite_bot.config.mastodon:
                 if updates % 6 == 0:
+                    sprite_bot.writeLog("Performing Social Media Update")
                     # check for mentions
                     old_mention = max(1, sprite_bot.config.last_tl_mention)
                     sprite_bot.config.last_tl_mention = await MastodonUtils.reply_mentions(sprite_bot, sprite_bot.tl_api, old_mention)
                     if sprite_bot.config.last_tl_mention != old_mention:
                         sprite_bot.saveConfig()
+                    sprite_bot.writeLog("Social Media Update Complete")
         except Exception as e:
             await sprite_bot.sendError(traceback.format_exc())
 
         await asyncio.sleep(10)
-        updates += 1
         updates += 1
         sprite_bot.writeLog("Client Closed Status: {0}".format(client.is_closed()))
 
