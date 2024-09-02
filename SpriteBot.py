@@ -11,6 +11,7 @@ import asyncio
 import json
 import SpriteUtils
 import TrackerUtils
+import MastodonUtils
 import datetime
 import git
 import sys
@@ -87,6 +88,8 @@ class BotConfig:
         self.path = ""
         self.root = 0
         self.push = False
+        self.mastodon = False
+        self.last_tl_mention = 0
         self.points = 0
         self.error_ch = 0
         self.points_ch = 0
@@ -126,6 +129,9 @@ class SpriteBot:
         self.need_restart = False
         with open(os.path.join(self.path, CONFIG_FILE_PATH)) as f:
             self.config = BotConfig(json.load(f))
+
+        if self.config.mastodon:
+            self.tl_api = MastodonUtils.init_mastodon(scdir)
 
         # init portrait constants
         with open(os.path.join(self.config.path, SPRITE_CONFIG_FILE_PATH)) as f:
@@ -1032,6 +1038,13 @@ class SpriteBot:
                     await self.postStagedSubmission(msg.channel, cmd_str, content, shiny_idx, shiny_node, asset_type, sender_info,
                                                     True, auto_diffs, auto_recolor_file, return_name, overcolor_img)
 
+            if self.config.mastodon and asset_type == "portrait":
+                status = TrackerUtils.getStatusEmoji(chosen_node, asset_type)
+                tl_msg = "{5} #{3:03d}: {4}\n{0} {1} by {2}".format(new_revise,
+                                                                    asset_type,
+                                                                    self.createCreditAttribution(orig_author, True),
+                                                                    int(full_idx[0]), new_name_str, status)
+                MastodonUtils.post_image(self.tl_api, tl_msg, new_link)
 
 
     async def submissionDeclined(self, msg, orig_sender, declines):
@@ -1921,13 +1934,24 @@ class SpriteBot:
 
         await msg.channel.send(msg.author.mention + " Cleared links for #{0:03d}: {1}.".format(int(full_idx[0]), " ".join(name_seq)))
 
-    def createCreditAttribution(self, mention):
-        base_name = "`{0}`".format(mention)
-        if mention in self.names:
-            if self.names[mention].name != "":
-                base_name = self.names[mention].name
-            if self.names[mention].contact != "":
-                return "{0} `{1}`".format(base_name, self.names[mention].contact)
+    def createCreditAttribution(self, mention, plainName=False):
+        if plainName:
+            # "plainName" actually refers to "social-media-ready name"
+            # TODO: rename this variable or refactor it as a separate flag
+            base_name = "{0}".format(mention)
+            if mention in self.names:
+                if self.names[mention].name != "":
+                    base_name = self.names[mention].name
+                if self.names[mention].contact != "":
+                    return "{0}: {1}".format(base_name, self.names[mention].contact)
+            return base_name
+        else:
+            base_name = "`{0}`".format(mention)
+            if mention in self.names:
+                if self.names[mention].name != "":
+                    base_name = self.names[mention].name
+                if self.names[mention].contact != "":
+                    return "{0} `{1}`".format(base_name, self.names[mention].contact)
         return base_name
 
     """
@@ -3303,12 +3327,13 @@ async def periodic_update_status():
 
         await asyncio.sleep(10)
         updates += 1
+        updates += 1
         sprite_bot.writeLog("Client Closed Status: {0}".format(client.is_closed()))
 
 
 sprite_bot = SpriteBot(scdir, client)
 
-with open(os.path.join(scdir, TOKEN_FILE_PATH)) as token_file:
+with open(os.path.join(scdir, "tokens", TOKEN_FILE_PATH)) as token_file:
     token = token_file.read()
 
 try:
