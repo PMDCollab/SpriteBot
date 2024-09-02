@@ -1382,7 +1382,7 @@ class SpriteBot:
             if thread.archived:
                 continue
             name_args = thread.name.split()
-            asset_name = name_args[0]
+            asset_name = name_args[0].lower()
             name_seq = [TrackerUtils.sanitizeName(i) for i in name_args[1:]]
             full_idx = TrackerUtils.findFullTrackerIdx(self.tracker, name_seq, 0)
             if full_idx is None:
