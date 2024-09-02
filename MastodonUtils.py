@@ -1,6 +1,7 @@
 import io
 import time
 
+import traceback
 import requests
 from requests_oauthlib import OAuth1
 from html.parser import HTMLParser
@@ -98,14 +99,17 @@ async def reply_mentions(sprite_bot, api, since_id):
     for post in notes:
         new_since_id = max(post.id, new_since_id)
 
-        parser = PostParser()
-        parser.feed(post.status.content)
-        name_args = parser.raw.split()
-        for ii in range(len(name_args)):
-            if "@" in name_args[-ii]:
-                del name_args[-ii]
+        try:
+            parser = PostParser()
+            parser.feed(post.status.content)
+            name_args = parser.raw.split()
+            for ii in range(len(name_args)):
+                if "@" in name_args[-ii]:
+                    del name_args[-ii]
 
-        await query_text(sprite_bot, api, sprite_bot.tracker, post, name_args)
+            await query_text(sprite_bot, api, sprite_bot.tracker, post, name_args)
+        except:
+            await sprite_bot.sendError(traceback.format_exc())
 
     return new_since_id
 
