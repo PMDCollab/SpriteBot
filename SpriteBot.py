@@ -3344,19 +3344,6 @@ async def periodic_update_status():
             await sprite_bot.sendError(traceback.format_exc())
 
         try:
-            # info updates every 1 hour
-            if updates % 360 == 0:
-                sprite_bot.writeLog("Performing Post Update")
-                if sprite_bot.changed or updates == 0:
-                    sprite_bot.changed = False
-                    for server_id in sprite_bot.config.servers:
-                        await sprite_bot.updatePost(sprite_bot.config.servers[server_id])
-                sprite_bot.writeLog("Post Update Complete")
-
-        except Exception as e:
-            await sprite_bot.sendError(traceback.format_exc())
-
-        try:
             # thread updates every 1 hour
             if updates % 360 == 0:
                 sprite_bot.writeLog("Performing Thread Update")
@@ -3378,6 +3365,19 @@ async def periodic_update_status():
                     if sprite_bot.config.last_tl_mention != old_mention:
                         sprite_bot.saveConfig()
                     sprite_bot.writeLog("Social Media Update Complete")
+        except Exception as e:
+            await sprite_bot.sendError(traceback.format_exc())
+
+        try:
+            # info updates every 1 hour
+            if updates % 360 == 0:
+                sprite_bot.writeLog("Performing Post Update")
+                if sprite_bot.changed or updates == 0:
+                    sprite_bot.changed = False
+                    for server_id in sprite_bot.config.servers:
+                        await sprite_bot.updatePost(sprite_bot.config.servers[server_id])
+                sprite_bot.writeLog("Post Update Complete")
+
         except Exception as e:
             await sprite_bot.sendError(traceback.format_exc())
 
