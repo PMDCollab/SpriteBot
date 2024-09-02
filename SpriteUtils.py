@@ -147,6 +147,80 @@ def thumbnailFileImg(inFile):
     file_data.seek(0)
     return file_data
 
+def animateFileZip(inFile, anim):
+
+    img_list = []
+    factor = 4
+    final_size = (400, 400)
+
+    with zipfile.ZipFile(inFile, 'r') as zip:
+        name_list = zip.namelist()
+
+        file_data = BytesIO()
+        file_data.write(zip.read(Constants.MULTI_SHEET_XML))
+        file_data.seek(0)
+
+        sdw_size, anim_names, anim_stats = getStatsFromTree(file_data)
+
+
+        if anim + "-Anim.png" not in name_list:
+            raise SpriteVerifyError("Missing Anim {0}".format(anim))
+
+        anim_stat = anim_stats[anim_names[anim.lower()]]
+        anim_name = anim_stat.name
+        anim_png_name = anim_name + "-Anim.png"
+        shadow_png_name = anim_name + "-Shadow.png"
+
+        anim_img = readZipImg(zip, anim_png_name)
+        shadow_img = readZipImg(zip, shadow_png_name)
+
+        datas = shadow_img.getdata()
+        shadow_datas = [(0,0,0,0)] * len(datas)
+        for idx in range(len(datas)):
+            color = datas[idx]
+            if color[3] != 255:
+                continue
+
+            if color[1] == 255:
+                shadow_datas[idx] = (0,0,0,255)
+            elif color[0] == 255 and sdw_size > 0:
+                shadow_datas[idx] = (0,0,0,255)
+            elif color[2] == 255 and sdw_size > 1:
+                shadow_datas[idx] = (0,0,0,255)
+
+        shadow_img = Image.new('RGBA', shadow_img.size, (0, 0, 0, 0))
+        shadow_img.putdata(shadow_datas)
+
+        tileSize = anim_stat.size
+        newTileSize = (tileSize[0] * factor, tileSize[1] * factor)
+        paste_loc = ((final_size[0] - newTileSize[0]) // 2, (final_size[1] - newTileSize[1]) // 2 )
+        durations = anim_stat.durations
+
+        total_frames = anim_img.size[0] // tileSize[0]
+        total_dirs = anim_img.size[1] // tileSize[1]
+
+        for dir in range(total_dirs):
+            for jj in range(total_frames):
+                tile_rect = (jj * tileSize[0], dir * tileSize[1], tileSize[0], tileSize[1])
+                tile_bounds = (tile_rect[0], tile_rect[1], tile_rect[0] + tile_rect[2], tile_rect[1] + tile_rect[3])
+                tile_tex = anim_img.crop(tile_bounds)
+                shadow_tex = shadow_img.crop(tile_bounds)
+
+                new_tile_tex = tile_tex.resize(newTileSize, resample=Image.NEAREST)
+                new_shadow_tex = shadow_tex.resize(newTileSize, resample=Image.NEAREST)
+                frame_dur = durations[jj]
+                for ii in range(frame_dur):
+                    full_frame = Image.new('RGBA', final_size, (0, 128, 128, 0))
+                    full_frame.paste(new_shadow_tex, (paste_loc[0], paste_loc[1]), new_shadow_tex)
+                    full_frame.paste(new_tile_tex, (paste_loc[0], paste_loc[1]), new_tile_tex)
+                    img_list.append(full_frame)
+
+    file_data = BytesIO()
+    img_list[0].save(file_data, format='GIF', save_all=True, append_images=img_list[1:], duration=20, loop=0)
+    file_data.seek(0)
+    #img_list[0].save("test.gif", format='GIF', save_all=True, append_images=img_list[1:], optimize=True, duration=20, loop=0)
+    return file_data
+
 def getLinkData(url):
     clean_url = sanitizeLink(url)
     _, file = os.path.split(clean_url)
@@ -738,11 +812,8 @@ def verifySprite(msg_args, wan_zip):
                                     palette[cur_pixel] = 0
                                 palette[cur_pixel] += 1
 
-                total_dirs = anim_img.size[1] // tileSize[1]
-                for dir in range(8):
-                    if dir >= total_dirs:
-                        break
-                    for jj in range(anim_img.size[0] // tileSize[0]):
+                for dir in range(total_dirs):
+                    for jj in range(total_frames):
                         rel_center = (tileSize[0] // 2 - DRAW_CENTER_X, tileSize[1] // 2 - DRAW_CENTER_Y)
                         tile_rect = (jj * tileSize[0], dir * tileSize[1], tileSize[0], tileSize[1])
                         tile_bounds = (tile_rect[0], tile_rect[1], tile_rect[0] + tile_rect[2], tile_rect[1] + tile_rect[3])

@@ -1038,13 +1038,13 @@ class SpriteBot:
                     await self.postStagedSubmission(msg.channel, cmd_str, content, shiny_idx, shiny_node, asset_type, sender_info,
                                                     True, auto_diffs, auto_recolor_file, return_name, overcolor_img)
 
-            if self.config.mastodon and asset_type == "portrait":
+            if self.config.mastodon:
                 status = TrackerUtils.getStatusEmoji(chosen_node, asset_type)
                 tl_msg = "{5} #{3:03d}: {4}\n{0} {1} by {2}".format(new_revise,
                                                                     asset_type,
                                                                     self.createCreditAttribution(orig_author, True),
                                                                     int(full_idx[0]), new_name_str, status)
-                MastodonUtils.post_image(self.tl_api, tl_msg, new_link)
+                await MastodonUtils.post_image(self.tl_api, tl_msg, new_link, asset_type)
 
 
     async def submissionDeclined(self, msg, orig_sender, declines):
@@ -1843,6 +1843,43 @@ class SpriteBot:
 
         self.saveTracker()
         self.changed = True
+
+
+    async def promote(self, msg, name_args, asset_type):
+
+        name_seq = [TrackerUtils.sanitizeName(i) for i in name_args[:-1]]
+        full_idx = TrackerUtils.findFullTrackerIdx(self.tracker, name_seq, 0)
+        if full_idx is None:
+            await msg.channel.send(msg.author.mention + " No such Pokemon.")
+            return
+        chosen_node = TrackerUtils.getNodeFromIdx(self.tracker, full_idx, 0)
+
+        file_name = name_args[-1]
+        for k in chosen_node.__dict__[asset_type + "_files"]:
+            if file_name.lower() == k.lower():
+                file_name = k
+                break
+
+        if file_name not in chosen_node.__dict__[asset_type + "_files"]:
+            await msg.channel.send(msg.author.mention + " Specify a Pokemon and an existing emotion/animation.")
+            return
+
+        if not self.config.mastodon:
+            await msg.channel.send(msg.author.mention + " Social Media posting is disabled.")
+            return
+
+        credit_data = chosen_node.__dict__[asset_type + "_credit"]
+        orig_author = credit_data.primary
+        chosen_link = await self.retrieveLinkMsg(full_idx, chosen_node, asset_type, False)
+
+        status = TrackerUtils.getStatusEmoji(chosen_node, asset_type)
+        tl_msg = "{5} #{3:03d}: {4}\n{0} {1} by {2}".format("Showcased",
+                                                            asset_type,
+                                                            self.createCreditAttribution(orig_author, True),
+                                                            int(full_idx[0]), " ".join(name_seq), status)
+        url = await MastodonUtils.post_image(self.tl_api, tl_msg, chosen_link, asset_type, file_name)
+
+        await msg.channel.send(msg.author.mention + " {0}".format(url))
 
 
     async def setLock(self, msg, name_args, asset_type, lock_state):
@@ -3227,6 +3264,8 @@ async def on_message(msg: discord.Message):
             elif base_arg == "clearcache" and authorized:
                 await sprite_bot.clearCache(msg, args[1:])
                 # root commands
+            elif base_arg == "promote" and msg.author.id == sprite_bot.config.root:
+                await sprite_bot.promote(msg, args[1:], "sprite")
             elif base_arg == "rescan" and msg.author.id == sprite_bot.config.root:
                 await sprite_bot.rescan(msg)
             elif base_arg == "unlockportrait" and msg.author.id == sprite_bot.config.root:

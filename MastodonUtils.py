@@ -7,6 +7,7 @@ import mastodon
 import os
 import SpriteUtils
 import TrackerUtils
+import asyncio
 
 TOKEN_FILE_PATH = 'mastodon_token.txt'
 
@@ -21,13 +22,17 @@ def init_mastodon(scdir):
 
     return api
 
-def post_image(api, text, chosen_link):
-    asset_type = "portrait"
+async def post_image(api, text, chosen_link, asset_type, file_name = "Idle"):
     base_file, base_name = SpriteUtils.getLinkFile(chosen_link, asset_type)
-    base_file = SpriteUtils.thumbnailFileImg(base_file)
-    media = api.media_post(file_name=base_name, mime_type="image/png", media_file=base_file)
+    if asset_type == "sprite":
+        base_file = SpriteUtils.animateFileZip(base_file, file_name)
+        media = api.media_post(file_name=base_name, mime_type="image/gif", media_file=base_file)
+    elif asset_type == "portrait":
+        base_file = SpriteUtils.thumbnailFileImg(base_file)
+        media = api.media_post(file_name=base_name, mime_type="image/png", media_file=base_file)
+    await asyncio.sleep(5)
     status = api.status_post(status=text, media_ids=media)
-    print(str(status))
+    return status["url"]
 
 def post_text(api, orig_post, msg, media_ids):
     if orig_post:
