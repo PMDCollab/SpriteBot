@@ -151,7 +151,7 @@ def animateFileZip(inFile, anim):
 
     img_list = []
     factor = 4
-    final_size = (400, 400)
+    final_size = (800, 800)
 
     with zipfile.ZipFile(inFile, 'r') as zip:
         name_list = zip.namelist()

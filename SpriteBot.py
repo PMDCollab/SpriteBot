@@ -1995,17 +1995,17 @@ class SpriteBot:
     Base credit is used in the case of shinies.
     It is the credit of the base sprite that should be added to the shiny credit.
     """
-    def createCreditBlock(self, credit, base_credit):
+    def createCreditBlock(self, credit, base_credit, plainName=False):
         author_arr = []
-        author_arr.append(self.createCreditAttribution(credit.primary))
+        author_arr.append(self.createCreditAttribution(credit.primary, plainName))
         for author in credit.secondary:
-            author_arr.append(self.createCreditAttribution(author))
+            author_arr.append(self.createCreditAttribution(author, plainName))
         if base_credit is not None:
-            attr = self.createCreditAttribution(base_credit.primary)
+            attr = self.createCreditAttribution(base_credit.primary, plainName)
             if attr not in author_arr:
                 author_arr.append(attr)
             for author in credit.secondary:
-                attr = self.createCreditAttribution(author)
+                attr = self.createCreditAttribution(author, plainName)
                 if attr not in author_arr:
                     author_arr.append(attr)
 
@@ -3361,6 +3361,18 @@ async def periodic_update_status():
                     await sprite_bot.updateThreads(server_id)
                 sprite_bot.writeLog("Thread Update Complete")
 
+        except Exception as e:
+            await sprite_bot.sendError(traceback.format_exc())
+
+        try:
+            # twitter updates every minute
+            if sprite_bot.config.mastodon:
+                if updates % 6 == 0:
+                    # check for mentions
+                    old_mention = max(1, sprite_bot.config.last_tl_mention)
+                    sprite_bot.config.last_tl_mention = await MastodonUtils.reply_mentions(sprite_bot, sprite_bot.tl_api, old_mention)
+                    if sprite_bot.config.last_tl_mention != old_mention:
+                        sprite_bot.saveConfig()
         except Exception as e:
             await sprite_bot.sendError(traceback.format_exc())
 
