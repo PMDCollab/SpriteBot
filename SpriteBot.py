@@ -1401,11 +1401,14 @@ class SpriteBot:
                 continue
 
             # so this is an inactive submission.
-            last_msg = await thread.fetch_message(thread.last_message_id)
-            # subtract one day from current time and if the thread is older than one day, archive it
-            time_before = datetime.datetime.now(last_msg.created_at.tzinfo) - datetime.timedelta(days=1)
-            if last_msg.created_at < time_before:
-                await thread.edit(archived=True)
+            try:
+                last_msg = await thread.fetch_message(thread.last_message_id)
+                # subtract one day from current time and if the thread is older than one day, archive it
+                time_before = datetime.datetime.now(last_msg.created_at.tzinfo) - datetime.timedelta(days=1)
+                if last_msg.created_at < time_before:
+                    await thread.edit(archived=True)
+            except:
+                await self.sendError("Error fetching message for thread {0}!\n".format(thread.name, traceback.format_exc()))
 
 
     async def retrieveDiscussion(self, full_idx, chosen_node, asset_type, guild_id):
