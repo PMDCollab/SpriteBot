@@ -37,18 +37,16 @@ async def post_image(api, text, chosen_link, asset_type, file_name = "Idle"):
     return status["url"]
 
 def post_text(api, orig_post, msg, media):
-    if orig_post:
-        status = api.status_reply(
-            status=msg,
-            media_ids=media,
-            to_status=orig_post.status,
-            in_reply_to_id=orig_post.id,
-        )
-    else:
-        status = api.status_post(
-            status=msg,
-            media_ids=media,
-        )
+
+    if not media and orig_post.status.in_reply_to_id:
+        return
+
+    status = api.status_reply(
+        status=msg,
+        media_ids=media,
+        to_status=orig_post.status,
+        in_reply_to_id=orig_post.id,
+    )
 
 
 async def query_text(sprite_bot, api, tracker, orig_post, name_args):
