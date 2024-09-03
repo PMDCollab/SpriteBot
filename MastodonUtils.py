@@ -32,7 +32,7 @@ async def post_image(api, text, chosen_link, asset_type, file_name = "Idle"):
     elif asset_type == "portrait":
         base_file = SpriteUtils.thumbnailFileImg(base_file)
         media = api.media_post(file_name=base_name, mime_type="image/png", media_file=base_file)
-    await asyncio.sleep(5)
+    await asyncio.sleep(20)
     status = api.status_post(status=text, media_ids=media)
     return status["url"]
 
