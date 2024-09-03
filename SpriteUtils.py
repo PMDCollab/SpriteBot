@@ -209,8 +209,9 @@ def animateFileZip(inFile, anim):
                 new_tile_tex = tile_tex.resize(newTileSize, resample=Image.NEAREST)
                 new_shadow_tex = shadow_tex.resize(newTileSize, resample=Image.NEAREST)
                 frame_dur = durations[jj]
-                print("add frames " + str(jj))
+                print(" add frames " + str(jj))
                 for ii in range(frame_dur):
+                    print("  add dur " + str(ii))
                     full_frame = Image.new('RGBA', final_size, (0, 128, 128, 0))
                     full_frame.paste(new_shadow_tex, (paste_loc[0], paste_loc[1]), new_shadow_tex)
                     full_frame.paste(new_tile_tex, (paste_loc[0], paste_loc[1]), new_tile_tex)
