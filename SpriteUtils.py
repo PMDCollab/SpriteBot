@@ -150,7 +150,8 @@ def thumbnailFileImg(inFile):
 def animateFileZip(inFile, anim):
     print("start animation")
     img_list = []
-    factor = 8
+    total_durations = []
+    factor = 6
     final_size = (800, 800)
 
     with zipfile.ZipFile(inFile, 'r') as zip:
@@ -208,18 +209,18 @@ def animateFileZip(inFile, anim):
 
                 new_tile_tex = tile_tex.resize(newTileSize, resample=Image.NEAREST)
                 new_shadow_tex = shadow_tex.resize(newTileSize, resample=Image.NEAREST)
-                frame_dur = durations[jj]
-                print(" add frames " + str(jj))
-                for ii in range(frame_dur):
-                    print("  add dur " + str(ii))
-                    full_frame = Image.new('RGBA', final_size, (0, 128, 128, 0))
-                    full_frame.paste(new_shadow_tex, (paste_loc[0], paste_loc[1]), new_shadow_tex)
-                    full_frame.paste(new_tile_tex, (paste_loc[0], paste_loc[1]), new_tile_tex)
-                    img_list.append(full_frame)
+
+                total_durations.append(durations[jj] * 20)
+                print(" add frame " + str(jj))
+
+                full_frame = Image.new('RGBA', final_size, (0, 128, 128, 0))
+                full_frame.paste(new_shadow_tex, (paste_loc[0], paste_loc[1]), new_shadow_tex)
+                full_frame.paste(new_tile_tex, (paste_loc[0], paste_loc[1]), new_tile_tex)
+                img_list.append(full_frame)
 
     print("saving animation")
     file_data = BytesIO()
-    img_list[0].save(file_data, format='GIF', save_all=True, append_images=img_list[1:], duration=20, loop=0)
+    img_list[0].save(file_data, format='GIF', save_all=True, append_images=img_list[1:], duration=total_durations, loop=0)
     file_data.seek(0)
 
     print("saved animation")
