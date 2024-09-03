@@ -34,6 +34,7 @@ from commands.MoveNode import MoveNode
 from commands.MoveRessource import MoveRessource
 from commands.SetRessourceCredit import SetRessourceCredit
 from commands.AddNode import AddNode
+from commands.DeleteNode import DeleteNode
 from commands.SetRessourceLock import SetRessourceLock
 
 from Constants import PHASES, PermissionLevel
@@ -232,6 +233,7 @@ class SpriteBot:
 
             # staff
             AddNode(self),
+            DeleteNode(self),
             ClearCache(self),
             SetProfile(self, True),
             RenameNode(self),
@@ -2119,54 +2121,6 @@ class SpriteBot:
         self.saveTracker()
         self.changed = True
 
-
-    async def removeSpeciesForm(self, msg, args):
-        if len(args) < 1 or len(args) > 2:
-            await msg.channel.send(msg.author.mention + " Invalid number of args!")
-            return
-
-        species_name = TrackerUtils.sanitizeName(args[0])
-        species_idx = TrackerUtils.findSlotIdx(self.tracker, species_name)
-        if species_idx is None:
-            await msg.channel.send(msg.author.mention + " {0} does not exist!".format(species_name))
-            return
-
-        species_dict = self.tracker[species_idx]
-        if len(args) == 1:
-
-            # check against data population
-            if TrackerUtils.isDataPopulated(species_dict) and msg.author.id != self.config.root:
-                await msg.channel.send(msg.author.mention + " Can only delete empty slots!")
-                return
-
-            TrackerUtils.deleteData(self.tracker, os.path.join(self.config.path, 'sprite'),
-                                       os.path.join(self.config.path, 'portrait'), species_idx)
-
-            await msg.channel.send(msg.author.mention + " Deleted #{0:03d}: {1}!".format(int(species_idx), species_name))
-        else:
-
-            form_name = TrackerUtils.sanitizeName(args[1])
-            form_idx = TrackerUtils.findSlotIdx(species_dict.subgroups, form_name)
-            if form_idx is None:
-                await msg.channel.send(msg.author.mention + " {2} doesn't exist within #{0:03d}: {1}!".format(int(species_idx), species_name, form_name))
-                return
-
-            # check against data population
-            form_dict = species_dict.subgroups[form_idx]
-            if TrackerUtils.isDataPopulated(form_dict) and msg.author.id != self.config.root:
-                await msg.channel.send(msg.author.mention + " Can only delete empty slots!")
-                return
-
-            TrackerUtils.deleteData(species_dict.subgroups, os.path.join(self.config.path, 'sprite', species_idx),
-                                       os.path.join(self.config.path, 'portrait', species_idx), form_idx)
-
-            await msg.channel.send(msg.author.mention + " Deleted #{0:03d}: {1} {2}!".format(int(species_idx), species_name, form_name))
-
-        self.saveTracker()
-        self.changed = True
-
-        await self.gitCommit("Removed {0}".format(" ".join(args)))
-
     async def setNeed(self, msg, args, needed):
         if len(args) < 2 or len(args) > 5:
             await msg.channel.send(msg.author.mention + " Invalid number of args!")
@@ -2337,7 +2291,6 @@ class SpriteBot:
 
             elif permission_level == PermissionLevel.STAFF:
                 return_msg = "**Approver Commands**\n" \
-                  f"`{prefix}delete` - Deletes an empty Pokemon or forme\n" \
                   f"`{prefix}addgender` - Adds the female sprite/portrait to the Pokemon\n" \
                   f"`{prefix}deletegender` - Removes the female sprite/portrait from the Pokemon\n" \
                   f"`{prefix}need` - Marks a sprite/portrait as needed\n" \
@@ -2424,16 +2377,6 @@ class SpriteBot:
                                 f"`{prefix}bounties sprite`"
                 else:
                     return_msg = MESSAGE_BOUNTIES_DISABLED
-            elif base_arg == "delete":
-                return_msg = "**Command Help**\n" \
-                             f"`{prefix}delete <Pokemon Name> [Form Name]`\n" \
-                             "Deletes a Pokemon or form of an existing Pokemon.  " \
-                             "Only works if the slot + its children are empty.\n" \
-                             "`Pokemon Name` - Name of the Pokemon\n" \
-                             "`Form Name` - [Optional] Form name of the Pokemon\n" \
-                             "**Examples**\n" \
-                             f"`{prefix}delete Pikablu`\n" \
-                             f"`{prefix}delete Arceus Mega`"
             elif base_arg == "addgender":
                 return_msg = "**Command Help**\n" \
                              f"`{prefix}addgender <Asset Type> <Pokemon Name> [Pokemon Form] <Male or Female>`\n" \
@@ -2706,8 +2649,6 @@ async def on_message(msg: discord.Message):
             elif base_arg == "unregister":
                 await sprite_bot.deleteProfile(msg, args[1:])
                 # authorized commands
-            elif base_arg == "delete" and authorized:
-                await sprite_bot.removeSpeciesForm(msg, args[1:])
             elif base_arg == "addgender" and authorized:
                 await sprite_bot.addGender(msg, args[1:])
             elif base_arg == "deletegender" and authorized:
