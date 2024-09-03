@@ -34,6 +34,7 @@ from commands.MoveNode import MoveNode
 from commands.MoveRessource import MoveRessource
 from commands.SetRessourceCredit import SetRessourceCredit
 from commands.AddNode import AddNode
+from commands.AddGender import AddGender
 from commands.DeleteNode import DeleteNode
 from commands.SetRessourceLock import SetRessourceLock
 
@@ -233,6 +234,7 @@ class SpriteBot:
 
             # staff
             AddNode(self),
+            AddGender(self),
             DeleteNode(self),
             ClearCache(self),
             SetProfile(self, True),
@@ -2147,62 +2149,6 @@ class SpriteBot:
         self.saveTracker()
         self.changed = True
 
-    async def addGender(self, msg, args):
-        if len(args) < 3 or len(args) > 4:
-            await msg.channel.send(msg.author.mention + " Invalid number of args!")
-            return
-
-        asset_type = args[0].lower()
-        if asset_type != "sprite" and asset_type != "portrait":
-            await msg.channel.send(msg.author.mention + " Must specify sprite or portrait!")
-            return
-
-        gender_name = args[-1].title()
-        if gender_name != "Male" and gender_name != "Female":
-            await msg.channel.send(msg.author.mention + " Must specify male or female!")
-            return
-        other_gender = "Male"
-        if gender_name == "Male":
-            other_gender = "Female"
-
-        species_name = TrackerUtils.sanitizeName(args[1])
-        species_idx = TrackerUtils.findSlotIdx(self.tracker, species_name)
-        if species_idx is None:
-            await msg.channel.send(msg.author.mention + " {0} does not exist!".format(species_name))
-            return
-
-        species_dict = self.tracker[species_idx]
-        if len(args) == 3:
-            # check against already existing
-            if TrackerUtils.genderDiffExists(species_dict.subgroups["0000"], asset_type, gender_name):
-                await msg.channel.send(msg.author.mention + " Gender difference already exists for #{0:03d}: {1}!".format(int(species_idx), species_name))
-                return
-
-            TrackerUtils.createGenderDiff(species_dict.subgroups["0000"], asset_type, gender_name)
-            await msg.channel.send(msg.author.mention + " Added gender difference to #{0:03d}: {1}! ({2})".format(int(species_idx), species_name, asset_type))
-        else:
-
-            form_name = TrackerUtils.sanitizeName(args[2])
-            form_idx = TrackerUtils.findSlotIdx(species_dict.subgroups, form_name)
-            if form_idx is None:
-                await msg.channel.send(msg.author.mention + " {2} doesn't exist within #{0:03d}: {1}!".format(int(species_idx), species_name, form_name))
-                return
-
-            # check against data population
-            form_dict = species_dict.subgroups[form_idx]
-            if TrackerUtils.genderDiffExists(form_dict, asset_type, gender_name):
-                await msg.channel.send(msg.author.mention +
-                    " Gender difference already exists for #{0:03d}: {1} {2}!".format(int(species_idx), species_name, form_name))
-                return
-
-            TrackerUtils.createGenderDiff(form_dict, asset_type, gender_name)
-            await msg.channel.send(msg.author.mention +
-                " Added gender difference to #{0:03d}: {1} {2}! ({3})".format(int(species_idx), species_name, form_name, asset_type))
-
-        self.saveTracker()
-        self.changed = True
-
-
     async def removeGender(self, msg, args):
         if len(args) < 2 or len(args) > 3:
             await msg.channel.send(msg.author.mention + " Invalid number of args!")
@@ -2291,7 +2237,6 @@ class SpriteBot:
 
             elif permission_level == PermissionLevel.STAFF:
                 return_msg = "**Approver Commands**\n" \
-                  f"`{prefix}addgender` - Adds the female sprite/portrait to the Pokemon\n" \
                   f"`{prefix}deletegender` - Removes the female sprite/portrait from the Pokemon\n" \
                   f"`{prefix}need` - Marks a sprite/portrait as needed\n" \
                   f"`{prefix}dontneed` - Marks a sprite/portrait as unneeded\n" \
@@ -2377,17 +2322,6 @@ class SpriteBot:
                                 f"`{prefix}bounties sprite`"
                 else:
                     return_msg = MESSAGE_BOUNTIES_DISABLED
-            elif base_arg == "addgender":
-                return_msg = "**Command Help**\n" \
-                             f"`{prefix}addgender <Asset Type> <Pokemon Name> [Pokemon Form] <Male or Female>`\n" \
-                             "Adds a slot for the male/female version of the species, or form of the species.\n" \
-                             "`Asset Type` - \"sprite\" or \"portrait\"\n" \
-                             "`Pokemon Name` - Name of the Pokemon\n" \
-                             "`Form Name` - [Optional] Form name of the Pokemon\n" \
-                             "**Examples**\n" \
-                             f"`{prefix}addgender Sprite Venusaur Female`\n" \
-                             f"`{prefix}addgender Portrait Steelix Female`\n" \
-                             f"`{prefix}addgender Sprite Raichu Alola Male`"
             elif base_arg == "deletegender":
                 return_msg = "**Command Help**\n" \
                              f"`{prefix}deletegender <Asset Type> <Pokemon Name> [Pokemon Form]`\n" \
@@ -2649,8 +2583,6 @@ async def on_message(msg: discord.Message):
             elif base_arg == "unregister":
                 await sprite_bot.deleteProfile(msg, args[1:])
                 # authorized commands
-            elif base_arg == "addgender" and authorized:
-                await sprite_bot.addGender(msg, args[1:])
             elif base_arg == "deletegender" and authorized:
                 await sprite_bot.removeGender(msg, args[1:])
             elif base_arg == "need" and authorized:
