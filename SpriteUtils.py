@@ -148,9 +148,12 @@ def thumbnailFileImg(inFile):
     return file_data
 
 def animateFileZip(inFile, anim):
-    print("start animation")
     img_list = []
     total_durations = []
+
+    # WARNING: while increasing these values will result in crisper images uploaded,
+    # they run the risk of using too much memory and causing the entire program to OOM and be killed.
+    # BE CAREFUL
     factor = 3
     final_size = (400, 400)
 
@@ -211,19 +214,16 @@ def animateFileZip(inFile, anim):
                 new_shadow_tex = shadow_tex.resize(newTileSize, resample=Image.NEAREST)
 
                 total_durations.append(durations[jj] * 20)
-                print(" add frame " + str(jj))
 
                 full_frame = Image.new('RGBA', final_size, (0, 128, 128, 0))
                 full_frame.paste(new_shadow_tex, (paste_loc[0], paste_loc[1]), new_shadow_tex)
                 full_frame.paste(new_tile_tex, (paste_loc[0], paste_loc[1]), new_tile_tex)
                 img_list.append(full_frame)
 
-    print("saving animation")
     file_data = BytesIO()
     img_list[0].save(file_data, format='GIF', save_all=True, append_images=img_list[1:], duration=total_durations, loop=0)
     file_data.seek(0)
 
-    print("saved animation")
     #img_list[0].save("test.gif", format='GIF', save_all=True, append_images=img_list[1:], optimize=True, duration=20, loop=0)
     return file_data
 
