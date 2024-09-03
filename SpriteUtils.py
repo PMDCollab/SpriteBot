@@ -150,7 +150,7 @@ def thumbnailFileImg(inFile):
 def animateFileZip(inFile, anim):
 
     img_list = []
-    factor = 4
+    factor = 8
     final_size = (800, 800)
 
     with zipfile.ZipFile(inFile, 'r') as zip:
