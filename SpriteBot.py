@@ -12,6 +12,7 @@ import json
 import SpriteUtils
 import TrackerUtils
 import MastodonUtils
+import BlueSkyUtils
 import datetime
 import git
 import sys
@@ -88,6 +89,7 @@ class BotConfig:
         self.path = ""
         self.root = 0
         self.push = False
+        self.bluesky = False
         self.mastodon = False
         self.last_tl_mention = 0
         self.points = 0
@@ -129,6 +131,9 @@ class SpriteBot:
         self.need_restart = False
         with open(os.path.join(self.path, CONFIG_FILE_PATH)) as f:
             self.config = BotConfig(json.load(f))
+
+        if self.config.bluesky:
+            self.bsky_api = BlueSkyUtils.init_bluesky(scdir)
 
         if self.config.mastodon:
             self.tl_api = MastodonUtils.init_mastodon(scdir)
@@ -1038,13 +1043,16 @@ class SpriteBot:
                     await self.postStagedSubmission(msg.channel, cmd_str, content, shiny_idx, shiny_node, asset_type, sender_info,
                                                     True, auto_diffs, auto_recolor_file, return_name, overcolor_img)
 
-            if self.config.mastodon:
+            if self.config.mastodon or self.config.bluesky:
                 status = TrackerUtils.getStatusEmoji(chosen_node, asset_type)
                 tl_msg = "{5} #{3:03d}: {4}\n{0} {1} by {2}".format(new_revise,
                                                                     asset_type,
                                                                     self.createCreditAttribution(orig_author, True),
                                                                     int(full_idx[0]), new_name_str, status)
-                await MastodonUtils.post_image(self.tl_api, tl_msg, new_link, asset_type)
+                if self.config.mastodon:
+                    await MastodonUtils.post_image(self.tl_api, tl_msg, new_link, asset_type)
+                if self.config.bluesky:
+                    await BlueSkyUtils.post_image(self.bsky_api, tl_msg, new_link, asset_type)
 
 
     async def submissionDeclined(self, msg, orig_sender, declines):
