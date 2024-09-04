@@ -1875,7 +1875,7 @@ class SpriteBot:
             await msg.channel.send(msg.author.mention + " Specify a Pokemon and an existing emotion/animation.")
             return
 
-        if not self.config.mastodon:
+        if not self.config.mastodon and not self.config.bluesky:
             await msg.channel.send(msg.author.mention + " Social Media posting is disabled.")
             return
 
@@ -1888,9 +1888,15 @@ class SpriteBot:
                                                             asset_type,
                                                             self.createCreditAttribution(orig_author, True),
                                                             int(full_idx[0]), " ".join(name_seq), status)
-        url = await MastodonUtils.post_image(self.tl_api, tl_msg, chosen_link, asset_type, file_name)
+        urls = []
+        if self.config.mastodon:
+            url = await MastodonUtils.post_image(self.tl_api, tl_msg, chosen_link, asset_type, file_name)
+            urls.append(url)
+        if self.config.bluesky:
+            url = await BlueSkyUtils.post_image(self.bsky_api, tl_msg, chosen_link, asset_type, file_name)
+            urls.append(url)
 
-        await msg.channel.send(msg.author.mention + " {0}".format(url))
+        await msg.channel.send(msg.author.mention + " {0}".format("\n".join(urls)))
 
 
     async def setLock(self, msg, name_args, asset_type, lock_state):
