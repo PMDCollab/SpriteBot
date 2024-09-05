@@ -300,6 +300,13 @@ def testLinkFile(url):
     except:
         return False
 
+def getSocialMediaImage(chosen_link, asset_type, file_name = "Idle"):
+    base_file, base_name = getLinkFile(chosen_link, asset_type)
+    if asset_type == "sprite":
+        base_file = animateFileZip(base_file, file_name)
+    elif asset_type == "portrait":
+        base_file = thumbnailFileImg(base_file)
+    return base_file
 
 def getLinkFile(url, asset_type):
     clean_url = sanitizeLink(url)

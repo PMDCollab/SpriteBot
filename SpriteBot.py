@@ -1049,10 +1049,12 @@ class SpriteBot:
                                                                     asset_type,
                                                                     self.createCreditAttribution(orig_author, True),
                                                                     int(full_idx[0]), new_name_str, status)
+
+                img_file = SpriteUtils.getSocialMediaImage(new_link, asset_type)
                 if self.config.mastodon:
-                    await MastodonUtils.post_image(self.tl_api, tl_msg, new_link, asset_type)
+                    await MastodonUtils.post_image(self.tl_api, tl_msg, new_name_str, img_file, asset_type)
                 if self.config.bluesky:
-                    await BlueSkyUtils.post_image(self.bsky_api, tl_msg, new_link, asset_type)
+                    await BlueSkyUtils.post_image(self.bsky_api, tl_msg, new_name_str, img_file, asset_type)
 
 
     async def submissionDeclined(self, msg, orig_sender, declines):
@@ -1888,12 +1890,15 @@ class SpriteBot:
                                                             asset_type,
                                                             self.createCreditAttribution(orig_author, True),
                                                             int(full_idx[0]), " ".join(name_seq), status)
+
+        img_file = SpriteUtils.getSocialMediaImage(chosen_link, asset_type, file_name)
+
         urls = []
         if self.config.mastodon:
-            url = await MastodonUtils.post_image(self.tl_api, tl_msg, chosen_link, asset_type, file_name)
+            url = await MastodonUtils.post_image(self.tl_api, tl_msg, " ".join(name_seq), img_file, asset_type)
             urls.append(url)
         if self.config.bluesky:
-            url = await BlueSkyUtils.post_image(self.bsky_api, tl_msg, chosen_link, asset_type, file_name)
+            url = await BlueSkyUtils.post_image(self.bsky_api, tl_msg, " ".join(name_seq), img_file, asset_type)
             urls.append(url)
 
         await msg.channel.send(msg.author.mention + " {0}".format("\n".join(urls)))

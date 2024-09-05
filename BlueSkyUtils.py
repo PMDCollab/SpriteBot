@@ -25,11 +25,6 @@ def init_bluesky(scdir):
 
     return client
 
-async def post_image(api, text, chosen_link, asset_type, file_name = "Idle"):
-    base_file, base_name = SpriteUtils.getLinkFile(chosen_link, asset_type)
-    if asset_type == "sprite":
-        base_file = SpriteUtils.animateFileZip(base_file, file_name)
-    elif asset_type == "portrait":
-        base_file = SpriteUtils.thumbnailFileImg(base_file)
-    status = api.send_image(text=text, image=base_file, image_alt=text)
+async def post_image(api, text, img_title, img_file, asset_type):
+    status = api.send_image(text=text, image=img_file, image_alt=img_title)
     return status["uri"]
