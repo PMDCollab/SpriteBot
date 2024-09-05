@@ -147,15 +147,18 @@ def thumbnailFileImg(inFile):
     file_data.seek(0)
     return file_data
 
+import psutil
 def animateFileZip(inFile, anim):
     img_list = []
     total_durations = []
+
+    print(psutil.Process().memory_info().rss)
 
     # WARNING: while increasing these values will result in crisper images uploaded,
     # they run the risk of using too much memory and causing the entire program to OOM and be killed.
     # BE CAREFUL
     factor = 3
-    final_size = (400, 400)
+    area_size = (120, 120)
 
     with zipfile.ZipFile(inFile, 'r') as zip:
         name_list = zip.namelist()
@@ -197,6 +200,7 @@ def animateFileZip(inFile, anim):
 
         tileSize = anim_stat.size
         newTileSize = (tileSize[0] * factor, tileSize[1] * factor)
+        final_size = (area_size[0] * factor, area_size[1] * factor)
         paste_loc = ((final_size[0] - newTileSize[0]) // 2, (final_size[1] - newTileSize[1]) // 2 )
         durations = anim_stat.durations
 
@@ -219,11 +223,13 @@ def animateFileZip(inFile, anim):
                 full_frame.paste(new_shadow_tex, (paste_loc[0], paste_loc[1]), new_shadow_tex)
                 full_frame.paste(new_tile_tex, (paste_loc[0], paste_loc[1]), new_tile_tex)
                 img_list.append(full_frame)
+                print(psutil.Process().memory_info().rss)
 
     file_data = BytesIO()
     img_list[0].save(file_data, format='GIF', save_all=True, append_images=img_list[1:], duration=total_durations, loop=0)
     file_data.seek(0)
 
+    print(psutil.Process().memory_info().rss)
     #img_list[0].save("test.gif", format='GIF', save_all=True, append_images=img_list[1:], optimize=True, duration=20, loop=0)
     return file_data
 
