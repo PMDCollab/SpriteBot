@@ -3389,7 +3389,7 @@ async def periodic_update_status():
 
         try:
             # info updates every 1 hour
-            if updates % 360 == 0:
+            if updates % 360 == 360:
                 sprite_bot.writeLog("Performing Post Update")
                 if sprite_bot.changed or updates == 0:
                     sprite_bot.changed = False
