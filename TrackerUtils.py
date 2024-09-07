@@ -1,21 +1,9 @@
-import sys
+
 import os
 import re
 import shutil
-import math
-import struct
-import glob
-import time
-import urllib
-import urllib.request
-from PIL import Image, ImageDraw, ImageFont
 import datetime
-import json
-from io import BytesIO
-import zipfile
 import xml.etree.ElementTree as ET
-import xml.dom.minidom as minidom
-import utils as exUtils
 import Constants
 
 CURRENT_LICENSE = "CC_BY-NC_4"

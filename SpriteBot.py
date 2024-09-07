@@ -5,7 +5,6 @@ import os
 import io
 
 import discord
-import urllib
 import traceback
 import asyncio
 import json
