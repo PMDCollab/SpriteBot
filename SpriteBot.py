@@ -27,6 +27,7 @@ from commands.DeleteRessourceCredit import DeleteRessourceCredit
 from commands.GetProfile import GetProfile
 
 from Constants import PHASES
+import psutil
 
 # Housekeeping for login information
 TOKEN_FILE_PATH = 'discord_token.txt'
@@ -125,9 +126,13 @@ class SpriteBot:
     A class for handling recolors
     """
     def __init__(self, in_path, client):
+
         # init data
         self.path = in_path
         self.need_restart = False
+
+        self.writeLog("Pre-Startup Memory: {0}".format(psutil.Process().memory_info().rss))
+
         with open(os.path.join(self.path, CONFIG_FILE_PATH)) as f:
             self.config = BotConfig(json.load(f))
 
@@ -215,6 +220,7 @@ class SpriteBot:
             GetProfile(self)
         ]
 
+        self.writeLog("Startup Memory: {0}".format(psutil.Process().memory_info().rss))
         print("Info Initiated")
 
     def generateCreditCompilation(self):
