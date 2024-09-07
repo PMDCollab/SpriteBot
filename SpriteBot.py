@@ -10,14 +10,15 @@ import asyncio
 import json
 import SpriteUtils
 import TrackerUtils
-import MastodonUtils
-import BlueSkyUtils
 import datetime
 import git
 import sys
 import re
 import argparse
 import Constants
+
+import MastodonUtils
+import BlueSkyUtils
 
 from commands.QueryRessourceStatus import QueryRessourceStatus
 from commands.AutoRecolorRessource import AutoRecolorRessource

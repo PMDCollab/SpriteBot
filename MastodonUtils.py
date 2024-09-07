@@ -1,9 +1,5 @@
-import io
-import time
 
 import traceback
-import requests
-from requests_oauthlib import OAuth1
 from html.parser import HTMLParser
 import mastodon
 import os
