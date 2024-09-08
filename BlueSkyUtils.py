@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 import urllib3
 import json
 import asyncio
+import traceback
 
 TOKEN_FILE_PATH = 'bluesky_token.txt'
 
@@ -73,9 +74,9 @@ def send_post(user, jwt, text, blob, image_alt):
 async def post_image(api, text, img_title, img_file, asset_type):
     jwt = get_api_key(api.user, api.password)
     if asset_type == "sprite":
-        media = upload_blob(img_file, jwt, "image/*")
+        media = upload_blob(img_file, jwt, "*/*")
     elif asset_type == "portrait":
-        media = upload_blob(img_file, jwt, "image/*")
+        media = upload_blob(img_file, jwt, "*/*")
     await asyncio.sleep(20)
     status = send_post(api.user, jwt, text, media, img_title)
 
@@ -84,4 +85,5 @@ async def post_image(api, text, img_title, img_file, asset_type):
         post_id = uri.split("/")[-1]
         return "https://bsky.app/profile/{0}/post/{1}".format("pmd-spritebot.bsky.social", post_id)
     else:
-        raise KeyError("Missing uri in status, media:\n{0}\n{1}".format(json.dumps(status), json.dumps(media)))
+        raise KeyError("Missing uri in status, media:\n{0}\n{1}\n{2}".format(json.dumps(status), json.dumps(media),
+                                                                             traceback.format_exc()))
