@@ -73,9 +73,9 @@ def send_post(user, jwt, text, blob, image_alt):
 async def post_image(api, text, img_title, img_file, asset_type):
     jwt = get_api_key(api.user, api.password)
     if asset_type == "sprite":
-        media = upload_blob(img_file, jwt, "image/gif")
+        media = upload_blob(img_file, jwt, "*/*")
     elif asset_type == "portrait":
-        media = upload_blob(img_file, jwt, "image/png")
+        media = upload_blob(img_file, jwt, "*/*")
     await asyncio.sleep(20)
     status = send_post(api.user, jwt, text, media, img_title)
 
