@@ -21,6 +21,7 @@ def init_mastodon(scdir):
     return api
 
 async def post_image(api, text, img_title, img_file, asset_type):
+    img_file.seek(0)
     if asset_type == "sprite":
         media = api.media_post(file_name=img_title, mime_type="image/gif", media_file=img_file)
     elif asset_type == "portrait":

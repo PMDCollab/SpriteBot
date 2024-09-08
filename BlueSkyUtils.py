@@ -72,6 +72,7 @@ def send_post(user, jwt, text, blob, image_alt):
     return post_request
 
 async def post_image(api, text, img_title, img_file, asset_type):
+    img_file.seek(0)
     jwt = get_api_key(api.user, api.password)
     if asset_type == "sprite":
         media = upload_blob(img_file, jwt, "image/gif")
