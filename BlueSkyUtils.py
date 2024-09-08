@@ -76,6 +76,12 @@ async def post_image(api, text, img_title, img_file, asset_type):
         media = upload_blob(img_file, jwt, "image/gif")
     elif asset_type == "portrait":
         media = upload_blob(img_file, jwt, "image/png")
-    status = send_post(api.user, jwt, text, media, img_title)
     await asyncio.sleep(20)
-    return status["uri"]
+    status = send_post(api.user, jwt, text, media, img_title)
+
+    if "uri" in status:
+        uri = status["uri"]
+        post_id = uri.split("/")[-1]
+        return "https://bsky.app/profile/{0}/post/{1}".format("pmd-spritebot.bsky.social", post_id)
+    else:
+        raise KeyError("Missing uri in status:\n{0}".format(json.dumps(status)))
