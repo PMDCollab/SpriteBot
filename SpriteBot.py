@@ -1864,28 +1864,43 @@ class SpriteBot:
         self.changed = True
 
 
-    async def promote(self, msg, name_args, asset_type):
+    async def promote(self, msg, name_args):
 
-        name_seq = [TrackerUtils.sanitizeName(i) for i in name_args[:-1]]
+        if not self.config.mastodon and not self.config.bluesky:
+            await msg.channel.send(msg.author.mention + " Social Media posting is disabled.")
+            return
+
+        asset_type = "sprite"
+
+        file_name = name_args[-1]
+        has_file_name = False
+        for action in Constants.ACTIONS:
+            if action.lower() == file_name.lower():
+                has_file_name = True
+                break
+
+        if has_file_name:
+            name_args = name_args[:-1]
+        else:
+            file_name = None
+            asset_type = "portrait"
+
+        name_seq = [TrackerUtils.sanitizeName(i) for i in name_args]
         full_idx = TrackerUtils.findFullTrackerIdx(self.tracker, name_seq, 0)
         if full_idx is None:
             await msg.channel.send(msg.author.mention + " No such Pokemon.")
             return
         chosen_node = TrackerUtils.getNodeFromIdx(self.tracker, full_idx, 0)
 
-        file_name = name_args[-1]
-        for k in chosen_node.__dict__[asset_type + "_files"]:
-            if file_name.lower() == k.lower():
-                file_name = k
-                break
+        if asset_type == "sprite":
+            for k in chosen_node.__dict__[asset_type + "_files"]:
+                if file_name.lower() == k.lower():
+                    file_name = k
+                    break
 
-        if file_name not in chosen_node.__dict__[asset_type + "_files"]:
-            await msg.channel.send(msg.author.mention + " Specify a Pokemon and an existing emotion/animation.")
-            return
-
-        if not self.config.mastodon and not self.config.bluesky:
-            await msg.channel.send(msg.author.mention + " Social Media posting is disabled.")
-            return
+            if file_name not in chosen_node.__dict__[asset_type + "_files"]:
+                await msg.channel.send(msg.author.mention + " Specify a Pokemon and an existing emotion/animation.")
+                return
 
         credit_data = chosen_node.__dict__[asset_type + "_credit"]
         orig_author = credit_data.primary
@@ -3293,7 +3308,7 @@ async def on_message(msg: discord.Message):
                 await sprite_bot.clearCache(msg, args[1:])
                 # root commands
             elif base_arg == "promote" and msg.author.id == sprite_bot.config.root:
-                await sprite_bot.promote(msg, args[1:], "sprite")
+                await sprite_bot.promote(msg, args[1:])
             elif base_arg == "rescan" and msg.author.id == sprite_bot.config.root:
                 await sprite_bot.rescan(msg)
             elif base_arg == "unlockportrait" and msg.author.id == sprite_bot.config.root:
