@@ -1430,7 +1430,7 @@ class SpriteBot:
                 if last_msg.created_at < time_before:
                     await thread.edit(archived=True)
             except:
-                await self.sendError("Error fetching message for thread {0}!\n".format(thread.name, traceback.format_exc()))
+                await self.sendError("Error fetching message for thread {0}!\n{1}".format(thread.name, traceback.format_exc()))
 
 
     async def retrieveDiscussion(self, full_idx, chosen_node, asset_type, guild_id):

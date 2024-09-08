@@ -84,4 +84,4 @@ async def post_image(api, text, img_title, img_file, asset_type):
         post_id = uri.split("/")[-1]
         return "https://bsky.app/profile/{0}/post/{1}".format("pmd-spritebot.bsky.social", post_id)
     else:
-        raise KeyError("Missing uri in status, media:\n{0}".format(json.dumps(status), json.dumps(media)))
+        raise KeyError("Missing uri in status, media:\n{0}\n{1}".format(json.dumps(status), json.dumps(media)))
