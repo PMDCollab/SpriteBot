@@ -1058,9 +1058,15 @@ class SpriteBot:
 
                 img_file = SpriteUtils.getSocialMediaImage(new_link, asset_type)
                 if self.config.mastodon:
-                    await MastodonUtils.post_image(self.tl_api, tl_msg, new_name_str, img_file, asset_type)
+                    try:
+                        await MastodonUtils.post_image(self.tl_api, tl_msg, new_name_str, img_file, asset_type)
+                    except:
+                        await self.sendError("Error sending post!\n{0}".format(traceback.format_exc()))
                 if self.config.bluesky:
-                    await BlueSkyUtils.post_image(self.bsky_api, tl_msg, new_name_str, img_file, asset_type)
+                    try:
+                        await BlueSkyUtils.post_image(self.bsky_api, tl_msg, new_name_str, img_file, asset_type)
+                    except:
+                        await self.sendError("Error sending post!\n{0}".format(traceback.format_exc()))
 
 
     async def submissionDeclined(self, msg, orig_sender, declines):
@@ -1383,7 +1389,7 @@ class SpriteBot:
             try:
                 await message.delete()
             except:
-                print(traceback.format_exc())
+                await self.sendError("Error deleting {0}!\n{1}".format(message.id, traceback.format_exc()))
 
     async def updateThreads(self, server_id):
         server = self.config.servers[server_id]
@@ -1916,11 +1922,17 @@ class SpriteBot:
 
         urls = []
         if self.config.mastodon:
-            url = await MastodonUtils.post_image(self.tl_api, tl_msg, " ".join(name_seq), img_file, asset_type)
-            urls.append(url)
+            try:
+                url = await MastodonUtils.post_image(self.tl_api, tl_msg, " ".join(name_seq), img_file, asset_type)
+                urls.append(url)
+            except:
+                await self.sendError("Error sending post!\n{0}".format(traceback.format_exc()))
         if self.config.bluesky:
-            url = await BlueSkyUtils.post_image(self.bsky_api, tl_msg, " ".join(name_seq), img_file, asset_type)
-            urls.append(url)
+            try:
+                url = await BlueSkyUtils.post_image(self.bsky_api, tl_msg, " ".join(name_seq), img_file, asset_type)
+                urls.append(url)
+            except:
+                await self.sendError("Error sending post!\n{0}".format(traceback.format_exc()))
 
         await msg.channel.send(msg.author.mention + " {0}".format("\n".join(urls)))
 

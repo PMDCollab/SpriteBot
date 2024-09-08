@@ -3,6 +3,7 @@ import os
 from datetime import datetime, timezone
 import urllib3
 import json
+import asyncio
 
 TOKEN_FILE_PATH = 'bluesky_token.txt'
 
@@ -76,4 +77,5 @@ async def post_image(api, text, img_title, img_file, asset_type):
     elif asset_type == "portrait":
         media = upload_blob(img_file, jwt, "image/png")
     status = send_post(api.user, jwt, text, media, img_title)
+    await asyncio.sleep(20)
     return status["uri"]
