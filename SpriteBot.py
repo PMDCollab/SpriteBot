@@ -1911,13 +1911,12 @@ class SpriteBot:
                 return
 
         credit_data = chosen_node.__dict__[asset_type + "_credit"]
-        orig_author = credit_data.primary
         chosen_link = await self.retrieveLinkMsg(full_idx, chosen_node, asset_type, False)
 
         status = TrackerUtils.getStatusEmoji(chosen_node, asset_type)
         tl_msg = "{5} #{3:03d}: {4}\n{0} {1} by {2}".format("Showcased",
                                                             asset_type,
-                                                            self.createCreditAttribution(orig_author, True),
+                                                            self.createCreditBlock(credit_data, None, True),
                                                             int(full_idx[0]), " ".join(name_seq), status)
 
         img_file = SpriteUtils.getSocialMediaImage(chosen_link, asset_type, file_name)
