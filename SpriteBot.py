@@ -37,6 +37,7 @@ from commands.AddNode import AddNode
 from commands.AddGender import AddGender
 from commands.DeleteNode import DeleteNode
 from commands.SetRessourceLock import SetRessourceLock
+from commands.SetNeedNode import SetNeedNode
 
 from Constants import PHASES, PermissionLevel
 import psutil
@@ -246,6 +247,8 @@ class SpriteBot:
             MoveRessource(self, "sprite"),
             SetRessourceCredit(self, "portrait"),
             SetRessourceCredit(self, "sprite"),
+            SetNeedNode(self, True),
+            SetNeedNode(self, False),
 
             # admin
             SetRessourceLock(self, "portrait", True),
@@ -2123,32 +2126,6 @@ class SpriteBot:
         self.saveTracker()
         self.changed = True
 
-    async def setNeed(self, msg, args, needed):
-        if len(args) < 2 or len(args) > 5:
-            await msg.channel.send(msg.author.mention + " Invalid number of args!")
-            return
-
-        asset_type = args[0].lower()
-        if asset_type != "sprite" and asset_type != "portrait":
-            await msg.channel.send(msg.author.mention + " Must specify sprite or portrait!")
-            return
-
-        name_seq = [TrackerUtils.sanitizeName(i) for i in args[1:]]
-        full_idx = TrackerUtils.findFullTrackerIdx(self.tracker, name_seq, 0)
-        if full_idx is None:
-            await msg.channel.send(msg.author.mention + " No such Pokemon.")
-            return
-        chosen_node = TrackerUtils.getNodeFromIdx(self.tracker, full_idx, 0)
-        chosen_node.__dict__[asset_type + "_required"] = needed
-
-        if needed:
-            await msg.channel.send(msg.author.mention + " {0} {1} is now needed.".format(asset_type, " ".join(name_seq)))
-        else:
-            await msg.channel.send(msg.author.mention + " {0} {1} is no longer needed.".format(asset_type, " ".join(name_seq)))
-
-        self.saveTracker()
-        self.changed = True
-
     async def removeGender(self, msg, args):
         if len(args) < 2 or len(args) > 3:
             await msg.channel.send(msg.author.mention + " Invalid number of args!")
@@ -2238,8 +2215,6 @@ class SpriteBot:
             elif permission_level == PermissionLevel.STAFF:
                 return_msg = "**Approver Commands**\n" \
                   f"`{prefix}deletegender` - Removes the female sprite/portrait from the Pokemon\n" \
-                  f"`{prefix}need` - Marks a sprite/portrait as needed\n" \
-                  f"`{prefix}dontneed` - Marks a sprite/portrait as unneeded\n" \
                   f"`{prefix}spritewip` - Sets the sprite status as Incomplete\n" \
                   f"`{prefix}portraitwip` - Sets the portrait status as Incomplete\n" \
                   f"`{prefix}spriteexists` - Sets the sprite status as Exists\n" \
@@ -2334,35 +2309,6 @@ class SpriteBot:
                              f"`{prefix}deletegender Sprite Venusaur`\n" \
                              f"`{prefix}deletegender Portrait Steelix`\n" \
                              f"`{prefix}deletegender Sprite Raichu Alola`"
-            elif base_arg == "need":
-                return_msg = "**Command Help**\n" \
-                             f"`{prefix}need <Asset Type> <Pokemon Name> [Pokemon Form] [Shiny]`\n" \
-                             "Marks a sprite/portrait as Needed.  This is the default for all sprites/portraits.\n" \
-                             "`Asset Type` - \"sprite\" or \"portrait\"\n" \
-                             "`Pokemon Name` - Name of the Pokemon\n" \
-                             "`Form Name` - [Optional] Form name of the Pokemon\n" \
-                             "`Shiny` - [Optional] Specifies if you want the shiny sprite or not\n" \
-                             "**Examples**\n" \
-                             f"`{prefix}need Sprite Venusaur`\n" \
-                             f"`{prefix}need Portrait Steelix`\n" \
-                             f"`{prefix}need Portrait Minior Red`\n" \
-                             f"`{prefix}need Portrait Minior Shiny`\n" \
-                             f"`{prefix}need Sprite Castform Sunny Shiny`"
-            elif base_arg == "dontneed":
-                return_msg = "**Command Help**\n" \
-                             f"`{prefix}dontneed <Asset Type> <Pokemon Name> [Pokemon Form] [Shiny]`\n" \
-                             "Marks a sprite/portrait as Unneeded.  " \
-                             "Unneeded sprites/portraits are marked with \u26AB and do not need submissions.\n" \
-                             "`Asset Type` - \"sprite\" or \"portrait\"\n" \
-                             "`Pokemon Name` - Name of the Pokemon\n" \
-                             "`Form Name` - [Optional] Form name of the Pokemon\n" \
-                             "`Shiny` - [Optional] Specifies if you want the shiny sprite or not\n" \
-                             "**Examples**\n" \
-                             f"`{prefix}dontneed Sprite Venusaur`\n" \
-                             f"`{prefix}dontneed Portrait Steelix`\n" \
-                             f"`{prefix}dontneed Portrait Minior Red`\n" \
-                             f"`{prefix}dontneed Portrait Minior Shiny`\n" \
-                             f"`{prefix}dontneed Sprite Alcremie Shiny`"
             elif base_arg == "spritewip":
                 return_msg = "**Command Help**\n" \
                              f"`{prefix}spritewip <Pokemon Name> [Form Name] [Shiny] [Gender]`\n" \
@@ -2585,10 +2531,6 @@ async def on_message(msg: discord.Message):
                 # authorized commands
             elif base_arg == "deletegender" and authorized:
                 await sprite_bot.removeGender(msg, args[1:])
-            elif base_arg == "need" and authorized:
-                await sprite_bot.setNeed(msg, args[1:], True)
-            elif base_arg == "dontneed" and authorized:
-                await sprite_bot.setNeed(msg, args[1:], False)
             elif base_arg == "spritewip" and authorized:
                 await sprite_bot.completeSlot(msg, args[1:], "sprite", TrackerUtils.PHASE_INCOMPLETE)
             elif base_arg == "portraitwip" and authorized:
