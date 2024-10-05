@@ -207,8 +207,8 @@ def animateFileZip(inFile, anim):
                 tile_tex = anim_img.crop(tile_bounds)
                 shadow_tex = shadow_img.crop(tile_bounds)
 
-                new_tile_tex = tile_tex.resize(newTileSize, resample=Image.NEAREST)
-                new_shadow_tex = shadow_tex.resize(newTileSize, resample=Image.NEAREST)
+                new_tile_tex = tile_tex.resize(newTileSize, resample=Image.NEAREST) # type: ignore
+                new_shadow_tex = shadow_tex.resize(newTileSize, resample=Image.NEAREST) # type: ignore
 
                 total_durations.append(durations[jj] * 20)
 
