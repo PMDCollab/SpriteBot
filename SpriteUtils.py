@@ -1804,6 +1804,7 @@ def simple_quant(img: Image.Image, colors) -> Image.Image:
     qimg = img.quantize(colors, dither=0).convert('RGBA') # type: ignore
     # Shift up all pixel values by 1 and add the transparent pixels
     pixels = qimg.load()
+    assert(pixels is not None)
     k = 0
     for j in range(img.size[1]):
         for i in range(img.size[0]):
