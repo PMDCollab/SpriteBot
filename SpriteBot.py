@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Dict, Any, Optional
 
 
 import os
@@ -25,9 +25,22 @@ from commands.AutoRecolorRessource import AutoRecolorRessource
 from commands.ListRessource import ListRessource
 from commands.QueryRessourceCredit import QueryRessourceCredit
 from commands.DeleteRessourceCredit import DeleteRessourceCredit
+from commands.ClearCache import ClearCache
 from commands.GetProfile import GetProfile
+from commands.SetProfile import SetProfile
+from commands.RenameNode import RenameNode
+from commands.ReplaceRessource import ReplaceRessource
+from commands.MoveNode import MoveNode
+from commands.MoveRessource import MoveRessource
+from commands.SetRessourceCredit import SetRessourceCredit
+from commands.AddRessourceCredit import AddRessourceCredit
+from commands.AddNode import AddNode
+from commands.AddGender import AddGender
+from commands.DeleteNode import DeleteNode
+from commands.SetRessourceLock import SetRessourceLock
+from commands.SetNeedNode import SetNeedNode
 
-from Constants import PHASES
+from Constants import PHASES, PermissionLevel
 import psutil
 
 # Housekeeping for login information
@@ -99,18 +112,17 @@ class BotConfig:
         self.update_ch = 0
         self.update_msg = 0
         self.use_bounties = False
-        self.servers = {}
+        self.servers: Dict[str, BotServer] = {}
 
         if main_dict is None:
             return
 
         for key in main_dict:
-            self.__dict__[key] = main_dict[key]
-
-        sub_dict = {}
-        for key in self.servers:
-            sub_dict[key] = BotServer(self.servers[key])
-        self.servers = sub_dict
+            if key == "servers":
+                for server_key in main_dict[key]:
+                    self.servers[server_key] = BotServer(main_dict[key][server_key])
+            else:
+                self.__dict__[key] = main_dict[key]
 
     def getDict(self):
         node_dict = { }
@@ -204,6 +216,7 @@ class SpriteBot:
 
         # register commands
         self.commands = [
+            # everyone
             QueryRessourceStatus(self, "portrait", False),
             QueryRessourceStatus(self, "portrait", True),
             QueryRessourceStatus(self, "sprite", False),
@@ -218,7 +231,33 @@ class SpriteBot:
             QueryRessourceCredit(self, "sprite", True),
             DeleteRessourceCredit(self, "portrait"),
             DeleteRessourceCredit(self, "sprite"),
-            GetProfile(self)
+            GetProfile(self),
+            SetProfile(self, False),
+
+            # staff
+            AddNode(self),
+            AddGender(self),
+            DeleteNode(self),
+            ClearCache(self),
+            SetProfile(self, True),
+            RenameNode(self),
+            ReplaceRessource(self, "portrait"),
+            ReplaceRessource(self, "sprite"),
+            MoveNode(self),
+            MoveRessource(self, "portrait"),
+            MoveRessource(self, "sprite"),
+            SetRessourceCredit(self, "portrait"),
+            SetRessourceCredit(self, "sprite"),
+            AddRessourceCredit(self, "portrait"),
+            AddRessourceCredit(self, "sprite"),
+            SetNeedNode(self, True),
+            SetNeedNode(self, False),
+
+            # admin
+            SetRessourceLock(self, "portrait", True),
+            SetRessourceLock(self, "portrait", False),
+            SetRessourceLock(self, "sprite", True),
+            SetRessourceLock(self, "sprite", False),
         ]
 
         self.writeLog("Startup Memory: {0}".format(psutil.Process().memory_info().rss))
@@ -226,7 +265,7 @@ class SpriteBot:
 
     def generateCreditCompilation(self):
 
-        credit_dict = {}
+        credit_dict: Dict[str, TrackerUtils.CreditCompileEntry] = {}
         over_dict = TrackerUtils.initSubNode("", True)
         over_dict.subgroups = self.tracker
         TrackerUtils.updateCompilationStats(self.names, over_dict, os.path.join(self.config.path, "sprite"), "sprite", [], credit_dict)
@@ -411,16 +450,16 @@ class SpriteBot:
             self.getBountiesFromDict(asset_type, tracker_dict.subgroups[sub_dict], entries, indices + [sub_dict])
 
 
-    async def isAuthorized(self, user, guild):
-
+    async def getUserPermission(self, user, guild):
+        """Get a user permission level"""
         if user.id == self.client.user.id:
-            return False
+            return PermissionLevel.EVERYONE
         if user.id == self.config.root:
-            return True
+            return PermissionLevel.ADMIN
         guild_id_str = str(guild.id)
 
         if self.config.servers[guild_id_str].approval == 0:
-            return False
+            return PermissionLevel.EVERYONE
 
         approve_role = guild.get_role(self.config.servers[guild_id_str].approval)
 
@@ -430,10 +469,10 @@ class SpriteBot:
             user_member = None
 
         if user_member is None:
-            return False
+            return PermissionLevel.EVERYONE
         if approve_role in user_member.roles:
-            return True
-        return False
+            return PermissionLevel.STAFF
+        return PermissionLevel.EVERYONE
 
     async def generateLink(self, file_data, filename):
         # file_data is a file-like object to post with
@@ -659,7 +698,7 @@ class SpriteBot:
                 reduced_img = SpriteUtils.simple_quant_portraits(overcolor_img, overpalette)
 
             reduced_file = io.BytesIO()
-            reduced_img.save(reduced_file, format='PNG')
+            reduced_img.save(reduced_file, format='PNG') # type: ignore
             reduced_file.seek(0)
             send_files.append(discord.File(reduced_file, return_name.replace('.png', '_reduced.png')))
             add_msg += "\nReduced Color Preview included."
@@ -1030,7 +1069,7 @@ class SpriteBot:
                         return
 
                     # post it as a staged submission
-                    return_name = "{0}-{1}{2}".format(asset_type + "_recolor", "-".join(shiny_idx), ".png")
+                    return_name = "{0}-{1}{2}".format(asset_type + "_recolor", "-".join(shiny_idx), ".png") # type: ignore
                     auto_recolor_file = io.BytesIO()
                     auto_recolor_img.save(auto_recolor_file, format='PNG')
                     auto_recolor_file.seek(0)
@@ -1176,14 +1215,14 @@ class SpriteBot:
                     if deleting and user_author_id == orig_author:
                         approve.append(user.id)
                         consent = True
-                    elif await self.isAuthorized(user, msg.guild):
+                    elif (await self.getUserPermission(user, msg.guild)).canPerformAction(PermissionLevel.STAFF):
                         approve.append(user.id)
                     elif user.id != self.client.user.id:
                         remove_users.append((cks, user))
 
             if ws:
                 async for user in ws.users():
-                    if await self.isAuthorized(user, msg.guild):
+                    if (await self.getUserPermission(user, msg.guild)).canPerformAction(PermissionLevel.STAFF):
                         warn = True
                     else:
                         remove_users.append((ws, user))
@@ -1191,7 +1230,7 @@ class SpriteBot:
             if xs:
                 async for user in xs.users():
                     user_author_id = "<@!{0}>".format(user.id)
-                    if await self.isAuthorized(user, msg.guild) or user.id == orig_sender_id:
+                    if (await self.getUserPermission(user, msg.guild)).canPerformAction(PermissionLevel.STAFF) or user.id == orig_sender_id:
                         decline.append(user.id)
                     elif deleting and user_author_id == orig_author:
                         decline.append(user.id)
@@ -1546,235 +1585,7 @@ class SpriteBot:
         elif asset_type == "portrait":
             chosen_img_to = SpriteUtils.getLinkImg(chosen_img_to_link)
             SpriteUtils.verifyPortraitLock(chosen_node_from, chosen_path_from, chosen_img_to, False)
-
-    async def moveSlotRecursive(self, msg, name_args):
-        try:
-            delim_idx = name_args.index("->")
-        except:
-            await msg.channel.send(msg.author.mention + " Command needs to separate the source and destination with `->`.")
-            return
-
-        name_args_from = name_args[:delim_idx]
-        name_args_to = name_args[delim_idx+1:]
-
-        name_seq_from = [TrackerUtils.sanitizeName(i) for i in name_args_from]
-        full_idx_from = TrackerUtils.findFullTrackerIdx(self.tracker, name_seq_from, 0)
-        if full_idx_from is None:
-            await msg.channel.send(msg.author.mention + " No such Pokemon specified as source.")
-            return
-        if len(full_idx_from) > 2:
-            await msg.channel.send(msg.author.mention + " Can move only species or form. Source specified more than that.")
-            return
-
-        name_seq_to = [TrackerUtils.sanitizeName(i) for i in name_args_to]
-        full_idx_to = TrackerUtils.findFullTrackerIdx(self.tracker, name_seq_to, 0)
-        if full_idx_to is None:
-            await msg.channel.send(msg.author.mention + " No such Pokemon specified as destination.")
-            return
-        if len(full_idx_to) > 2:
-            await msg.channel.send(msg.author.mention + " Can move only species or form. Destination specified more than that.")
-            return
-
-        chosen_node_from = TrackerUtils.getNodeFromIdx(self.tracker, full_idx_from, 0)
-        chosen_node_to = TrackerUtils.getNodeFromIdx(self.tracker, full_idx_to, 0)
-
-        if chosen_node_from == chosen_node_to:
-            await msg.channel.send(msg.author.mention + " Cannot move to the same location.")
-            return
-
-        explicit_idx_from = full_idx_from.copy()
-        if len(explicit_idx_from) < 2:
-            explicit_idx_from.append("0000")
-        explicit_idx_to = full_idx_to.copy()
-        if len(explicit_idx_to) < 2:
-            explicit_idx_to.append("0000")
-
-        explicit_node_from = TrackerUtils.getNodeFromIdx(self.tracker, full_idx_from, 0)
-        explicit_node_to = TrackerUtils.getNodeFromIdx(self.tracker, full_idx_to, 0)
-
-        # check the main nodes
-        try:
-            await self.checkMoveLock(full_idx_from, chosen_node_from, full_idx_to, chosen_node_to, "sprite")
-            await self.checkMoveLock(full_idx_from, chosen_node_from, full_idx_to, chosen_node_to, "portrait")
-        except SpriteUtils.SpriteVerifyError as e:
-            await msg.channel.send(msg.author.mention + " Cannot move the locked Pokemon specified as source:\n{0}".format(e.message))
-            return
-
-        try:
-            await self.checkMoveLock(full_idx_to, chosen_node_to, full_idx_from, chosen_node_from, "sprite")
-            await self.checkMoveLock(full_idx_to, chosen_node_to, full_idx_from, chosen_node_from, "portrait")
-        except SpriteUtils.SpriteVerifyError as e:
-            await msg.channel.send(msg.author.mention + " Cannot move the locked Pokemon specified as destination:\n{0}".format(e.message))
-            return
-
-        # check the subnodes
-        for sub_idx in explicit_node_from.subgroups:
-            sub_node = explicit_node_from.subgroups[sub_idx]
-            if TrackerUtils.hasLock(sub_node, "sprite", True) or TrackerUtils.hasLock(sub_node, "portrait", True):
-                await msg.channel.send(msg.author.mention + " Cannot move the locked subgroup specified as source.")
-                return
-        for sub_idx in explicit_node_to.subgroups:
-            sub_node = explicit_node_to.subgroups[sub_idx]
-            if TrackerUtils.hasLock(sub_node, "sprite", True) or TrackerUtils.hasLock(sub_node, "portrait", True):
-                await msg.channel.send(msg.author.mention + " Cannot move the locked subgroup specified as destination.")
-                return
-
-        # clear caches
-        TrackerUtils.clearCache(chosen_node_from, True)
-        TrackerUtils.clearCache(chosen_node_to, True)
-
-        # perform the swap
-        TrackerUtils.swapFolderPaths(self.config.path, self.tracker, "sprite", full_idx_from, full_idx_to)
-        TrackerUtils.swapFolderPaths(self.config.path, self.tracker, "portrait", full_idx_from, full_idx_to)
-        TrackerUtils.swapNodeMiscFeatures(chosen_node_from, chosen_node_to)
-
-        # then, swap the subnodes
-        TrackerUtils.swapAllSubNodes(self.config.path, self.tracker, explicit_idx_from, explicit_idx_to)
-
-        await msg.channel.send(msg.author.mention + " Swapped {0} with {1}.".format(" ".join(name_seq_from), " ".join(name_seq_to)))
-        # if the source is empty in sprite and portrait, and its subunits are empty in sprite and portrait
-        # remind to delete
-        if not TrackerUtils.isDataPopulated(chosen_node_from):
-            await msg.channel.send(msg.author.mention + " {0} is now empty. Use `!delete` if it is no longer needed.".format(" ".join(name_seq_to)))
-        if not TrackerUtils.isDataPopulated(chosen_node_to):
-            await msg.channel.send(msg.author.mention + " {0} is now empty. Use `!delete` if it is no longer needed.".format(" ".join(name_seq_from)))
-
-        self.saveTracker()
-        self.changed = True
-
-        await self.gitCommit("Swapped {0} with {1} recursively".format(" ".join(name_seq_from), " ".join(name_seq_to)))
-
-
-    async def replaceSlot(self, msg, name_args, asset_type):
-        try:
-            delim_idx = name_args.index("->")
-        except:
-            await msg.channel.send(msg.author.mention + " Command needs to separate the source and destination with `->`.")
-            return
-
-        name_args_from = name_args[:delim_idx]
-        name_args_to = name_args[delim_idx+1:]
-
-        name_seq_from = [TrackerUtils.sanitizeName(i) for i in name_args_from]
-        full_idx_from = TrackerUtils.findFullTrackerIdx(self.tracker, name_seq_from, 0)
-        if full_idx_from is None:
-            await msg.channel.send(msg.author.mention + " No such Pokemon specified as source.")
-            return
-
-        name_seq_to = [TrackerUtils.sanitizeName(i) for i in name_args_to]
-        full_idx_to = TrackerUtils.findFullTrackerIdx(self.tracker, name_seq_to, 0)
-        if full_idx_to is None:
-            await msg.channel.send(msg.author.mention + " No such Pokemon specified as destination.")
-            return
-
-        chosen_node_from = TrackerUtils.getNodeFromIdx(self.tracker, full_idx_from, 0)
-        chosen_node_to = TrackerUtils.getNodeFromIdx(self.tracker, full_idx_to, 0)
-
-        if chosen_node_from == chosen_node_to:
-            await msg.channel.send(msg.author.mention + " Cannot move to the same location.")
-            return
-
-        if not chosen_node_from.__dict__[asset_type + "_required"]:
-            await msg.channel.send(msg.author.mention + " Cannot move when source {0} is unneeded.".format(asset_type))
-            return
-        if not chosen_node_to.__dict__[asset_type + "_required"]:
-            await msg.channel.send(msg.author.mention + " Cannot move when destination {0} is unneeded.".format(asset_type))
-            return
-
-        try:
-            await self.checkMoveLock(full_idx_from, chosen_node_from, full_idx_to, chosen_node_to, asset_type)
-        except SpriteUtils.SpriteVerifyError as e:
-            await msg.channel.send(msg.author.mention + " Cannot move out the locked Pokemon specified as source:\n{0}".format(e.message))
-            return
-
-        try:
-            await self.checkMoveLock(full_idx_to, chosen_node_to, full_idx_from, chosen_node_from, asset_type)
-        except SpriteUtils.SpriteVerifyError as e:
-            await msg.channel.send(msg.author.mention + " Cannot replace the locked Pokemon specified as destination:\n{0}".format(e.message))
-            return
-
-        # clear caches
-        TrackerUtils.clearCache(chosen_node_from, True)
-        TrackerUtils.clearCache(chosen_node_to, True)
-
-        TrackerUtils.replaceFolderPaths(self.config.path, self.tracker, asset_type, full_idx_from, full_idx_to)
-
-        await msg.channel.send(msg.author.mention + " Replaced {0} with {1}.".format(" ".join(name_seq_to), " ".join(name_seq_from)))
-        # if the source is empty in sprite and portrait, and its subunits are empty in sprite and portrait
-        # remind to delete
-        await msg.channel.send(msg.author.mention + " {0} is now empty. Use `!delete` if it is no longer needed.".format(" ".join(name_seq_from)))
-
-        self.saveTracker()
-        self.changed = True
-
-        await self.gitCommit("Replaced {0} with {1}".format(" ".join(name_seq_to), " ".join(name_seq_from)))
-
-    async def moveSlot(self, msg, name_args, asset_type):
-        try:
-            delim_idx = name_args.index("->")
-        except:
-            await msg.channel.send(msg.author.mention + " Command needs to separate the source and destination with `->`.")
-            return
-
-        name_args_from = name_args[:delim_idx]
-        name_args_to = name_args[delim_idx+1:]
-
-        name_seq_from = [TrackerUtils.sanitizeName(i) for i in name_args_from]
-        full_idx_from = TrackerUtils.findFullTrackerIdx(self.tracker, name_seq_from, 0)
-        if full_idx_from is None:
-            await msg.channel.send(msg.author.mention + " No such Pokemon specified as source.")
-            return
-
-        name_seq_to = [TrackerUtils.sanitizeName(i) for i in name_args_to]
-        full_idx_to = TrackerUtils.findFullTrackerIdx(self.tracker, name_seq_to, 0)
-        if full_idx_to is None:
-            await msg.channel.send(msg.author.mention + " No such Pokemon specified as destination.")
-            return
-
-        chosen_node_from = TrackerUtils.getNodeFromIdx(self.tracker, full_idx_from, 0)
-        chosen_node_to = TrackerUtils.getNodeFromIdx(self.tracker, full_idx_to, 0)
-
-        if chosen_node_from == chosen_node_to:
-            await msg.channel.send(msg.author.mention + " Cannot move to the same location.")
-            return
-
-        if not chosen_node_from.__dict__[asset_type + "_required"]:
-            await msg.channel.send(msg.author.mention + " Cannot move when source {0} is unneeded.".format(asset_type))
-            return
-        if not chosen_node_to.__dict__[asset_type + "_required"]:
-            await msg.channel.send(msg.author.mention + " Cannot move when destination {0} is unneeded.".format(asset_type))
-            return
-
-        try:
-            await self.checkMoveLock(full_idx_from, chosen_node_from, full_idx_to, chosen_node_to, asset_type)
-        except SpriteUtils.SpriteVerifyError as e:
-            await msg.channel.send(msg.author.mention + " Cannot move the locked Pokemon specified as source:\n{0}".format(e.message))
-            return
-
-        try:
-            await self.checkMoveLock(full_idx_to, chosen_node_to, full_idx_from, chosen_node_from, asset_type)
-        except SpriteUtils.SpriteVerifyError as e:
-            await msg.channel.send(msg.author.mention + " Cannot move the locked Pokemon specified as destination:\n{0}".format(e.message))
-            return
-
-        # clear caches
-        TrackerUtils.clearCache(chosen_node_from, True)
-        TrackerUtils.clearCache(chosen_node_to, True)
-
-        TrackerUtils.swapFolderPaths(self.config.path, self.tracker, asset_type, full_idx_from, full_idx_to)
-
-        await msg.channel.send(msg.author.mention + " Swapped {0} with {1}.".format(" ".join(name_seq_from), " ".join(name_seq_to)))
-        # if the source is empty in sprite and portrait, and its subunits are empty in sprite and portrait
-        # remind to delete
-        if not TrackerUtils.isDataPopulated(chosen_node_from):
-            await msg.channel.send(msg.author.mention + " {0} is now empty. Use `!delete` if it is no longer needed.".format(" ".join(name_seq_from)))
-        if not TrackerUtils.isDataPopulated(chosen_node_to):
-            await msg.channel.send(msg.author.mention + " {0} is now empty. Use `!delete` if it is no longer needed.".format(" ".join(name_seq_to)))
-
-        self.saveTracker()
-        self.changed = True
-
-        await self.gitCommit("Swapped {0} with {1}".format(" ".join(name_seq_from), " ".join(name_seq_to)))
+        
 
     async def placeBounty(self, msg, name_args, asset_type):
         if not self.config.use_bounties:
@@ -1804,7 +1615,7 @@ class SpriteBot:
             return
 
         if self.config.points == 0:
-            if not await self.isAuthorized(msg.author, msg.guild):
+            if not (await self.getUserPermission(msg.author, msg.guild)).canPerformAction(PermissionLevel.STAFF):
                 await msg.channel.send(msg.author.mention + " Not authorized.")
                 return
         else:
@@ -1937,38 +1748,6 @@ class SpriteBot:
 
         await msg.channel.send(msg.author.mention + " {0}".format("\n".join(urls)))
 
-
-    async def setLock(self, msg, name_args, asset_type, lock_state):
-
-        name_seq = [TrackerUtils.sanitizeName(i) for i in name_args[:-1]]
-        full_idx = TrackerUtils.findFullTrackerIdx(self.tracker, name_seq, 0)
-        if full_idx is None:
-            await msg.channel.send(msg.author.mention + " No such Pokemon.")
-            return
-        chosen_node = TrackerUtils.getNodeFromIdx(self.tracker, full_idx, 0)
-
-        file_name = name_args[-1]
-        for k in chosen_node.__dict__[asset_type + "_files"]:
-            if file_name.lower() == k.lower():
-                file_name = k
-                break
-
-        if file_name not in chosen_node.__dict__[asset_type + "_files"]:
-            await msg.channel.send(msg.author.mention + " Specify a Pokemon and an existing emotion/animation.")
-            return
-        chosen_node.__dict__[asset_type + "_files"][file_name] = lock_state
-
-        status = TrackerUtils.getStatusEmoji(chosen_node, asset_type)
-
-        lock_str = "unlocked"
-        if lock_state:
-            lock_str = "locked"
-        # set to complete
-        await msg.channel.send(msg.author.mention + " {0} #{1:03d}: {2} {3} is now {4}.".format(status, int(full_idx[0]), " ".join(name_seq), file_name, lock_str))
-
-        self.saveTracker()
-        self.changed = True
-
     async def listBounties(self, msg, name_args):
         if not self.config.use_bounties:
             await msg.channel.send(msg.author.mention + " " + MESSAGE_BOUNTIES_DISABLED)
@@ -1986,7 +1765,7 @@ class SpriteBot:
                 await msg.channel.send(msg.author.mention + " Use 'sprite' or 'portrait' as argument.")
                 return
 
-        entries = []
+        entries = [] # type: ignore
         over_dict = TrackerUtils.initSubNode("", True)
         over_dict.subgroups = self.tracker
 
@@ -2012,20 +1791,6 @@ class SpriteBot:
             posts.append("[None]")
 
         msgs_used, changed = await self.sendInfoPosts(msg.channel, posts, [], 0)
-
-    async def clearCache(self, msg, name_args):
-        name_seq = [TrackerUtils.sanitizeName(i) for i in name_args]
-        full_idx = TrackerUtils.findFullTrackerIdx(self.tracker, name_seq, 0)
-        if full_idx is None:
-            await msg.channel.send(msg.author.mention + " No such Pokemon.")
-            return
-        chosen_node = TrackerUtils.getNodeFromIdx(self.tracker, full_idx, 0)
-
-        TrackerUtils.clearCache(chosen_node, True)
-
-        self.saveTracker()
-
-        await msg.channel.send(msg.author.mention + " Cleared links for #{0:03d}: {1}.".format(int(full_idx[0]), " ".join(name_seq)))
 
     def createCreditAttribution(self, mention, plainName=False):
         if plainName:
@@ -2071,118 +1836,13 @@ class SpriteBot:
             block += " +{0} more".format(credit_diff)
         return block
 
-    async def resetCredit(self, msg, name_args, asset_type):
-        # compute answer from current status
-        if len(name_args) < 2:
-            await msg.channel.send(msg.author.mention + " Specify a user ID and Pokemon.")
-            return
-
-        wanted_author = self.getFormattedCredit(name_args[0])
-        name_seq = [TrackerUtils.sanitizeName(i) for i in name_args[1:]]
-        full_idx = TrackerUtils.findFullTrackerIdx(self.tracker, name_seq, 0)
-        if full_idx is None:
-            await msg.channel.send(msg.author.mention + " No such Pokemon.")
-            return
-
-        chosen_node = TrackerUtils.getNodeFromIdx(self.tracker, full_idx, 0)
-
-        if chosen_node.__dict__[asset_type + "_credit"].primary == "":
-            await msg.channel.send(msg.author.mention + " No credit found.")
-            return
-        gen_path = TrackerUtils.getDirFromIdx(self.config.path, asset_type, full_idx)
-
-        credit_entries = TrackerUtils.getCreditEntries(gen_path)
-
-        if wanted_author not in credit_entries:
-            await msg.channel.send(msg.author.mention + " Could not find ID `{0}` in credits for {1}.".format(wanted_author, asset_type))
-            return
-
-        # make the credit array into the most current author by itself
-        credit_data = chosen_node.__dict__[asset_type + "_credit"]
-        if credit_data.primary == "CHUNSOFT":
-            await msg.channel.send(msg.author.mention + " Cannot reset credit for a CHUNSOFT {0}.".format(asset_type))
-            return
-
-        credit_data.primary = wanted_author
-        TrackerUtils.updateCreditFromEntries(credit_data, credit_entries)
-
-        await msg.channel.send(msg.author.mention + " Credit display has been reset for {0} {1}:\n{2}".format(asset_type, " ".join(name_seq), self.createCreditBlock(credit_data, None)))
-
-        self.saveTracker()
-        self.changed = True
-
-    async def addCredit(self, msg, name_args, asset_type):
-        # compute answer from current status
-        if len(name_args) < 2:
-            await msg.channel.send(msg.author.mention + " Specify a user ID and Pokemon.")
-            return
-
-        wanted_author = self.getFormattedCredit(name_args[0])
-        name_seq = [TrackerUtils.sanitizeName(i) for i in name_args[1:]]
-        full_idx = TrackerUtils.findFullTrackerIdx(self.tracker, name_seq, 0)
-        if full_idx is None:
-            await msg.channel.send(msg.author.mention + " No such Pokemon.")
-            return
-
-        chosen_node = TrackerUtils.getNodeFromIdx(self.tracker, full_idx, 0)
-
-        if chosen_node.__dict__[asset_type + "_credit"].primary == "":
-            await msg.channel.send(msg.author.mention + " This command only works on filled {0}.".format(asset_type))
-            return
-
-        if wanted_author not in self.names:
-            await msg.channel.send(msg.author.mention + " No such profile ID.")
-            return
-
-        chat_id = self.config.servers[str(msg.guild.id)].submit
-        if chat_id == 0:
-            await msg.channel.send(msg.author.mention + " This server does not support submissions.")
-            return
-
-        submit_channel = self.client.get_channel(chat_id)
-        author = "<@!{0}>".format(msg.author.id)
-
-        base_link = await self.retrieveLinkMsg(full_idx, chosen_node, asset_type, False)
-        base_file, base_name = SpriteUtils.getLinkData(base_link)
-
-        # stage a post in submissions
-        await self.postStagedSubmission(submit_channel, "--addauthor", "", full_idx, chosen_node, asset_type, author + "/" + wanted_author,
-                                                False, None, base_file, base_name, None)
-
     async def getAbsentProfiles(self, msg):
         total_names = ["Absentee profiles:"]
-        msg_ids = []
+        msg_ids = [] # type: ignore
         for name in self.names:
             if not name.startswith("<@!"):
                 total_names.append(name + "\nName: \"{0}\"    Contact: \"{1}\"".format(self.names[name].name, self.names[name].contact))
         await self.sendInfoPosts(msg.channel, total_names, msg_ids, 0)
-
-    async def setProfile(self, msg, args):
-        msg_mention = "<@!{0}>".format(msg.author.id)
-
-        if len(args) == 0:
-            new_credit = TrackerUtils.CreditEntry("", "")
-        elif len(args) == 1:
-            new_credit = TrackerUtils.CreditEntry(args[0], "")
-        elif len(args) == 2:
-            new_credit = TrackerUtils.CreditEntry(args[0], args[1])
-        elif len(args) == 3:
-            if not await self.isAuthorized(msg.author, msg.guild):
-                await msg.channel.send(msg.author.mention + " Not authorized to create absent registration.")
-                return
-            msg_mention = self.getFormattedCredit(args[0])
-            new_credit = TrackerUtils.CreditEntry(args[1], args[2])
-        else:
-            await msg.channel.send(msg.author.mention + " Invalid args")
-            return
-
-        if msg_mention in self.names:
-            new_credit.sprites = self.names[msg_mention].sprites
-            new_credit.portraits = self.names[msg_mention].portraits
-        self.names[msg_mention] = new_credit
-        self.saveNames()
-
-        await msg.channel.send(msg_mention + " registered profile:\nName: \"{0}\"    Contact: \"{1}\"".format(self.names[msg_mention].name, self.names[msg_mention].contact))
 
     async def transferProfile(self, msg, args):
         if len(args) != 2:
@@ -2231,7 +1891,7 @@ class SpriteBot:
                                                         "If you wish to proceed, rerun the command with your discord ID and username (with discriminator) as arguments.")
             return
         elif len(args) == 1:
-            if not await self.isAuthorized(msg.author, msg.guild):
+            if not (await self.getUserPermission(msg.author, msg.guild)).canPerformAction(PermissionLevel.STAFF):
                 await msg.channel.send(msg.author.mention + " Not authorized to delete registration.")
                 return
             msg_mention = self.getFormattedCredit(args[0])
@@ -2372,8 +2032,8 @@ class SpriteBot:
         new_server.chat = bot_ch.id
         if submit_ch is not None:
             new_server.submit = submit_ch.id
-            new_server.approval_chat = reviewer_ch.id
-            new_server.approval = reviewer_role.id
+            new_server.approval_chat = reviewer_ch.id # type: ignore
+            new_server.approval = reviewer_role.id # type: ignore
         else:
             new_server.submit = 0
             new_server.approval_chat = 0
@@ -2388,106 +2048,6 @@ class SpriteBot:
         #self.changed = True
         #self.saveTracker()
         await msg.channel.send(msg.author.mention + " Rescan complete.")
-
-    async def addSpeciesForm(self, msg, args):
-        if len(args) < 1 or len(args) > 2:
-            await msg.channel.send(msg.author.mention + " Invalid number of args!")
-            return
-
-        species_name = TrackerUtils.sanitizeName(args[0])
-        species_idx = TrackerUtils.findSlotIdx(self.tracker, species_name)
-        if len(args) == 1:
-            if species_idx is not None:
-                await msg.channel.send(msg.author.mention + " {0} already exists!".format(species_name))
-                return
-
-            count = len(self.tracker)
-            new_idx = "{:04d}".format(count)
-            self.tracker[new_idx] = TrackerUtils.createSpeciesNode(species_name)
-
-            await msg.channel.send(msg.author.mention + " Added #{0:03d}: {1}!".format(count, species_name))
-        else:
-            if species_idx is None:
-                await msg.channel.send(msg.author.mention + " {0} doesn't exist! Create it first!".format(species_name))
-                return
-
-            form_name = TrackerUtils.sanitizeName(args[1])
-            species_dict = self.tracker[species_idx]
-            form_idx = TrackerUtils.findSlotIdx(species_dict.subgroups, form_name)
-            if form_idx is not None:
-                await msg.channel.send(msg.author.mention +
-                                       " {2} already exists within #{0:03d}: {1}!".format(int(species_idx), species_name, form_name))
-                return
-
-            if form_name == "Shiny" or form_name == "Male" or form_name == "Female":
-                await msg.channel.send(msg.author.mention + " Invalid form name!")
-                return
-
-            canon = True
-            if re.search(r"_?Alternate\d*$", form_name):
-                canon = False
-            if re.search(r"_?Starter\d*$", form_name):
-                canon = False
-            if re.search(r"_?Altcolor\d*$", form_name):
-                canon = False
-            if re.search(r"_?Beta\d*$", form_name):
-                canon = False
-            if species_name == "Missingno_":
-                canon = False
-
-            count = len(species_dict.subgroups)
-            new_count = "{:04d}".format(count)
-            species_dict.subgroups[new_count] = TrackerUtils.createFormNode(form_name, canon)
-
-            await msg.channel.send(msg.author.mention +
-                                   " Added #{0:03d}: {1} {2}!".format(int(species_idx), species_name, form_name))
-
-        self.saveTracker()
-        self.changed = True
-
-    async def renameSpeciesForm(self, msg, args):
-        if len(args) < 2 or len(args) > 3:
-            await msg.channel.send(msg.author.mention + " Invalid number of args!")
-            return
-
-        species_name = TrackerUtils.sanitizeName(args[0])
-        new_name = TrackerUtils.sanitizeName(args[-1])
-        species_idx = TrackerUtils.findSlotIdx(self.tracker, species_name)
-        if species_idx is None:
-            await msg.channel.send(msg.author.mention + " {0} does not exist!".format(species_name))
-            return
-
-        species_dict = self.tracker[species_idx]
-
-        if len(args) == 2:
-            new_species_idx = TrackerUtils.findSlotIdx(self.tracker, new_name)
-            if new_species_idx is not None:
-                await msg.channel.send(msg.author.mention + " #{0:03d}: {1} already exists!".format(int(new_species_idx), new_name))
-                return
-
-            species_dict.name = new_name
-            await msg.channel.send(msg.author.mention + " Changed #{0:03d}: {1} to {2}!".format(int(species_idx), species_name, new_name))
-        else:
-
-            form_name = TrackerUtils.sanitizeName(args[1])
-            form_idx = TrackerUtils.findSlotIdx(species_dict.subgroups, form_name)
-            if form_idx is None:
-                await msg.channel.send(msg.author.mention + " {2} doesn't exist within #{0:03d}: {1}!".format(int(species_idx), species_name, form_name))
-                return
-
-            new_form_idx = TrackerUtils.findSlotIdx(species_dict.subgroups, new_name)
-            if new_form_idx is not None:
-                await msg.channel.send(msg.author.mention + " {2} already exists within #{0:03d}: {1}!".format(int(species_idx), species_name, new_name))
-                return
-
-            form_dict = species_dict.subgroups[form_idx]
-            form_dict.name = new_name
-
-            await msg.channel.send(msg.author.mention + " Changed {2} to {3} in #{0:03d}: {1}!".format(int(species_idx), species_name, form_name, new_name))
-
-        self.saveTracker()
-        self.changed = True
-
 
     async def modSpeciesForm(self, msg, args):
         if len(args) < 1 or len(args) > 2:
@@ -2527,136 +2087,6 @@ class SpriteBot:
 
         self.saveTracker()
         self.changed = True
-
-
-    async def removeSpeciesForm(self, msg, args):
-        if len(args) < 1 or len(args) > 2:
-            await msg.channel.send(msg.author.mention + " Invalid number of args!")
-            return
-
-        species_name = TrackerUtils.sanitizeName(args[0])
-        species_idx = TrackerUtils.findSlotIdx(self.tracker, species_name)
-        if species_idx is None:
-            await msg.channel.send(msg.author.mention + " {0} does not exist!".format(species_name))
-            return
-
-        species_dict = self.tracker[species_idx]
-        if len(args) == 1:
-
-            # check against data population
-            if TrackerUtils.isDataPopulated(species_dict) and msg.author.id != self.config.root:
-                await msg.channel.send(msg.author.mention + " Can only delete empty slots!")
-                return
-
-            TrackerUtils.deleteData(self.tracker, os.path.join(self.config.path, 'sprite'),
-                                       os.path.join(self.config.path, 'portrait'), species_idx)
-
-            await msg.channel.send(msg.author.mention + " Deleted #{0:03d}: {1}!".format(int(species_idx), species_name))
-        else:
-
-            form_name = TrackerUtils.sanitizeName(args[1])
-            form_idx = TrackerUtils.findSlotIdx(species_dict.subgroups, form_name)
-            if form_idx is None:
-                await msg.channel.send(msg.author.mention + " {2} doesn't exist within #{0:03d}: {1}!".format(int(species_idx), species_name, form_name))
-                return
-
-            # check against data population
-            form_dict = species_dict.subgroups[form_idx]
-            if TrackerUtils.isDataPopulated(form_dict) and msg.author.id != self.config.root:
-                await msg.channel.send(msg.author.mention + " Can only delete empty slots!")
-                return
-
-            TrackerUtils.deleteData(species_dict.subgroups, os.path.join(self.config.path, 'sprite', species_idx),
-                                       os.path.join(self.config.path, 'portrait', species_idx), form_idx)
-
-            await msg.channel.send(msg.author.mention + " Deleted #{0:03d}: {1} {2}!".format(int(species_idx), species_name, form_name))
-
-        self.saveTracker()
-        self.changed = True
-
-        await self.gitCommit("Removed {0}".format(" ".join(args)))
-
-    async def setNeed(self, msg, args, needed):
-        if len(args) < 2 or len(args) > 5:
-            await msg.channel.send(msg.author.mention + " Invalid number of args!")
-            return
-
-        asset_type = args[0].lower()
-        if asset_type != "sprite" and asset_type != "portrait":
-            await msg.channel.send(msg.author.mention + " Must specify sprite or portrait!")
-            return
-
-        name_seq = [TrackerUtils.sanitizeName(i) for i in args[1:]]
-        full_idx = TrackerUtils.findFullTrackerIdx(self.tracker, name_seq, 0)
-        if full_idx is None:
-            await msg.channel.send(msg.author.mention + " No such Pokemon.")
-            return
-        chosen_node = TrackerUtils.getNodeFromIdx(self.tracker, full_idx, 0)
-        chosen_node.__dict__[asset_type + "_required"] = needed
-
-        if needed:
-            await msg.channel.send(msg.author.mention + " {0} {1} is now needed.".format(asset_type, " ".join(name_seq)))
-        else:
-            await msg.channel.send(msg.author.mention + " {0} {1} is no longer needed.".format(asset_type, " ".join(name_seq)))
-
-        self.saveTracker()
-        self.changed = True
-
-    async def addGender(self, msg, args):
-        if len(args) < 3 or len(args) > 4:
-            await msg.channel.send(msg.author.mention + " Invalid number of args!")
-            return
-
-        asset_type = args[0].lower()
-        if asset_type != "sprite" and asset_type != "portrait":
-            await msg.channel.send(msg.author.mention + " Must specify sprite or portrait!")
-            return
-
-        gender_name = args[-1].title()
-        if gender_name != "Male" and gender_name != "Female":
-            await msg.channel.send(msg.author.mention + " Must specify male or female!")
-            return
-        other_gender = "Male"
-        if gender_name == "Male":
-            other_gender = "Female"
-
-        species_name = TrackerUtils.sanitizeName(args[1])
-        species_idx = TrackerUtils.findSlotIdx(self.tracker, species_name)
-        if species_idx is None:
-            await msg.channel.send(msg.author.mention + " {0} does not exist!".format(species_name))
-            return
-
-        species_dict = self.tracker[species_idx]
-        if len(args) == 3:
-            # check against already existing
-            if TrackerUtils.genderDiffExists(species_dict.subgroups["0000"], asset_type, gender_name):
-                await msg.channel.send(msg.author.mention + " Gender difference already exists for #{0:03d}: {1}!".format(int(species_idx), species_name))
-                return
-
-            TrackerUtils.createGenderDiff(species_dict.subgroups["0000"], asset_type, gender_name)
-            await msg.channel.send(msg.author.mention + " Added gender difference to #{0:03d}: {1}! ({2})".format(int(species_idx), species_name, asset_type))
-        else:
-
-            form_name = TrackerUtils.sanitizeName(args[2])
-            form_idx = TrackerUtils.findSlotIdx(species_dict.subgroups, form_name)
-            if form_idx is None:
-                await msg.channel.send(msg.author.mention + " {2} doesn't exist within #{0:03d}: {1}!".format(int(species_idx), species_name, form_name))
-                return
-
-            # check against data population
-            form_dict = species_dict.subgroups[form_idx]
-            if TrackerUtils.genderDiffExists(form_dict, asset_type, gender_name):
-                await msg.channel.send(msg.author.mention +
-                    " Gender difference already exists for #{0:03d}: {1} {2}!".format(int(species_idx), species_name, form_name))
-                return
-
-            TrackerUtils.createGenderDiff(form_dict, asset_type, gender_name)
-            await msg.channel.send(msg.author.mention +
-                " Added gender difference to #{0:03d}: {1} {2}! ({3})".format(int(species_idx), species_name, form_name, asset_type))
-
-        self.saveTracker()
-        self.changed = True
-
 
     async def removeGender(self, msg, args):
         if len(args) < 2 or len(args) > 3:
@@ -2717,21 +2147,54 @@ class SpriteBot:
         self.saveTracker()
         self.changed = True
 
-    async def help(self, msg, args):
+    async def help(self, msg, args, permission_level: Optional[PermissionLevel]):
+        list_commands = len(args) == 0
+        if permission_level == None:
+            if len(args) > 0:
+                if args[0] == "staff":
+                    permission_level = PermissionLevel.STAFF
+                    list_commands = True
+                elif args[0] == "admin":
+                    permission_level = PermissionLevel.ADMIN
+                    list_commands = True
+                else:
+                    permission_level = PermissionLevel.EVERYONE
+            else:
+                permission_level = PermissionLevel.EVERYONE
+
         server_config = self.config.servers[str(msg.guild.id)]
         prefix = server_config.prefix
         use_bounties = self.config.use_bounties
-        if len(args) == 0:
+        if list_commands:
             return_msg = "**Commands**\n"
+            
+            if permission_level == PermissionLevel.EVERYONE:
+                if use_bounties:
+                    return_msg += f"`{prefix}spritebounty` - Place a bounty on a sprite\n" \
+                      f"`{prefix}portraitbounty` - Place a bounty on a portrait\n" \
+                      f"`{prefix}bounties` - View top bounties\n"
 
+            elif permission_level == PermissionLevel.STAFF:
+                return_msg = "**Approver Commands**\n" \
+                  f"`{prefix}deletegender` - Removes the female sprite/portrait from the Pokemon\n" \
+                  f"`{prefix}spritewip` - Sets the sprite status as Incomplete\n" \
+                  f"`{prefix}portraitwip` - Sets the portrait status as Incomplete\n" \
+                  f"`{prefix}spriteexists` - Sets the sprite status as Exists\n" \
+                  f"`{prefix}portraitexists` - Sets the portrait status as Exists\n" \
+                  f"`{prefix}spritefilled` - Sets the sprite status as Fully Featured\n" \
+                  f"`{prefix}portraitfilled` - Sets the portrait status as Fully Featured\n" \
+                  f"`{prefix}modreward` - Toggles whether a sprite/portrait will have a custom reward\n" \
+                  f"`{prefix}transferprofile` - Transfers the credit from absentee profile to a real one\n"
+            
             for command in self.commands:
-                return_msg += f"`{prefix}{command.getCommand()}` - {command.getSingleLineHelp(server_config)}\n"
-            if use_bounties:
-                return_msg += f"`{prefix}spritebounty` - Place a bounty on a sprite\n" \
-                              f"`{prefix}portraitbounty` - Place a bounty on a portrait\n" \
-                              f"`{prefix}bounties` - View top bounties\n"
-            return_msg += f"`{prefix}register` - Register your profile\n" \
-                          f"Type `{prefix}help` with the name of a command to learn more about it."
+                if permission_level == command.getRequiredPermission():
+                    return_msg += f"`{prefix}{command.getCommand()}` - {command.getSingleLineHelp(server_config)}\n"
+            
+            if permission_level == PermissionLevel.EVERYONE:
+                return_msg += f"`{prefix}help staff` - List staff commands\n" \
+                              f"`{prefix}help admin` - List admin commands\n"
+            
+            return_msg +=  f"Type `{prefix}help` with the name of a command to learn more about it."
 
         else:
             base_arg = args[0]
@@ -2794,93 +2257,6 @@ class SpriteBot:
                                 f"`{prefix}bounties sprite`"
                 else:
                     return_msg = MESSAGE_BOUNTIES_DISABLED
-            elif base_arg == "register":
-                return_msg = "**Command Help**\n" \
-                             f"`{prefix}register <Name> <Contact>`\n" \
-                             "Registers your name and contact info for crediting purposes.  " \
-                             "If you do not register, credits will be given to your discord ID instead.\n" \
-                             "`Name` - Your preferred name\n" \
-                             "`Contact` - Your preferred contact info; can be email, url, etc.\n" \
-                             "**Examples**\n" \
-                             f"`{prefix}register Audino https://github.com/audinowho`"
-            else:
-                return_msg = "Unknown Command."
-        await msg.channel.send(msg.author.mention + " {0}".format(return_msg))
-
-
-    async def staffhelp(self, msg, args):
-        prefix = self.config.servers[str(msg.guild.id)].prefix
-        if len(args) == 0:
-            return_msg = "**Approver Commands**\n" \
-                  f"`{prefix}add` - Adds a Pokemon or forme to the current list\n" \
-                  f"`{prefix}delete` - Deletes an empty Pokemon or forme\n" \
-                  f"`{prefix}rename` - Renames a Pokemon or forme\n" \
-                  f"`{prefix}addgender` - Adds the female sprite/portrait to the Pokemon\n" \
-                  f"`{prefix}deletegender` - Removes the female sprite/portrait from the Pokemon\n" \
-                  f"`{prefix}need` - Marks a sprite/portrait as needed\n" \
-                  f"`{prefix}dontneed` - Marks a sprite/portrait as unneeded\n" \
-                  f"`{prefix}movesprite` - Swaps the sprites for two Pokemon/formes\n" \
-                  f"`{prefix}moveportrait` - Swaps the portraits for two Pokemon/formes\n" \
-                  f"`{prefix}move` - Swaps the sprites, portraits, and names for two Pokemon/formes\n" \
-                  f"`{prefix}spritewip` - Sets the sprite status as Incomplete\n" \
-                  f"`{prefix}portraitwip` - Sets the portrait status as Incomplete\n" \
-                  f"`{prefix}spriteexists` - Sets the sprite status as Exists\n" \
-                  f"`{prefix}portraitexists` - Sets the portrait status as Exists\n" \
-                  f"`{prefix}spritefilled` - Sets the sprite status as Fully Featured\n" \
-                  f"`{prefix}portraitfilled` - Sets the portrait status as Fully Featured\n" \
-                  f"`{prefix}setspritecredit` - Sets the primary author of the sprite\n" \
-                  f"`{prefix}setportraitcredit` - Sets the primary author of the portrait\n" \
-                  f"`{prefix}addspritecredit` - Adds a new author to the credits of the sprite\n" \
-                  f"`{prefix}addportraitcredit` - Adds a new author to the credits of the portrait\n" \
-                  f"`{prefix}modreward` - Toggles whether a sprite/portrait will have a custom reward\n" \
-                  f"`{prefix}register` - Use with arguments to make absentee profiles\n" \
-                  f"`{prefix}transferprofile` - Transfers the credit from absentee profile to a real one\n" \
-                  f"`{prefix}clearcache` - Clears the image/zip links for a Pokemon/forme/shiny/gender\n" \
-                  f"Type `{prefix}staffhelp` with the name of a command to learn more about it."
-
-        else:
-            base_arg = args[0]
-            if base_arg == "add":
-                return_msg = "**Command Help**\n" \
-                             f"`{prefix}add <Pokemon Name> [Form Name]`\n" \
-                             "Adds a Pokemon to the dex, or a form to the existing Pokemon.\n" \
-                             "`Pokemon Name` - Name of the Pokemon\n" \
-                             "`Form Name` - [Optional] Form name of the Pokemon\n" \
-                             "**Examples**\n" \
-                             f"`{prefix}add Calyrex`\n" \
-                             f"`{prefix}add Mr_Mime Galar`\n" \
-                             f"`{prefix}add Missingno_ Kotora`"
-            elif base_arg == "delete":
-                return_msg = "**Command Help**\n" \
-                             f"`{prefix}delete <Pokemon Name> [Form Name]`\n" \
-                             "Deletes a Pokemon or form of an existing Pokemon.  " \
-                             "Only works if the slot + its children are empty.\n" \
-                             "`Pokemon Name` - Name of the Pokemon\n" \
-                             "`Form Name` - [Optional] Form name of the Pokemon\n" \
-                             "**Examples**\n" \
-                             f"`{prefix}delete Pikablu`\n" \
-                             f"`{prefix}delete Arceus Mega`"
-            elif base_arg == "rename":
-                return_msg = "**Command Help**\n" \
-                             f"`{prefix}rename <Pokemon Name> [Form Name] <New Name>`\n" \
-                             "Changes the existing species or form to the new name.\n" \
-                             "`Pokemon Name` - Name of the Pokemon\n" \
-                             "`Form Name` - [Optional] Form name of the Pokemon\n" \
-                             "`New Name` - New Pokemon of Form name\n" \
-                             "**Examples**\n" \
-                             f"`{prefix}rename Calrex Calyrex`\n" \
-                             f"`{prefix}rename Vulpix Aloha Alola`"
-            elif base_arg == "addgender":
-                return_msg = "**Command Help**\n" \
-                             f"`{prefix}addgender <Asset Type> <Pokemon Name> [Pokemon Form] <Male or Female>`\n" \
-                             "Adds a slot for the male/female version of the species, or form of the species.\n" \
-                             "`Asset Type` - \"sprite\" or \"portrait\"\n" \
-                             "`Pokemon Name` - Name of the Pokemon\n" \
-                             "`Form Name` - [Optional] Form name of the Pokemon\n" \
-                             "**Examples**\n" \
-                             f"`{prefix}addgender Sprite Venusaur Female`\n" \
-                             f"`{prefix}addgender Portrait Steelix Female`\n" \
-                             f"`{prefix}addgender Sprite Raichu Alola Male`"
             elif base_arg == "deletegender":
                 return_msg = "**Command Help**\n" \
                              f"`{prefix}deletegender <Asset Type> <Pokemon Name> [Pokemon Form]`\n" \
@@ -2893,101 +2269,6 @@ class SpriteBot:
                              f"`{prefix}deletegender Sprite Venusaur`\n" \
                              f"`{prefix}deletegender Portrait Steelix`\n" \
                              f"`{prefix}deletegender Sprite Raichu Alola`"
-            elif base_arg == "need":
-                return_msg = "**Command Help**\n" \
-                             f"`{prefix}need <Asset Type> <Pokemon Name> [Pokemon Form] [Shiny]`\n" \
-                             "Marks a sprite/portrait as Needed.  This is the default for all sprites/portraits.\n" \
-                             "`Asset Type` - \"sprite\" or \"portrait\"\n" \
-                             "`Pokemon Name` - Name of the Pokemon\n" \
-                             "`Form Name` - [Optional] Form name of the Pokemon\n" \
-                             "`Shiny` - [Optional] Specifies if you want the shiny sprite or not\n" \
-                             "**Examples**\n" \
-                             f"`{prefix}need Sprite Venusaur`\n" \
-                             f"`{prefix}need Portrait Steelix`\n" \
-                             f"`{prefix}need Portrait Minior Red`\n" \
-                             f"`{prefix}need Portrait Minior Shiny`\n" \
-                             f"`{prefix}need Sprite Castform Sunny Shiny`"
-            elif base_arg == "dontneed":
-                return_msg = "**Command Help**\n" \
-                             f"`{prefix}dontneed <Asset Type> <Pokemon Name> [Pokemon Form] [Shiny]`\n" \
-                             "Marks a sprite/portrait as Unneeded.  " \
-                             "Unneeded sprites/portraits are marked with \u26AB and do not need submissions.\n" \
-                             "`Asset Type` - \"sprite\" or \"portrait\"\n" \
-                             "`Pokemon Name` - Name of the Pokemon\n" \
-                             "`Form Name` - [Optional] Form name of the Pokemon\n" \
-                             "`Shiny` - [Optional] Specifies if you want the shiny sprite or not\n" \
-                             "**Examples**\n" \
-                             f"`{prefix}dontneed Sprite Venusaur`\n" \
-                             f"`{prefix}dontneed Portrait Steelix`\n" \
-                             f"`{prefix}dontneed Portrait Minior Red`\n" \
-                             f"`{prefix}dontneed Portrait Minior Shiny`\n" \
-                             f"`{prefix}dontneed Sprite Alcremie Shiny`"
-            elif base_arg == "movesprite":
-                return_msg = "**Command Help**\n" \
-                             f"`{prefix}movesprite <Pokemon Name> [Pokemon Form] [Shiny] [Gender] -> <Pokemon Name 2> [Pokemon Form 2] [Shiny 2] [Gender 2]`\n" \
-                             "Swaps the contents of one sprite with another.  " \
-                             "Good for promoting alternates to main, temp Pokemon to newly revealed dex numbers, " \
-                             "or just fixing mistakes.\n" \
-                             "`Pokemon Name` - Name of the Pokemon\n" \
-                             "`Form Name` - [Optional] Form name of the Pokemon\n" \
-                             "`Shiny` - [Optional] Specifies if you want the shiny sprite or not\n" \
-                             "`Gender` - [Optional] Specifies the gender of the Pokemon\n" \
-                             "**Examples**\n" \
-                             f"`{prefix}movesprite Escavalier -> Accelgor`\n" \
-                             f"`{prefix}movesprite Zoroark Alternate -> Zoroark`\n" \
-                             f"`{prefix}movesprite Missingno_ Kleavor -> Kleavor`\n" \
-                             f"`{prefix}movesprite Minior Blue -> Minior Indigo`"
-            elif base_arg == "moveportrait":
-                return_msg = "**Command Help**\n" \
-                             f"`{prefix}moveportrait <Pokemon Name> [Pokemon Form] [Shiny] [Gender] -> <Pokemon Name 2> [Pokemon Form 2] [Shiny 2] [Gender 2]`\n" \
-                             "Swaps the contents of one portrait with another.  " \
-                             "Good for promoting alternates to main, temp Pokemon to newly revealed dex numbers, " \
-                             "or just fixing mistakes.\n" \
-                             "`Pokemon Name` - Name of the Pokemon\n" \
-                             "`Form Name` - [Optional] Form name of the Pokemon\n" \
-                             "`Shiny` - [Optional] Specifies if you want the shiny sprite or not\n" \
-                             "`Gender` - [Optional] Specifies the gender of the Pokemon\n" \
-                             "**Examples**\n" \
-                             f"`{prefix}moveportrait Escavalier -> Accelgor`\n" \
-                             f"`{prefix}moveportrait Zoroark Alternate -> Zoroark`\n" \
-                             f"`{prefix}moveportrait Missingno_ Kleavor -> Kleavor`\n" \
-                             f"`{prefix}moveportrait Minior Blue -> Minior Indigo`"
-            elif base_arg == "move":
-                return_msg = "**Command Help**\n" \
-                             f"`{prefix}move <Pokemon Name> [Pokemon Form] -> <Pokemon Name 2> [Pokemon Form 2]`\n" \
-                             "Swaps the name, sprites, and portraits of one slot with another.  " \
-                             "This can only be done with Pokemon or formes, and the swap is recursive to shiny/genders.  " \
-                             "Good for promoting alternate forms to base form, temp Pokemon to newly revealed dex numbers, " \
-                             "or just fixing mistakes.\n" \
-                             "`Pokemon Name` - Name of the Pokemon\n" \
-                             "`Form Name` - [Optional] Form name of the Pokemon\n" \
-                             "**Examples**\n" \
-                             f"`{prefix}move Escavalier -> Accelgor`\n" \
-                             f"`{prefix}move Zoroark Alternate -> Zoroark`\n" \
-                             f"`{prefix}move Missingno_ Kleavor -> Kleavor`\n" \
-                             f"`{prefix}move Minior Blue -> Minior Indigo`"
-            elif base_arg == "replacesprite":
-                return_msg = "**Command Help**\n" \
-                             f"`{prefix}replacesprite <Pokemon Name> [Pokemon Form] [Shiny] [Gender] -> <Pokemon Name 2> [Pokemon Form 2] [Shiny 2] [Gender 2]`\n" \
-                             "Replaces the contents of one sprite with another.  " \
-                             "Good for promoting scratch-made alternates to main.\n" \
-                             "`Pokemon Name` - Name of the Pokemon\n" \
-                             "`Form Name` - [Optional] Form name of the Pokemon\n" \
-                             "`Shiny` - [Optional] Specifies if you want the shiny sprite or not\n" \
-                             "`Gender` - [Optional] Specifies the gender of the Pokemon\n" \
-                             "**Examples**\n" \
-                             f"`{prefix}replacesprite Zoroark Alternate -> Zoroark`"
-            elif base_arg == "replaceportrait":
-                return_msg = "**Command Help**\n" \
-                             f"`{prefix}replaceportrait <Pokemon Name> [Pokemon Form] [Shiny] [Gender] -> <Pokemon Name 2> [Pokemon Form 2] [Shiny 2] [Gender 2]`\n" \
-                             "Replaces the contents of one portrait with another.  " \
-                             "Good for promoting scratch-made alternates to main.\n" \
-                             "`Pokemon Name` - Name of the Pokemon\n" \
-                             "`Form Name` - [Optional] Form name of the Pokemon\n" \
-                             "`Shiny` - [Optional] Specifies if you want the shiny sprite or not\n" \
-                             "`Gender` - [Optional] Specifies the gender of the Pokemon\n" \
-                             "**Examples**\n" \
-                             f"`{prefix}replaceportrait Zoroark Alternate -> Zoroark`"
             elif base_arg == "spritewip":
                 return_msg = "**Command Help**\n" \
                              f"`{prefix}spritewip <Pokemon Name> [Form Name] [Shiny] [Gender]`\n" \
@@ -3078,70 +2359,6 @@ class SpriteBot:
                              f"`{prefix}portraitfilled Pikachu Shiny Female`\n" \
                              f"`{prefix}portraitfilled Shaymin Sky`\n" \
                              f"`{prefix}portraitfilled Shaymin Sky Shiny`"
-            elif base_arg == "setspritecredit":
-                return_msg = "**Command Help**\n" \
-                             f"`{prefix}setspritecredit <Author ID> <Pokemon Name> [Form Name] [Shiny] [Gender]`\n" \
-                             "Manually sets the primary author of a sprite to the specified author.  " \
-                             "The specified author must already exist in the credits for the sprite.\n" \
-                             "`Author ID` - The discord ID of the author to set as primary\n" \
-                             "`Pokemon Name` - Name of the Pokemon\n" \
-                             "`Form Name` - [Optional] Form name of the Pokemon\n" \
-                             "`Shiny` - [Optional] Specifies if you want the shiny sprite or not\n" \
-                             "`Gender` - [Optional] Specifies the gender of the Pokemon\n" \
-                             "**Examples**\n" \
-                             f"`{prefix}setspritecredit @Audino Unown Shiny`\n" \
-                             f"`{prefix}setspritecredit <@!117780585635643396> Unown Shiny`\n" \
-                             f"`{prefix}setspritecredit POWERCRISTAL Calyrex`\n" \
-                             f"`{prefix}setspritecredit POWERCRISTAL Calyrex Shiny`\n" \
-                             f"`{prefix}setspritecredit POWERCRISTAL Jellicent Shiny Female`"
-            elif base_arg == "setportraitcredit":
-                return_msg = "**Command Help**\n" \
-                             f"`{prefix}setportraitcredit <Author ID> <Pokemon Name> [Form Name] [Shiny] [Gender]`\n" \
-                             "Manually sets the primary author of a portrait to the specified author.  " \
-                             "The specified author must already exist in the credits for the portrait.\n" \
-                             "`Author ID` - The discord ID of the author to set as primary\n" \
-                             "`Pokemon Name` - Name of the Pokemon\n" \
-                             "`Form Name` - [Optional] Form name of the Pokemon\n" \
-                             "`Shiny` - [Optional] Specifies if you want the shiny sprite or not\n" \
-                             "`Gender` - [Optional] Specifies the gender of the Pokemon\n" \
-                             "**Examples**\n" \
-                             f"`{prefix}setportraitcredit @Audino Unown Shiny`\n" \
-                             f"`{prefix}setportraitcredit <@!117780585635643396> Unown Shiny`\n" \
-                             f"`{prefix}setportraitcredit POWERCRISTAL Calyrex`\n" \
-                             f"`{prefix}setportraitcredit POWERCRISTAL Calyrex Shiny`\n" \
-                             f"`{prefix}setportraitcredit POWERCRISTAL Jellicent Shiny Female`"
-            elif base_arg == "addspritecredit":
-                return_msg = "**Command Help**\n" \
-                             f"`{prefix}addspritecredit <Author ID> <Pokemon Name> [Form Name] [Shiny] [Gender]`\n" \
-                             "Adds the specified author to the credits of the sprite.  " \
-                             "This makes a post in the submissions channel, asking other approvers to sign off.\n" \
-                             "`Author ID` - The discord ID of the author to set as primary\n" \
-                             "`Pokemon Name` - Name of the Pokemon\n" \
-                             "`Form Name` - [Optional] Form name of the Pokemon\n" \
-                             "`Shiny` - [Optional] Specifies if you want the shiny sprite or not\n" \
-                             "`Gender` - [Optional] Specifies the gender of the Pokemon\n" \
-                             "**Examples**\n" \
-                             f"`{prefix}addspritecredit @Audino Unown Shiny`\n" \
-                             f"`{prefix}addspritecredit <@!117780585635643396> Unown Shiny`\n" \
-                             f"`{prefix}addspritecredit POWERCRISTAL Calyrex`\n" \
-                             f"`{prefix}addspritecredit POWERCRISTAL Calyrex Shiny`\n" \
-                             f"`{prefix}addspritecredit POWERCRISTAL Jellicent Shiny Female`"
-            elif base_arg == "addportraitcredit":
-                return_msg = "**Command Help**\n" \
-                             f"`{prefix}addportraitcredit <Author ID> <Pokemon Name> [Form Name] [Shiny] [Gender]`\n" \
-                             "Adds the specified author to the credits of the portrait.  " \
-                             "This makes a post in the submissions channel, asking other approvers to sign off.\n" \
-                             "`Author ID` - The discord ID of the author to set as primary\n" \
-                             "`Pokemon Name` - Name of the Pokemon\n" \
-                             "`Form Name` - [Optional] Form name of the Pokemon\n" \
-                             "`Shiny` - [Optional] Specifies if you want the shiny sprite or not\n" \
-                             "`Gender` - [Optional] Specifies the gender of the Pokemon\n" \
-                             "**Examples**\n" \
-                             f"`{prefix}addportraitcredit @Audino Unown Shiny`\n" \
-                             f"`{prefix}addportraitcredit <@!117780585635643396> Unown Shiny`\n" \
-                             f"`{prefix}addportraitcredit POWERCRISTAL Calyrex`\n" \
-                             f"`{prefix}addportraitcredit POWERCRISTAL Calyrex Shiny`\n" \
-                             f"`{prefix}addportraitcredit POWERCRISTAL Jellicent Shiny Female`"
             elif base_arg == "modreward":
                 return_msg = "**Command Help**\n" \
                              f"`{prefix}modreward <Pokemon Name> [Form Name]`\n" \
@@ -3152,21 +2369,6 @@ class SpriteBot:
                              "**Examples**\n" \
                              f"`{prefix}modreward Unown`\n" \
                              f"`{prefix}modreward Minior Red`"
-            elif base_arg == "register":
-                return_msg = "**Command Help**\n" \
-                             f"`{prefix}register <Author ID> <Name> <Contact>`\n" \
-                             "Registers an absentee profile with name and contact info for crediting purposes.  " \
-                             "If a discord ID is provided, the profile is force-edited " \
-                             "(can be used to remove inappropriate content)." \
-                             "This command is also available for self-registration.  " \
-                             f"Check the `{prefix}help` version for more.\n" \
-                             "`Author ID` - The desired ID of the absentee profile\n" \
-                             "`Name` - The person's preferred name\n" \
-                             "`Contact` - The person's preferred contact info\n" \
-                             "**Examples**\n" \
-                             f"`{prefix}register SUGIMORI Sugimori https://twitter.com/SUPER_32X`\n" \
-                             f"`{prefix}register @Audino Audino https://github.com/audinowho`\n" \
-                             f"`{prefix}register <@!117780585635643396> Audino https://github.com/audinowho`"
             elif base_arg == "transferprofile":
                 return_msg = "**Command Help**\n" \
                              f"`{prefix}transferprofile <Author ID> <New Author ID>`\n" \
@@ -3180,33 +2382,15 @@ class SpriteBot:
                              "**Examples**\n" \
                              f"`{prefix}transferprofile AUDINO_WHO <@!117780585635643396>`\n" \
                              f"`{prefix}transferprofile AUDINO_WHO @Audino`"
-            elif base_arg == "clearcache":
-                return_msg = "**Command Help**\n" \
-                             f"`{prefix}clearcache <Pokemon Name> [Form Name] [Shiny] [Gender]`\n" \
-                             "Clears the all uploaded images related to a Pokemon, allowing them to be regenerated.  " \
-                             "This includes all portrait image and sprite zip links, " \
-                             "meant to be used whenever those links somehow become stale.\n" \
-                             "`Pokemon Name` - Name of the Pokemon\n" \
-                             "`Form Name` - [Optional] Form name of the Pokemon\n" \
-                             "`Shiny` - [Optional] Specifies if you want the shiny sprite or not\n" \
-                             "`Gender` - [Optional] Specifies the gender of the Pokemon\n" \
-                             "**Examples**\n" \
-                             f"`{prefix}clearcache Pikachu`\n" \
-                             f"`{prefix}clearcache Pikachu Shiny`\n" \
-                             f"`{prefix}clearcache Pikachu Female`\n" \
-                             f"`{prefix}clearcache Pikachu Shiny Female`\n" \
-                             f"`{prefix}clearcache Shaymin Sky`\n" \
-                             f"`{prefix}clearcache Shaymin Sky Shiny`"
             else:
                 return_msg = "Unknown Command."
         await msg.channel.send(msg.author.mention + " {0}".format(return_msg))
 
-
 @client.event
 async def on_ready():
     print('Logged in as')
-    print(client.user.name)
-    print(client.user.id)
+    print(client.user.name) # type: ignore
+    print(client.user.id) # type: ignore
     global sprite_bot
     await sprite_bot.checkAllSubmissions()
     await sprite_bot.checkRestarted()
@@ -3243,18 +2427,24 @@ async def on_message(msg: discord.Message):
                 return
             args = content[len(prefix):].split()
 
-            authorized = await sprite_bot.isAuthorized(msg.author, msg.guild)
+            user_permission = await sprite_bot.getUserPermission(msg.author, msg.guild)
+            authorized = user_permission.canPerformAction(PermissionLevel.STAFF)
             base_arg = args[0].lower()
 
             for command in sprite_bot.commands:
                 if base_arg == command.getCommand():
-                    await command.executeCommand(msg, args[1:])
+                    #TODO: a way to overwrite this value for certain command via config is needed is needed for NotSpriteCollab, but just compare to default for now
+                    if user_permission.canPerformAction(command.getRequiredPermission()):
+                        await command.executeCommand(msg, args[1:])
+                    else:
+                        await msg.channel.send("{} Not authorized (you need the permission level of at least “{}” to run this command)".format(msg.author.mention, command.getRequiredPermission().displayname()))
                     return
 
             if base_arg == "help":
-                await sprite_bot.help(msg, args[1:])
+                await sprite_bot.help(msg, args[1:], None)
+            # legacy link to help staff
             elif base_arg == "staffhelp":
-                await sprite_bot.staffhelp(msg, args[1:])
+                await sprite_bot.help(msg, args[1:], PermissionLevel.STAFF)
                 # primary commands
             elif base_arg == "spritebounty":
                 await sprite_bot.placeBounty(msg, args[1:], "sprite")
@@ -3262,37 +2452,13 @@ async def on_message(msg: discord.Message):
                 await sprite_bot.placeBounty(msg, args[1:], "portrait")
             elif base_arg == "bounties":
                 await sprite_bot.listBounties(msg, args[1:])
-            elif base_arg == "register":
-                await sprite_bot.setProfile(msg, args[1:])
             elif base_arg == "absentprofiles":
                 await sprite_bot.getAbsentProfiles(msg)
             elif base_arg == "unregister":
                 await sprite_bot.deleteProfile(msg, args[1:])
                 # authorized commands
-            elif base_arg == "add" and authorized:
-                await sprite_bot.addSpeciesForm(msg, args[1:])
-            elif base_arg == "delete" and authorized:
-                await sprite_bot.removeSpeciesForm(msg, args[1:])
-            elif base_arg == "rename" and authorized:
-                await sprite_bot.renameSpeciesForm(msg, args[1:])
-            elif base_arg == "addgender" and authorized:
-                await sprite_bot.addGender(msg, args[1:])
             elif base_arg == "deletegender" and authorized:
                 await sprite_bot.removeGender(msg, args[1:])
-            elif base_arg == "need" and authorized:
-                await sprite_bot.setNeed(msg, args[1:], True)
-            elif base_arg == "dontneed" and authorized:
-                await sprite_bot.setNeed(msg, args[1:], False)
-            elif base_arg == "movesprite" and authorized:
-                await sprite_bot.moveSlot(msg, args[1:], "sprite")
-            elif base_arg == "moveportrait" and authorized:
-                await sprite_bot.moveSlot(msg, args[1:], "portrait")
-            elif base_arg == "move" and authorized:
-                await sprite_bot.moveSlotRecursive(msg, args[1:])
-            elif base_arg == "replacesprite" and authorized:
-                await sprite_bot.replaceSlot(msg, args[1:], "sprite")
-            elif base_arg == "replaceportrait" and authorized:
-                await sprite_bot.replaceSlot(msg, args[1:], "portrait")
             elif base_arg == "spritewip" and authorized:
                 await sprite_bot.completeSlot(msg, args[1:], "sprite", TrackerUtils.PHASE_INCOMPLETE)
             elif base_arg == "portraitwip" and authorized:
@@ -3305,33 +2471,15 @@ async def on_message(msg: discord.Message):
                 await sprite_bot.completeSlot(msg, args[1:], "sprite", TrackerUtils.PHASE_FULL)
             elif base_arg == "portraitfilled" and authorized:
                 await sprite_bot.completeSlot(msg, args[1:], "portrait", TrackerUtils.PHASE_FULL)
-            elif base_arg == "setspritecredit" and authorized:
-                await sprite_bot.resetCredit(msg, args[1:], "sprite")
-            elif base_arg == "setportraitcredit" and authorized:
-                await sprite_bot.resetCredit(msg, args[1:], "portrait")
-            elif base_arg == "addspritecredit" and authorized:
-                await sprite_bot.addCredit(msg, args[1:], "sprite")
-            elif base_arg == "addportraitcredit" and authorized:
-                await sprite_bot.addCredit(msg, args[1:], "portrait")
             elif base_arg == "modreward" and authorized:
                 await sprite_bot.modSpeciesForm(msg, args[1:])
             elif base_arg == "transferprofile" and authorized:
                 await sprite_bot.transferProfile(msg, args[1:])
-            elif base_arg == "clearcache" and authorized:
-                await sprite_bot.clearCache(msg, args[1:])
                 # root commands
             elif base_arg == "promote" and msg.author.id == sprite_bot.config.root:
                 await sprite_bot.promote(msg, args[1:])
             elif base_arg == "rescan" and msg.author.id == sprite_bot.config.root:
                 await sprite_bot.rescan(msg)
-            elif base_arg == "unlockportrait" and msg.author.id == sprite_bot.config.root:
-                await sprite_bot.setLock(msg, args[1:], "portrait", False)
-            elif base_arg == "unlocksprite" and msg.author.id == sprite_bot.config.root:
-                await sprite_bot.setLock(msg, args[1:], "sprite", False)
-            elif base_arg == "lockportrait" and msg.author.id == sprite_bot.config.root:
-                await sprite_bot.setLock(msg, args[1:], "portrait", True)
-            elif base_arg == "locksprite" and msg.author.id == sprite_bot.config.root:
-                await sprite_bot.setLock(msg, args[1:], "sprite", True)
             elif base_arg == "canon" and msg.author.id == sprite_bot.config.root:
                 await sprite_bot.setCanon(msg, args[1:], True)
             elif base_arg == "noncanon" and msg.author.id == sprite_bot.config.root:
@@ -3362,11 +2510,11 @@ async def on_message(msg: discord.Message):
 async def on_raw_reaction_add(payload):
     await client.wait_until_ready()
     try:
-        if payload.user_id == client.user.id:
+        if payload.user_id == client.user.id: # type: ignore
             return
         guild_id_str = str(payload.guild_id)
         if payload.channel_id == sprite_bot.config.servers[guild_id_str].submit:
-            msg = await client.get_channel(payload.channel_id).fetch_message(payload.message_id)
+            msg = await client.get_channel(payload.channel_id).fetch_message(payload.message_id) # type: ignore
             changed_tracker = await sprite_bot.pollSubmission(msg)
             if changed_tracker:
                 sprite_bot.saveTracker()

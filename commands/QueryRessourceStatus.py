@@ -2,7 +2,7 @@ from typing import TYPE_CHECKING, List
 from .BaseCommand import BaseCommand
 import discord
 import TrackerUtils
-from Constants import PHASES
+from Constants import PHASES, PermissionLevel
 
 if TYPE_CHECKING:
     from SpriteBot import SpriteBot, BotServer
@@ -12,6 +12,9 @@ class QueryRessourceStatus(BaseCommand):
         super().__init__(spritebot)
         self.ressource_type = ressource_type
         self.is_derivation = is_derivation
+    
+    def getRequiredPermission(self) -> PermissionLevel:
+        return PermissionLevel.EVERYONE
     
     def getCommand(self) -> str:
         if self.is_derivation:

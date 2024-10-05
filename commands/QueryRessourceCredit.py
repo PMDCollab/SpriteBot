@@ -1,5 +1,6 @@
 from typing import TYPE_CHECKING, List
 from .BaseCommand import BaseCommand
+from Constants import PermissionLevel
 import TrackerUtils
 import discord
 import io
@@ -12,6 +13,9 @@ class QueryRessourceCredit(BaseCommand):
         super().__init__(spritebot)
         self.ressource_type = ressource_type
         self.display_history = display_history
+    
+    def getRequiredPermission(self) -> PermissionLevel:
+        return PermissionLevel.EVERYONE
     
     def getCommand(self) -> str:
         if self.display_history:
@@ -113,6 +117,6 @@ class QueryRessourceCredit(BaseCommand):
             file_data = io.StringIO()
             file_data.write(credit_str)
             file_data.seek(0)
-            await msg.channel.send(response, file=discord.File(file_data, 'credit_msg.txt'))
+            await msg.channel.send(response, file=discord.File(file_data, 'credit_msg.txt')) # type: ignore
         else:
             await msg.channel.send(response + "```" + credit_str + "```")

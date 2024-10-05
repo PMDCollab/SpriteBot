@@ -1,5 +1,6 @@
 from abc import ABCMeta, abstractmethod
 from typing import TYPE_CHECKING, List
+from Constants import PermissionLevel
 import discord
 
 if TYPE_CHECKING:
@@ -8,6 +9,11 @@ if TYPE_CHECKING:
 class BaseCommand:
     def __init__(self, spritebot: "SpriteBot") -> None:
         self.spritebot = spritebot
+    
+    @abstractmethod
+    def getRequiredPermission(self) -> PermissionLevel:
+        """return the permission level required to execute this command"""
+        raise NotImplementedError()
     
     @abstractmethod
     def getCommand(self) -> str:
