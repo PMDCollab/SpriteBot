@@ -1144,7 +1144,10 @@ class SpriteBot:
                     ss = reaction
                 else:
                     async for user in reaction.users():
-                        remove_users.append((reaction, user))
+                        if await self.isAuthorized(user, msg.guild):
+                            pass
+                        else:
+                            remove_users.append((reaction, user))
 
             msg_lines = msg.content.split('\n')
             main_data = msg_lines[0].split()
