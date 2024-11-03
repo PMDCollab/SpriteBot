@@ -39,6 +39,7 @@ from commands.AddGender import AddGender
 from commands.DeleteNode import DeleteNode
 from commands.SetRessourceLock import SetRessourceLock
 from commands.SetNeedNode import SetNeedNode
+from commands.ForcePush import ForcePush
 
 from Constants import PHASES, PermissionLevel
 import psutil
@@ -258,6 +259,7 @@ class SpriteBot:
             SetRessourceLock(self, "portrait", False),
             SetRessourceLock(self, "sprite", True),
             SetRessourceLock(self, "sprite", False),
+            ForcePush(self)
         ]
 
         self.writeLog("Startup Memory: {0}".format(psutil.Process().memory_info().rss))
@@ -1183,7 +1185,7 @@ class SpriteBot:
                     ss = reaction
                 else:
                     async for user in reaction.users():
-                        if await self.isAuthorized(user, msg.guild):
+                        if await self.getUserPermission(user, msg.guild).canPerformAction(PermissionLevel.STAFF):
                             pass
                         else:
                             remove_users.append((reaction, user))
@@ -2491,11 +2493,6 @@ async def on_message(msg: discord.Message):
                 await sprite_bot.updateBot(msg)
             elif base_arg == "shutdown" and msg.author.id == sprite_bot.config.root:
                 await sprite_bot.shutdown(msg)
-            elif base_arg == "forcepush" and msg.author.id == sprite_bot.config.root:
-                sprite_bot.generateCreditCompilation()
-                await sprite_bot.gitCommit("Tracker update from forced push.")
-                await sprite_bot.gitPush()
-                await msg.channel.send(msg.author.mention + " Changes pushed.")
             elif base_arg in ["gr", "tr", "checkr"]:
                 pass
             else:
