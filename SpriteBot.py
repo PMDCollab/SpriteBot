@@ -39,6 +39,7 @@ from commands.AddGender import AddGender
 from commands.DeleteGender import DeleteGender
 from commands.DeleteNode import DeleteNode
 from commands.SetRessourceLock import SetRessourceLock
+from commands.SetNodeCanon import SetNodeCanon
 from commands.SetNeedNode import SetNeedNode
 from commands.ForcePush import ForcePush
 
@@ -261,6 +262,8 @@ class SpriteBot:
             SetRessourceLock(self, "portrait", False),
             SetRessourceLock(self, "sprite", True),
             SetRessourceLock(self, "sprite", False),
+            SetNodeCanon(self, True),
+            SetNodeCanon(self, False),
             ForcePush(self)
         ]
 
@@ -1669,27 +1672,6 @@ class SpriteBot:
         self.saveTracker()
         self.changed = True
 
-    async def setCanon(self, msg, name_args, canon_state):
-
-        name_seq = [TrackerUtils.sanitizeName(i) for i in name_args]
-        full_idx = TrackerUtils.findFullTrackerIdx(self.tracker, name_seq, 0)
-        if full_idx is None:
-            await msg.channel.send(msg.author.mention + " No such Pokemon.")
-            return
-        chosen_node = TrackerUtils.getNodeFromIdx(self.tracker, full_idx, 0)
-
-        TrackerUtils.setCanon(chosen_node, canon_state)
-
-        lock_str = "non-"
-        if canon_state:
-            lock_str = ""
-        # set to complete
-        await msg.channel.send(msg.author.mention + " {0} is now {1}canon.".format(" ".join(name_seq), lock_str))
-
-        self.saveTracker()
-        self.changed = True
-
-
     async def promote(self, msg, name_args):
 
         if not self.config.mastodon and not self.config.bluesky:
@@ -2413,10 +2395,6 @@ async def on_message(msg: discord.Message):
                 await sprite_bot.promote(msg, args[1:])
             elif base_arg == "rescan" and msg.author.id == sprite_bot.config.root:
                 await sprite_bot.rescan(msg)
-            elif base_arg == "canon" and msg.author.id == sprite_bot.config.root:
-                await sprite_bot.setCanon(msg, args[1:], True)
-            elif base_arg == "noncanon" and msg.author.id == sprite_bot.config.root:
-                await sprite_bot.setCanon(msg, args[1:], False)
             elif base_arg == "update" and msg.author.id == sprite_bot.config.root:
                 await sprite_bot.updateBot(msg)
             elif base_arg == "shutdown" and msg.author.id == sprite_bot.config.root:
