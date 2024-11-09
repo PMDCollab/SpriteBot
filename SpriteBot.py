@@ -42,6 +42,7 @@ from commands.SetRessourceLock import SetRessourceLock
 from commands.SetNodeCanon import SetNodeCanon
 from commands.SetNeedNode import SetNeedNode
 from commands.ForcePush import ForcePush
+from commands.Rescan import Rescan
 
 from Constants import PHASES, PermissionLevel
 import psutil
@@ -264,7 +265,8 @@ class SpriteBot:
             SetRessourceLock(self, "sprite", False),
             SetNodeCanon(self, True),
             SetNodeCanon(self, False),
-            ForcePush(self)
+            ForcePush(self),
+            Rescan(self)
         ]
 
         self.writeLog("Startup Memory: {0}".format(psutil.Process().memory_info().rss))
@@ -2032,12 +2034,6 @@ class SpriteBot:
         self.saveConfig()
         await msg.channel.send(msg.author.mention + " Initialized bot to this server!")
 
-    async def rescan(self, msg):
-        #SpriteUtils.iterateTracker(self.tracker, self.markPortraitFull, [])
-        #self.changed = True
-        #self.saveTracker()
-        await msg.channel.send(msg.author.mention + " Rescan complete.")
-
     async def modSpeciesForm(self, msg, args):
         if len(args) < 1 or len(args) > 2:
             await msg.channel.send(msg.author.mention + " Invalid number of args!")
@@ -2393,8 +2389,6 @@ async def on_message(msg: discord.Message):
                 # root commands
             elif base_arg == "promote" and msg.author.id == sprite_bot.config.root:
                 await sprite_bot.promote(msg, args[1:])
-            elif base_arg == "rescan" and msg.author.id == sprite_bot.config.root:
-                await sprite_bot.rescan(msg)
             elif base_arg == "update" and msg.author.id == sprite_bot.config.root:
                 await sprite_bot.updateBot(msg)
             elif base_arg == "shutdown" and msg.author.id == sprite_bot.config.root:
