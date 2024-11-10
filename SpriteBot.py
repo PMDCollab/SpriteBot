@@ -38,6 +38,7 @@ from commands.AddNode import AddNode
 from commands.AddGender import AddGender
 from commands.DeleteGender import DeleteGender
 from commands.DeleteNode import DeleteNode
+from commands.SetRessourceCompletion import SetRessourceCompletion
 from commands.SetRessourceLock import SetRessourceLock
 from commands.SetNodeCanon import SetNodeCanon
 from commands.SetNeedNode import SetNeedNode
@@ -258,6 +259,12 @@ class SpriteBot:
             AddRessourceCredit(self, "sprite"),
             SetNeedNode(self, True),
             SetNeedNode(self, False),
+            SetRessourceCompletion(self, "portrait", TrackerUtils.PHASE_INCOMPLETE),
+            SetRessourceCompletion(self, "portrait", TrackerUtils.PHASE_EXISTS),
+            SetRessourceCompletion(self, "portrait", TrackerUtils.PHASE_FULL),
+            SetRessourceCompletion(self, "sprite", TrackerUtils.PHASE_INCOMPLETE),
+            SetRessourceCompletion(self, "sprite", TrackerUtils.PHASE_EXISTS),
+            SetRessourceCompletion(self, "sprite", TrackerUtils.PHASE_FULL),
 
             # admin
             SetRessourceLock(self, "portrait", True),
@@ -1577,34 +1584,6 @@ class SpriteBot:
         self.saveTracker()
         return new_link
 
-
-    async def completeSlot(self, msg, name_args, asset_type, phase):
-        name_seq = [TrackerUtils.sanitizeName(i) for i in name_args]
-        full_idx = TrackerUtils.findFullTrackerIdx(self.tracker, name_seq, 0)
-        if full_idx is None:
-            await msg.channel.send(msg.author.mention + " No such Pokemon.")
-            return
-        chosen_node = TrackerUtils.getNodeFromIdx(self.tracker, full_idx, 0)
-
-        phase_str = PHASES[phase]
-
-        # if the node has no credit, fail
-        if chosen_node.__dict__[asset_type + "_credit"].primary == "" and phase > TrackerUtils.PHASE_INCOMPLETE:
-            status = TrackerUtils.getStatusEmoji(chosen_node, asset_type)
-            await msg.channel.send(msg.author.mention +
-                                   " {0} #{1:03d}: {2} has no data and cannot be marked {3}.".format(status, int(full_idx[0]), " ".join(name_seq), phase_str))
-            return
-
-        # set to complete
-        chosen_node.__dict__[asset_type + "_complete"] = phase
-
-        status = TrackerUtils.getStatusEmoji(chosen_node, asset_type)
-        await msg.channel.send(msg.author.mention + " {0} #{1:03d}: {2} marked as {3}.".format(status, int(full_idx[0]), " ".join(name_seq), phase_str))
-
-        self.saveTracker()
-        self.changed = True
-
-
     async def checkMoveLock(self, full_idx_from, chosen_node_from, full_idx_to, chosen_node_to, asset_type):
 
         chosen_path_from = TrackerUtils.getDirFromIdx(self.config.path, asset_type, full_idx_from)
@@ -2120,12 +2099,6 @@ class SpriteBot:
 
             elif permission_level == PermissionLevel.STAFF:
                 return_msg = "**Approver Commands**\n" \
-                  f"`{prefix}spritewip` - Sets the sprite status as Incomplete\n" \
-                  f"`{prefix}portraitwip` - Sets the portrait status as Incomplete\n" \
-                  f"`{prefix}spriteexists` - Sets the sprite status as Exists\n" \
-                  f"`{prefix}portraitexists` - Sets the portrait status as Exists\n" \
-                  f"`{prefix}spritefilled` - Sets the sprite status as Fully Featured\n" \
-                  f"`{prefix}portraitfilled` - Sets the portrait status as Fully Featured\n" \
                   f"`{prefix}modreward` - Toggles whether a sprite/portrait will have a custom reward\n" \
                   f"`{prefix}transferprofile` - Transfers the credit from absentee profile to a real one\n"
             
@@ -2200,96 +2173,6 @@ class SpriteBot:
                                 f"`{prefix}bounties sprite`"
                 else:
                     return_msg = MESSAGE_BOUNTIES_DISABLED
-            elif base_arg == "spritewip":
-                return_msg = "**Command Help**\n" \
-                             f"`{prefix}spritewip <Pokemon Name> [Form Name] [Shiny] [Gender]`\n" \
-                             "Manually sets the sprite status as \u26AA Incomplete.\n" \
-                             "`Pokemon Name` - Name of the Pokemon\n" \
-                             "`Form Name` - [Optional] Form name of the Pokemon\n" \
-                             "`Shiny` - [Optional] Specifies if you want the shiny sprite or not\n" \
-                             "`Gender` - [Optional] Specifies the gender of the Pokemon\n" \
-                             "**Examples**\n" \
-                             f"`{prefix}spritewip Pikachu`\n" \
-                             f"`{prefix}spritewip Pikachu Shiny`\n" \
-                             f"`{prefix}spritewip Pikachu Female`\n" \
-                             f"`{prefix}spritewip Pikachu Shiny Female`\n" \
-                             f"`{prefix}spritewip Shaymin Sky`\n" \
-                             f"`{prefix}spritewip Shaymin Sky Shiny`"
-            elif base_arg == "portraitwip":
-                return_msg = "**Command Help**\n" \
-                             f"`{prefix}portraitwip <Pokemon Name> [Form Name] [Shiny] [Gender]`\n" \
-                             "Manually sets the portrait status as \u26AA Incomplete.\n" \
-                             "`Pokemon Name` - Name of the Pokemon\n" \
-                             "`Form Name` - [Optional] Form name of the Pokemon\n" \
-                             "`Shiny` - [Optional] Specifies if you want the shiny sprite or not\n" \
-                             "`Gender` - [Optional] Specifies the gender of the Pokemon\n" \
-                             "**Examples**\n" \
-                             f"`{prefix}portraitwip Pikachu`\n" \
-                             f"`{prefix}portraitwip Pikachu Shiny`\n" \
-                             f"`{prefix}portraitwip Pikachu Female`\n" \
-                             f"`{prefix}portraitwip Pikachu Shiny Female`\n" \
-                             f"`{prefix}portraitwip Shaymin Sky`\n" \
-                             f"`{prefix}portraitwip Shaymin Sky Shiny`"
-            elif base_arg == "spriteexists":
-                return_msg = "**Command Help**\n" \
-                             f"`{prefix}spriteexists <Pokemon Name> [Form Name] [Shiny] [Gender]`\n" \
-                             "Manually sets the sprite status as \u2705 Available.\n" \
-                             "`Pokemon Name` - Name of the Pokemon\n" \
-                             "`Form Name` - [Optional] Form name of the Pokemon\n" \
-                             "`Shiny` - [Optional] Specifies if you want the shiny sprite or not\n" \
-                             "`Gender` - [Optional] Specifies the gender of the Pokemon\n" \
-                             "**Examples**\n" \
-                             f"`{prefix}spriteexists Pikachu`\n" \
-                             f"`{prefix}spriteexists Pikachu Shiny`\n" \
-                             f"`{prefix}spriteexists Pikachu Female`\n" \
-                             f"`{prefix}spriteexists Pikachu Shiny Female`\n" \
-                             f"`{prefix}spriteexists Shaymin Sky`\n" \
-                             f"`{prefix}spriteexists Shaymin Sky Shiny`"
-            elif base_arg == "portraitexists":
-                return_msg = "**Command Help**\n" \
-                             f"`{prefix}portraitexists <Pokemon Name> [Form Name] [Shiny] [Gender]`\n" \
-                             "Manually sets the portrait status as \u2705 Available.\n" \
-                             "`Pokemon Name` - Name of the Pokemon\n" \
-                             "`Form Name` - [Optional] Form name of the Pokemon\n" \
-                             "`Shiny` - [Optional] Specifies if you want the shiny sprite or not\n" \
-                             "`Gender` - [Optional] Specifies the gender of the Pokemon\n" \
-                             "**Examples**\n" \
-                             f"`{prefix}portraitexists Pikachu`\n" \
-                             f"`{prefix}portraitexists Pikachu Shiny`\n" \
-                             f"`{prefix}portraitexists Pikachu Female`\n" \
-                             f"`{prefix}portraitexists Pikachu Shiny Female`\n" \
-                             f"`{prefix}portraitexists Shaymin Sky`\n" \
-                             f"`{prefix}portraitexists Shaymin Sky Shiny`"
-            elif base_arg == "spritefilled":
-                return_msg = "**Command Help**\n" \
-                             f"`{prefix}spritefilled <Pokemon Name> [Form Name] [Shiny] [Gender]`\n" \
-                             "Manually sets the sprite status as \u2B50 Fully Featured.\n" \
-                             "`Pokemon Name` - Name of the Pokemon\n" \
-                             "`Form Name` - [Optional] Form name of the Pokemon\n" \
-                             "`Shiny` - [Optional] Specifies if you want the shiny sprite or not\n" \
-                             "`Gender` - [Optional] Specifies the gender of the Pokemon\n" \
-                             "**Examples**\n" \
-                             f"`{prefix}spritefilled Pikachu`\n" \
-                             f"`{prefix}spritefilled Pikachu Shiny`\n" \
-                             f"`{prefix}spritefilled Pikachu Female`\n" \
-                             f"`{prefix}spritefilled Pikachu Shiny Female`\n" \
-                             f"`{prefix}spritefilled Shaymin Sky`\n" \
-                             f"`{prefix}spritefilled Shaymin Sky Shiny`"
-            elif base_arg == "portraitfilled":
-                return_msg = "**Command Help**\n" \
-                             f"`{prefix}portraitfilled <Pokemon Name> [Form Name] [Shiny] [Gender]`\n" \
-                             "Manually sets the portrait status as \u2B50 Fully Featured.\n" \
-                             "`Pokemon Name` - Name of the Pokemon\n" \
-                             "`Form Name` - [Optional] Form name of the Pokemon\n" \
-                             "`Shiny` - [Optional] Specifies if you want the shiny sprite or not\n" \
-                             "`Gender` - [Optional] Specifies the gender of the Pokemon\n" \
-                             "**Examples**\n" \
-                             f"`{prefix}portraitfilled Pikachu`\n" \
-                             f"`{prefix}portraitfilled Pikachu Shiny`\n" \
-                             f"`{prefix}portraitfilled Pikachu Female`\n" \
-                             f"`{prefix}portraitfilled Pikachu Shiny Female`\n" \
-                             f"`{prefix}portraitfilled Shaymin Sky`\n" \
-                             f"`{prefix}portraitfilled Shaymin Sky Shiny`"
             elif base_arg == "modreward":
                 return_msg = "**Command Help**\n" \
                              f"`{prefix}modreward <Pokemon Name> [Form Name]`\n" \
@@ -2388,18 +2271,6 @@ async def on_message(msg: discord.Message):
             elif base_arg == "unregister":
                 await sprite_bot.deleteProfile(msg, args[1:])
                 # authorized commands
-            elif base_arg == "spritewip" and authorized:
-                await sprite_bot.completeSlot(msg, args[1:], "sprite", TrackerUtils.PHASE_INCOMPLETE)
-            elif base_arg == "portraitwip" and authorized:
-                await sprite_bot.completeSlot(msg, args[1:], "portrait", TrackerUtils.PHASE_INCOMPLETE)
-            elif base_arg == "spriteexists" and authorized:
-                await sprite_bot.completeSlot(msg, args[1:], "sprite", TrackerUtils.PHASE_EXISTS)
-            elif base_arg == "portraitexists" and authorized:
-                await sprite_bot.completeSlot(msg, args[1:], "portrait", TrackerUtils.PHASE_EXISTS)
-            elif base_arg == "spritefilled" and authorized:
-                await sprite_bot.completeSlot(msg, args[1:], "sprite", TrackerUtils.PHASE_FULL)
-            elif base_arg == "portraitfilled" and authorized:
-                await sprite_bot.completeSlot(msg, args[1:], "portrait", TrackerUtils.PHASE_FULL)
             elif base_arg == "modreward" and authorized:
                 await sprite_bot.modSpeciesForm(msg, args[1:])
             elif base_arg == "transferprofile" and authorized:
