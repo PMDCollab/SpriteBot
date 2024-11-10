@@ -74,11 +74,15 @@ def hasExistingCredits(cur_credits, orig_author, diff):
 
 def getFileCredits(path):
     id_list = []
-    if os.path.exists(os.path.join(path, Constants.CREDIT_TXT)):
-        with open(os.path.join(path, Constants.CREDIT_TXT), 'r', encoding='utf-8') as txt:
+    credit_path = os.path.join(path, Constants.CREDIT_TXT)
+    if os.path.exists(credit_path):
+        with open(credit_path, 'r', encoding='utf-8') as txt:
             for line in txt:
                 credit = line.strip().split('\t')
-                id_list.append(CreditEvent(credit[0], credit[1], credit[2], credit[3], credit[4]))
+                if len(credit) >= 5:
+                    id_list.append(CreditEvent(credit[0], credit[1], credit[2], credit[3], credit[4]))
+                else:
+                    raise BaseException("Invalid credit line “{}” at {}".format(line, credit_path))
     return id_list
 
 def appendCredits(path, id, diff):
@@ -778,7 +782,7 @@ def renameFileCredits(species_path, old_name, new_name):
                     entry[1] = new_name
             with open(fullPath, 'w', encoding='utf-8') as txt:
                 for entry in id_list:
-                    txt.write(entry[0] + "\t" + entry[1] + "\t" + entry[2] + "\t" + entry[3] + "\n")
+                    txt.write(entry[0] + "\t" + entry[1] + "\t" + entry[2] + "\t" + entry[3] + "\t" + entry[4] + "\n")
 
 def getDirFromIdx(base_path, asset_type, full_idx):
     full_arr = [base_path, asset_type] + full_idx
