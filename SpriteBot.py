@@ -45,6 +45,7 @@ from commands.SetNodeCanon import SetNodeCanon
 from commands.SetNeedNode import SetNeedNode
 from commands.ForcePush import ForcePush
 from commands.Rescan import Rescan
+from commands.Shutdown import Shutdown
 
 from Constants import PHASES, PermissionLevel
 from utils import unpack_optional
@@ -276,7 +277,8 @@ class SpriteBot:
             SetNodeCanon(self, True),
             SetNodeCanon(self, False),
             ForcePush(self),
-            Rescan(self)
+            Rescan(self),
+            Shutdown(self)
         ]
 
         self.writeLog("Startup Memory: {0}".format(psutil.Process().memory_info().rss))
@@ -339,12 +341,6 @@ class SpriteBot:
         self.need_restart = True
         self.config.update_ch = resp_ch.id
         self.config.update_msg = resp.id
-        self.saveConfig()
-        await self.client.close()
-
-    async def shutdown(self, msg):
-        resp_ch = self.getChatChannel(msg.guild.id)
-        await resp_ch.send("Shutting down.")
         self.saveConfig()
         await self.client.close()
 
@@ -2272,8 +2268,6 @@ async def on_message(msg: discord.Message):
                 await sprite_bot.promote(msg, args[1:])
             elif base_arg == "update" and msg.author.id == sprite_bot.config.root:
                 await sprite_bot.updateBot(msg)
-            elif base_arg == "shutdown" and msg.author.id == sprite_bot.config.root:
-                await sprite_bot.shutdown(msg)
             elif base_arg in ["gr", "tr", "checkr"]:
                 pass
             else:
