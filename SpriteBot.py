@@ -39,6 +39,7 @@ from commands.AddNode import AddNode
 from commands.AddGender import AddGender
 from commands.DeleteGender import DeleteGender
 from commands.DeleteNode import DeleteNode
+from commands.TransferProfile import TransferProfile
 from commands.SetRessourceCompletion import SetRessourceCompletion
 from commands.SetRessourceLock import SetRessourceLock
 from commands.SetNodeCanon import SetNodeCanon
@@ -250,6 +251,7 @@ class SpriteBot:
             DeleteNode(self),
             ClearCache(self),
             SetProfile(self, True),
+            TransferProfile(self),
             RenameNode(self),
             ReplaceRessource(self, "portrait"),
             ReplaceRessource(self, "sprite"),
@@ -1822,45 +1824,6 @@ class SpriteBot:
             block += " +{0} more".format(credit_diff)
         return block
 
-    async def transferProfile(self, msg, args):
-        if len(args) != 2:
-            await msg.channel.send(msg.author.mention + " Invalid args")
-            return
-
-        from_name = self.getFormattedCredit(args[0])
-        to_name = self.getFormattedCredit(args[1])
-        if from_name.startswith("<@!") or from_name == "CHUNSOFT":
-            await msg.channel.send(msg.author.mention + " Only transfers from absent registrations are allowed.")
-            return
-        if from_name not in self.names:
-            await msg.channel.send(msg.author.mention + " Entry {0} doesn't exist!".format(from_name))
-            return
-        if to_name not in self.names:
-            await msg.channel.send(msg.author.mention + " Entry {0} doesn't exist!".format(to_name))
-            return
-
-        new_credit = TrackerUtils.CreditEntry(self.names[to_name].name, self.names[to_name].contact)
-        new_credit.sprites = self.names[from_name].sprites or self.names[to_name].sprites
-        new_credit.portraits = self.names[from_name].portraits or self.names[to_name].portraits
-        del self.names[from_name]
-        self.names[to_name] = new_credit
-
-        # update tracker based on last-modify
-        over_dict = TrackerUtils.initSubNode("", True)
-        over_dict.subgroups = self.tracker
-
-        TrackerUtils.renameFileCredits(os.path.join(self.config.path, "sprite"), from_name, to_name)
-        TrackerUtils.renameFileCredits(os.path.join(self.config.path, "portrait"), from_name, to_name)
-        TrackerUtils.renameJsonCredits(over_dict, from_name, to_name)
-
-        await msg.channel.send(msg.author.mention + " account {0} deleted and credits moved to {1}.".format(from_name, to_name))
-
-        self.saveTracker()
-        self.saveNames()
-        self.changed = True
-
-        await self.gitCommit("Moved account {0} to {1}".format(from_name, to_name))
-
     async def deleteProfile(self, msg, args):
         msg_mention = "<@!{0}>".format(msg.author.id)
 
@@ -2089,8 +2052,7 @@ class SpriteBot:
 
             elif permission_level == PermissionLevel.STAFF:
                 return_msg = "**Approver Commands**\n" \
-                  f"`{prefix}modreward` - Toggles whether a sprite/portrait will have a custom reward\n" \
-                  f"`{prefix}transferprofile` - Transfers the credit from absentee profile to a real one\n"
+                  f"`{prefix}modreward` - Toggles whether a sprite/portrait will have a custom reward\n"
             
             for command in self.commands:
                 if permission_level == command.getRequiredPermission():
@@ -2173,19 +2135,6 @@ class SpriteBot:
                              "**Examples**\n" \
                              f"`{prefix}modreward Unown`\n" \
                              f"`{prefix}modreward Minior Red`"
-            elif base_arg == "transferprofile":
-                return_msg = "**Command Help**\n" \
-                             f"`{prefix}transferprofile <Author ID> <New Author ID>`\n" \
-                             "Transfers the credit from absentee profile to a real one.  " \
-                             "Used for when an absentee's discord account is confirmed " \
-                             "and credit needs te be moved to the new name." \
-                             "This command is also available for self-registration.  " \
-                             f"Check the `{prefix}help` version for more.\n" \
-                             "`Author ID` - The desired ID of the absentee profile\n" \
-                             "`New Author ID` - The real discord ID of the author\n" \
-                             "**Examples**\n" \
-                             f"`{prefix}transferprofile AUDINO_WHO <@!117780585635643396>`\n" \
-                             f"`{prefix}transferprofile AUDINO_WHO @Audino`"
             else:
                 return_msg = "Unknown Command."
         await msg.channel.send(msg.author.mention + " {0}".format(return_msg))
@@ -2261,8 +2210,6 @@ async def on_message(msg: discord.Message):
                 # authorized commands
             elif base_arg == "modreward" and authorized:
                 await sprite_bot.modSpeciesForm(msg, args[1:])
-            elif base_arg == "transferprofile" and authorized:
-                await sprite_bot.transferProfile(msg, args[1:])
                 # root commands
             elif base_arg == "promote" and msg.author.id == sprite_bot.config.root:
                 await sprite_bot.promote(msg, args[1:])
