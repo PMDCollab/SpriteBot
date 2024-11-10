@@ -28,6 +28,7 @@ from commands.DeleteRessourceCredit import DeleteRessourceCredit
 from commands.ClearCache import ClearCache
 from commands.GetProfile import GetProfile
 from commands.SetProfile import SetProfile
+from commands.GetAbsenteeProfiles import GetAbsenteeProfiles
 from commands.RenameNode import RenameNode
 from commands.ReplaceRessource import ReplaceRessource
 from commands.MoveNode import MoveNode
@@ -239,6 +240,7 @@ class SpriteBot:
             DeleteRessourceCredit(self, "sprite"),
             GetProfile(self),
             SetProfile(self, False),
+            GetAbsenteeProfiles(self),
 
             # staff
             AddNode(self),
@@ -1824,14 +1826,6 @@ class SpriteBot:
             block += " +{0} more".format(credit_diff)
         return block
 
-    async def getAbsentProfiles(self, msg):
-        total_names = ["Absentee profiles:"]
-        msg_ids = [] # type: ignore
-        for name in self.names:
-            if not name.startswith("<@!"):
-                total_names.append(name + "\nName: \"{0}\"    Contact: \"{1}\"".format(self.names[name].name, self.names[name].contact))
-        await self.sendInfoPosts(msg.channel, total_names, msg_ids, 0)
-
     async def transferProfile(self, msg, args):
         if len(args) != 2:
             await msg.channel.send(msg.author.mention + " Invalid args")
@@ -2266,8 +2260,6 @@ async def on_message(msg: discord.Message):
                 await sprite_bot.placeBounty(msg, args[1:], "portrait")
             elif base_arg == "bounties":
                 await sprite_bot.listBounties(msg, args[1:])
-            elif base_arg == "absentprofiles":
-                await sprite_bot.getAbsentProfiles(msg)
             elif base_arg == "unregister":
                 await sprite_bot.deleteProfile(msg, args[1:])
                 # authorized commands
