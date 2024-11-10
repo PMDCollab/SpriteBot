@@ -45,6 +45,7 @@ from commands.ForcePush import ForcePush
 from commands.Rescan import Rescan
 
 from Constants import PHASES, PermissionLevel
+from utils import unpack_optional
 import psutil
 
 # Housekeeping for login information
@@ -191,7 +192,7 @@ class SpriteBot:
         # tracking data from the content folder
         with open(os.path.join(self.config.path, TRACKER_FILE_PATH)) as f:
             new_tracker = json.load(f)
-            self.tracker = { }
+            self.tracker: Dict[str, TrackerUtils.TrackerNode] = { }
             for species_idx in new_tracker:
                 self.tracker[species_idx] = TrackerUtils.TrackerNode(new_tracker[species_idx])
         self.names = TrackerUtils.loadNameFile(os.path.join(self.path, NAME_FILE_PATH))
@@ -745,7 +746,12 @@ class SpriteBot:
             await msg.delete()
             return
 
+        assert full_idx is not None
+        assert asset_type is not None
+        assert recolor is not None
+
         chosen_node = TrackerUtils.getNodeFromIdx(self.tracker, full_idx, 0)
+        assert chosen_node is not None
         chosen_path = TrackerUtils.getDirFromIdx(self.config.path, asset_type, full_idx)
         review_thread = await self.retrieveDiscussion(full_idx, chosen_node, asset_type, msg.guild.id)
 
@@ -851,7 +857,7 @@ class SpriteBot:
         orig_node = chosen_node
         if is_shiny:
             orig_idx = TrackerUtils.createShinyIdx(full_idx, False)
-            orig_node = TrackerUtils.getNodeFromIdx(self.tracker, orig_idx, 0)
+            orig_node = unpack_optional(TrackerUtils.getNodeFromIdx(self.tracker, orig_idx, 0))
 
         prev_completion_file = TrackerUtils.getCurrentCompletion(orig_node, chosen_node, asset_type)
 
@@ -1065,8 +1071,8 @@ class SpriteBot:
                     auto_diffs = []
                     try:
                         if asset_type == "sprite":
-                            orig_idx = TrackerUtils.createShinyIdx(full_idx, False)
-                            orig_node = TrackerUtils.getNodeFromIdx(self.tracker, orig_idx, 0)
+                            orig_idx = unpack_optional(TrackerUtils.createShinyIdx(full_idx, False))
+                            orig_node = unpack_optional(TrackerUtils.getNodeFromIdx(self.tracker, orig_idx, 0))
 
                             orig_group_link = await self.retrieveLinkMsg(orig_idx, orig_node, asset_type, False)
                             orig_zip_group = SpriteUtils.getLinkZipGroup(orig_group_link)
@@ -1125,8 +1131,11 @@ class SpriteBot:
             await self.getChatChannel(msg.guild.id).send(orig_sender + " " + "Removed unknown file: {0}".format(file_name))
             await msg.delete()
             return
+        assert full_idx is not None
+        assert asset_type is not None
+        assert recolor is not None
 
-        chosen_node = TrackerUtils.getNodeFromIdx(self.tracker, full_idx, 0)
+        chosen_node = unpack_optional(TrackerUtils.getNodeFromIdx(self.tracker, full_idx, 0))
         review_thread = await self.retrieveDiscussion(full_idx, chosen_node, asset_type, msg.guild.id)
 
         # change the status of the sprite
@@ -1251,6 +1260,9 @@ class SpriteBot:
 
             file_name = msg.attachments[0].filename
             name_valid, full_idx, asset_type, recolor = TrackerUtils.getStatsFromFilename(file_name)
+            assert full_idx is not None
+            assert asset_type is not None
+            assert recolor is not None
 
             if len(decline) > 0:
                 await self.submissionDeclined(msg, orig_sender, decline)
@@ -1290,14 +1302,20 @@ class SpriteBot:
             # if the node cant be found, the filepath is invalid
             if chosen_node is None:
                 name_valid = False
-            elif not chosen_node.__dict__[asset_type + "_required"]:
-                # if the node can be found, but it's not required, it's also invalid
-                name_valid = False
+            else:
+                assert asset_type is not None
+                if not chosen_node.__dict__[asset_type + "_required"]:
+                    # if the node can be found, but it's not required, it's also invalid
+                    name_valid = False
 
             if not name_valid:
                 await msg.delete()
                 await self.getChatChannel(msg.guild.id).send(msg.author.mention + " Invalid filename {0}. Do not change the filename from the original name given by !portrait or !sprite .".format(file_name))
                 return False
+            
+            assert full_idx is not None
+            assert asset_type is not None
+            assert recolor is not None
 
             try:
                 msg_args = parser.parse_args(msg.content.split())

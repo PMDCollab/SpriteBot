@@ -85,6 +85,7 @@ class QueryRessourceStatus(BaseCommand):
             recolor_shiny = True
 
         chosen_node = TrackerUtils.getNodeFromIdx(self.spritebot.tracker, full_idx, 0)
+        assert chosen_node is not None
         # post the statuses
         response = msg.author.mention + " "
         status = TrackerUtils.getStatusEmoji(chosen_node, self.ressource_type)

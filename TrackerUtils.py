@@ -1,4 +1,4 @@
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Optional, Tuple
 
 import sys
 import os
@@ -505,7 +505,7 @@ def createShinyIdx(full_idx, shiny):
         new_idx.pop()
     return new_idx
 
-def getNodeFromIdx(tracker_dict, full_idx, depth):
+def getNodeFromIdx(tracker_dict: Dict[str, TrackerNode], full_idx: Optional[List[str]], depth: int) -> Optional[TrackerNode]:
     if full_idx is None:
         return None
     if len(full_idx) == 0:
@@ -521,7 +521,7 @@ def getNodeFromIdx(tracker_dict, full_idx, depth):
     # recursive case, kind of weird
     return getNodeFromIdx(node.subgroups, full_idx, depth+1)
 
-def getStatsFromFilename(filename):
+def getStatsFromFilename(filename: str) -> Tuple[bool, Optional[List[str]], Optional[str], Optional[bool]]:
     # attempt to parse the filename to a destination
     file, ext = os.path.splitext(filename)
     name_idx = file.split("-")
@@ -847,6 +847,9 @@ def swapFolderPaths(base_path, tracker, asset_type, full_idx_from, full_idx_to):
     chosen_node_from = getNodeFromIdx(tracker, full_idx_from, 0)
     chosen_node_to = getNodeFromIdx(tracker, full_idx_to, 0)
 
+    if chosen_node_from is None or chosen_node_to is None:
+        raise KeyError("Source {} or destination {} node not found in the tracker".format(str(full_idx_from), str(full_idx_to)))
+
     swapNodeAssetFeatures(chosen_node_from, chosen_node_to, asset_type)
 
     # prepare to swap textures
@@ -931,6 +934,9 @@ def swapAllSubNodes(base_path, tracker, full_idx_from, full_idx_to):
     # swap the subnode objects
     chosen_node_from = getNodeFromIdx(tracker, full_idx_from, 0)
     chosen_node_to = getNodeFromIdx(tracker, full_idx_to, 0)
+
+    if chosen_node_from is None or chosen_node_to is None:
+        raise KeyError("Source {} or destination {} node not found in the tracker".format(str(full_idx_from), str(full_idx_to)))
 
     tmp = chosen_node_from.subgroups
     chosen_node_from.subgroups = chosen_node_to.subgroups

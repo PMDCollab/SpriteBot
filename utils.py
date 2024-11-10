@@ -14,7 +14,7 @@
 #
 #  You should have received a copy of the GNU General Public License
 #  along with SkyTemple.  If not, see <https://www.gnu.org/licenses/>.
-from typing import List, Set, Dict, Tuple, Optional
+from typing import List, Set, Dict, Tuple, Optional, TypeVar
 
 class MultipleOffsetError(Exception):
     def __init__(self, message):
@@ -211,3 +211,11 @@ def offsetsEqual(offset1, offset2, imgWidth: int, flip: bool = False):
     if offset1.rhand != rhand:
         return False
     return True
+
+# from https://stackoverflow.com/questions/75833721/unpacking-an-optional-value
+T = TypeVar('T')
+
+def unpack_optional(opt: Optional[T]) -> T:
+    if opt is None:
+        raise ValueError("Optional value is None")
+    return opt

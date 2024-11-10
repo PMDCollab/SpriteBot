@@ -78,6 +78,8 @@ class MoveNode(BaseCommand):
 
         explicit_node_from = TrackerUtils.getNodeFromIdx(self.spritebot.tracker, full_idx_from, 0)
         explicit_node_to = TrackerUtils.getNodeFromIdx(self.spritebot.tracker, full_idx_to, 0)
+        assert explicit_node_from is not None
+        assert explicit_node_to is not None
 
         # check the main nodes
         try:
