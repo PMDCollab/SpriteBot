@@ -46,6 +46,7 @@ from commands.SetNodeCanon import SetNodeCanon
 from commands.SetNeedNode import SetNeedNode
 from commands.ForcePush import ForcePush
 from commands.Rescan import Rescan
+from commands.Update import Update
 from commands.Shutdown import Shutdown
 
 from Constants import PHASES, PermissionLevel
@@ -280,6 +281,7 @@ class SpriteBot:
             SetNodeCanon(self, False),
             ForcePush(self),
             Rescan(self),
+            Update(self),
             Shutdown(self)
         ]
 
@@ -331,20 +333,6 @@ class SpriteBot:
             origin = self.repo.remotes.origin
             origin.push()
             self.commits = 0
-
-    async def updateBot(self, msg):
-        resp_ch = self.getChatChannel(msg.guild.id)
-        resp = await resp_ch.send("Pulling from repo...")
-        # update self
-        bot_repo = git.Repo(scdir)
-        origin = bot_repo.remotes.origin
-        origin.pull()
-        await resp.edit(content="Update complete! Bot will restart.")
-        self.need_restart = True
-        self.config.update_ch = resp_ch.id
-        self.config.update_msg = resp.id
-        self.saveConfig()
-        await self.client.close()
 
     async def checkRestarted(self):
         if self.config.update_ch != 0 and self.config.update_msg != 0:
@@ -2213,8 +2201,6 @@ async def on_message(msg: discord.Message):
                 # root commands
             elif base_arg == "promote" and msg.author.id == sprite_bot.config.root:
                 await sprite_bot.promote(msg, args[1:])
-            elif base_arg == "update" and msg.author.id == sprite_bot.config.root:
-                await sprite_bot.updateBot(msg)
             elif base_arg in ["gr", "tr", "checkr"]:
                 pass
             else:
