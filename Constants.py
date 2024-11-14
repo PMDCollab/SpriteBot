@@ -37,6 +37,8 @@ CREDIT_TXT = "credits.txt"
 
 PHASES = [ "\u26AA incomplete", "\u2705 available", "\u2B50 fully featured" ]
 
+MESSAGE_BOUNTIES_DISABLED = "Bounties are disabled for this instance of SpriteBot"
+
 class PermissionLevel(Enum):
     EVERYONE = 0
     STAFF = 1

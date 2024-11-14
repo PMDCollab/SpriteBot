@@ -30,6 +30,9 @@ class BaseCommand:
         """return a multi-line help for this command"""
         raise NotImplementedError()
     
+    def shouldListInHelp(self) -> bool:
+        return True
+    
     @abstractmethod
     async def executeCommand(self, msg: discord.Message, args: List[str]):
         """perform the action of this command following a user’s command"""
@@ -37,10 +40,9 @@ class BaseCommand:
     
     def generateMultiLineExample(self, prefix: str, examples_args: List[str]) -> str:
         """ Generate the Examples: section of the multi-line documentation, with each entry in examples_args as a command argument list"""
+        result = "**Examples**\n"
         if len(examples_args) == 0:
-            return ""
-        else:
-            result = "**Examples**\n"
-            for example in examples_args:
-                result += f"`{prefix}{self.getCommand()} {example}`\n"
-            return result
+            examples_args = [""]
+        for example in examples_args:
+            result += f"`{prefix}{self.getCommand()} {example}`\n"
+        return result

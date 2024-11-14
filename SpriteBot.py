@@ -1,4 +1,4 @@
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Tuple
 
 
 import os
@@ -25,6 +25,7 @@ from commands.AutoRecolorRessource import AutoRecolorRessource
 from commands.ListRessource import ListRessource
 from commands.QueryRessourceCredit import QueryRessourceCredit
 from commands.DeleteRessourceCredit import DeleteRessourceCredit
+from commands.ListBounties import ListBounties
 from commands.ClearCache import ClearCache
 from commands.GetProfile import GetProfile
 from commands.SetProfile import SetProfile
@@ -49,7 +50,7 @@ from commands.Rescan import Rescan
 from commands.Update import Update
 from commands.Shutdown import Shutdown
 
-from Constants import PHASES, PermissionLevel
+from Constants import PHASES, PermissionLevel, MESSAGE_BOUNTIES_DISABLED
 from utils import unpack_optional
 import psutil
 
@@ -61,8 +62,6 @@ INFO_FILE_PATH = 'README.md'
 CONFIG_FILE_PATH = 'config.json'
 SPRITE_CONFIG_FILE_PATH = 'sprite_config.json'
 TRACKER_FILE_PATH = 'tracker.json'
-
-MESSAGE_BOUNTIES_DISABLED = "Bounties are disabled for this instance of SpriteBot"
 
 scdir = os.path.dirname(os.path.abspath(__file__))
 
@@ -244,6 +243,7 @@ class SpriteBot:
             GetProfile(self),
             SetProfile(self, False),
             GetAbsenteeProfiles(self),
+            ListBounties(self),
 
             # staff
             AddNode(self),
@@ -431,7 +431,7 @@ class SpriteBot:
 
 
 
-    def getBountiesFromDict(self, asset_type, tracker_dict, entries, indices):
+    def getBountiesFromDict(self, asset_type, tracker_dict, entries: List[Tuple[int, str, str, int]], indices):
         if tracker_dict.name != "":
             new_titles = TrackerUtils.getIdxName(self.tracker, indices)
             dexnum = int(indices[0])
@@ -1724,50 +1724,6 @@ class SpriteBot:
 
         await msg.channel.send(msg.author.mention + " {0}".format("\n".join(urls)))
 
-    async def listBounties(self, msg, name_args):
-        if not self.config.use_bounties:
-            await msg.channel.send(msg.author.mention + " " + MESSAGE_BOUNTIES_DISABLED)
-            return
-        
-        include_sprite = True
-        include_portrait = True
-
-        if len(name_args) > 0:
-            if name_args[0].lower() == "sprite":
-                include_portrait = False
-            elif name_args[0].lower() == "portrait":
-                include_sprite = False
-            else:
-                await msg.channel.send(msg.author.mention + " Use 'sprite' or 'portrait' as argument.")
-                return
-
-        entries = [] # type: ignore
-        over_dict = TrackerUtils.initSubNode("", True)
-        over_dict.subgroups = self.tracker
-
-        if include_sprite:
-            self.getBountiesFromDict("sprite", over_dict, entries, [])
-        if include_portrait:
-            self.getBountiesFromDict("portrait", over_dict, entries, [])
-
-        entries = sorted(entries, reverse=True)
-        entries = entries[:10]
-
-        posts = []
-        if include_sprite and include_portrait:
-            posts.append("**Top Bounties**")
-        elif include_sprite:
-            posts.append("**Top Bounties for Sprites**")
-        else:
-            posts.append("**Top Bounties for Portraits**")
-        for entry in entries:
-            posts.append("#{0:02d}. {2} for **{1}GP**, paid when the {3} becomes {4}.".format(len(posts), entry[0], entry[1], entry[2], PHASES[entry[3]].title()))
-
-        if len(posts) == 1:
-            posts.append("[None]")
-
-        msgs_used, changed = await self.sendInfoPosts(msg.channel, posts, [], 0)
-
     def createCreditAttribution(self, mention, plainName=False):
         if plainName:
             # "plainName" actually refers to "social-media-ready name"
@@ -2035,15 +1991,14 @@ class SpriteBot:
             if permission_level == PermissionLevel.EVERYONE:
                 if use_bounties:
                     return_msg += f"`{prefix}spritebounty` - Place a bounty on a sprite\n" \
-                      f"`{prefix}portraitbounty` - Place a bounty on a portrait\n" \
-                      f"`{prefix}bounties` - View top bounties\n"
+                      f"`{prefix}portraitbounty` - Place a bounty on a portrait\n"
 
             elif permission_level == PermissionLevel.STAFF:
                 return_msg = "**Approver Commands**\n" \
                   f"`{prefix}modreward` - Toggles whether a sprite/portrait will have a custom reward\n"
             
             for command in self.commands:
-                if permission_level == command.getRequiredPermission():
+                if permission_level == command.getRequiredPermission() and command.shouldListInHelp():
                     return_msg += f"`{prefix}{command.getCommand()}` - {command.getSingleLineHelp(server_config)}\n"
             
             if permission_level == PermissionLevel.EVERYONE:
@@ -2099,18 +2054,6 @@ class SpriteBot:
                                 f"`{prefix}portraitbounty Meowstic Shiny Female 1`\n" \
                                 f"`{prefix}portraitbounty Diancie Mega 1`\n" \
                                 f"`{prefix}portraitbounty Diancie Mega Shiny 1`"
-                else:
-                    return_msg = MESSAGE_BOUNTIES_DISABLED
-            elif base_arg == "bounties":
-                if use_bounties:
-                    return_msg = "**Command Help**\n" \
-                                f"`{prefix}bounties [Type]`\n" \
-                                "View the top sprites/portraits that have bounties placed on them.  " \
-                                "You will claim a bounty when you successfully submit that sprite/portrait.\n" \
-                                "`Type` - [Optional] Can be `sprite` or `portrait`\n" \
-                                "**Examples**\n" \
-                                f"`{prefix}bounties`\n" \
-                                f"`{prefix}bounties sprite`"
                 else:
                     return_msg = MESSAGE_BOUNTIES_DISABLED
             elif base_arg == "modreward":
@@ -2191,8 +2134,6 @@ async def on_message(msg: discord.Message):
                 await sprite_bot.placeBounty(msg, args[1:], "sprite")
             elif base_arg == "portraitbounty":
                 await sprite_bot.placeBounty(msg, args[1:], "portrait")
-            elif base_arg == "bounties":
-                await sprite_bot.listBounties(msg, args[1:])
             elif base_arg == "unregister":
                 await sprite_bot.deleteProfile(msg, args[1:])
                 # authorized commands
