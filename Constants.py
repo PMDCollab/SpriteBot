@@ -18,6 +18,8 @@ ACTION_MAP = { }
 COMPLETION_ACTIONS = []
 
 ACTIONS = []
+DUNGEON_ACTIONS = []
+STARTER_ACTIONS = []
 
 DIRECTIONS = [ "Down",
                "DownRight",

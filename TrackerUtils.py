@@ -1,21 +1,9 @@
-import sys
+
 import os
 import re
 import shutil
-import math
-import struct
-import glob
-import time
-import urllib
-import urllib.request
-from PIL import Image, ImageDraw, ImageFont
 import datetime
-import json
-from io import BytesIO
-import zipfile
 import xml.etree.ElementTree as ET
-import xml.dom.minidom as minidom
-import utils as exUtils
 import Constants
 
 CURRENT_LICENSE = "CC_BY-NC_4"
@@ -76,13 +64,25 @@ def getCreditEntries(path):
             found_names[credit_id] = True
     return credit_strings
 
+def hasExistingCredits(cur_credits, orig_author, diff):
+    for credit in cur_credits:
+        if credit.name == orig_author:
+            event_diffs = credit.changed.split(',')
+            if diff in event_diffs:
+                return True
+    return False
+
 def getFileCredits(path):
     id_list = []
-    if os.path.exists(os.path.join(path, Constants.CREDIT_TXT)):
-        with open(os.path.join(path, Constants.CREDIT_TXT), 'r', encoding='utf-8') as txt:
+    credit_path = os.path.join(path, Constants.CREDIT_TXT)
+    if os.path.exists(credit_path):
+        with open(credit_path, 'r', encoding='utf-8') as txt:
             for line in txt:
                 credit = line.strip().split('\t')
-                id_list.append(CreditEvent(credit[0], credit[1], credit[2], credit[3], credit[4]))
+                if len(credit) >= 5:
+                    id_list.append(CreditEvent(credit[0], credit[1], credit[2], credit[3], credit[4]))
+                else:
+                    raise BaseException("Invalid credit line “{}” at {}".format(line, credit_path))
     return id_list
 
 def appendCredits(path, id, diff):
@@ -782,7 +782,7 @@ def renameFileCredits(species_path, old_name, new_name):
                     entry[1] = new_name
             with open(fullPath, 'w', encoding='utf-8') as txt:
                 for entry in id_list:
-                    txt.write(entry[0] + "\t" + entry[1] + "\t" + entry[2] + "\t" + entry[3] + "\n")
+                    txt.write(entry[0] + "\t" + entry[1] + "\t" + entry[2] + "\t" + entry[3] + "\t" + entry[4] + "\n")
 
 def getDirFromIdx(base_path, asset_type, full_idx):
     full_arr = [base_path, asset_type] + full_idx
@@ -886,6 +886,11 @@ def replaceNodeAssetFeatures(node_from, node_to, asset_type):
             elif key == asset_type + "_talk":
                 # do not overwrite
                 pass
+            elif key == asset_type + "_bounty":
+                for status_key in node_from.__dict__[key]:
+                    if status_key not in node_to.__dict__[key]:
+                        node_to.__dict__[key][status_key] = 0
+                    node_to.__dict__[key][status_key] = node_to.__dict__[key][status_key] + node_from.__dict__[key][status_key]
             else:
                 node_to.__dict__[key] = node_from.__dict__[key]
             node_from.__dict__[key] = node_new.__dict__[key]

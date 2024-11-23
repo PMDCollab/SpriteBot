@@ -5,7 +5,6 @@ import os
 import io
 
 import discord
-import urllib
 import traceback
 import asyncio
 import json
@@ -18,6 +17,9 @@ import re
 import argparse
 import Constants
 
+import MastodonUtils
+import BlueSkyUtils
+
 from commands.QueryRessourceStatus import QueryRessourceStatus
 from commands.AutoRecolorRessource import AutoRecolorRessource
 from commands.ListRessource import ListRessource
@@ -26,6 +28,7 @@ from commands.DeleteRessourceCredit import DeleteRessourceCredit
 from commands.GetProfile import GetProfile
 
 from Constants import PHASES
+import psutil
 
 # Housekeeping for login information
 TOKEN_FILE_PATH = 'discord_token.txt'
@@ -35,11 +38,6 @@ INFO_FILE_PATH = 'README.md'
 CONFIG_FILE_PATH = 'config.json'
 SPRITE_CONFIG_FILE_PATH = 'sprite_config.json'
 TRACKER_FILE_PATH = 'tracker.json'
-
-SPRITE_WORTH = 10
-PORTRAIT_WORTH = 1
-SPRITE_SHINY_WORTH = 2
-PORTRAIT_SHINY_WORTH = 1
 
 MESSAGE_BOUNTIES_DISABLED = "Bounties are disabled for this instance of SpriteBot"
 
@@ -92,6 +90,9 @@ class BotConfig:
         self.path = ""
         self.root = 0
         self.push = False
+        self.bluesky = False
+        self.mastodon = False
+        self.last_tl_mention = 0
         self.points = 0
         self.error_ch = 0
         self.points_ch = 0
@@ -126,11 +127,21 @@ class SpriteBot:
     A class for handling recolors
     """
     def __init__(self, in_path, client):
+
         # init data
         self.path = in_path
         self.need_restart = False
+
+        self.writeLog("Pre-Startup Memory: {0}".format(psutil.Process().memory_info().rss))
+
         with open(os.path.join(self.path, CONFIG_FILE_PATH)) as f:
             self.config = BotConfig(json.load(f))
+
+        if self.config.bluesky:
+            self.bsky_api = BlueSkyUtils.init_bluesky(scdir)
+
+        if self.config.mastodon:
+            self.tl_api = MastodonUtils.init_mastodon(scdir)
 
         # init portrait constants
         with open(os.path.join(self.config.path, SPRITE_CONFIG_FILE_PATH)) as f:
@@ -150,6 +161,8 @@ class SpriteBot:
             Constants.EMOTIONS = sprite_config['emotions']
             Constants.COMPLETION_ACTIONS = sprite_config['completion_actions']
             Constants.ACTIONS = sprite_config['actions']
+            Constants.DUNGEON_ACTIONS = sprite_config['dungeon_actions']
+            Constants.STARTER_ACTIONS = sprite_config['starter_actions']
             for key in sprite_config['action_map']:
                 Constants.ACTION_MAP[int(key)] = sprite_config['action_map'][key]
 
@@ -208,6 +221,7 @@ class SpriteBot:
             GetProfile(self)
         ]
         
+        self.writeLog("Startup Memory: {0}".format(psutil.Process().memory_info().rss))
         #self.moveSlot(msg, ["", "->", ""], "sprite")
         need_starters = []
         for k in self.tracker:
@@ -570,10 +584,12 @@ class SpriteBot:
     async def returnMsgFile(self, msg, thread, msg_body, asset_type, quant_img=None):
         try:
             return_file, return_name = SpriteUtils.getLinkFile(msg.attachments[0].url, asset_type)
-            await self.getChatChannel(msg.guild.id).send(msg_body, file=discord.File(return_file, return_name))
             if thread:
+                await self.getChatChannel(msg.guild.id).send(msg_body + "\n" + thread.mention, file=discord.File(return_file, return_name))
                 return_file, return_name = SpriteUtils.getLinkFile(msg.attachments[0].url, asset_type)
                 await thread.send(msg_body, file=discord.File(return_file, return_name))
+            else:
+                await self.getChatChannel(msg.guild.id).send(msg_body, file=discord.File(return_file, return_name))
 
             if quant_img is not None:
                 fileData = io.BytesIO()
@@ -632,6 +648,13 @@ class SpriteBot:
         else:
             diff_str = "No Changes."
 
+        review_thread = await self.retrieveDiscussion(full_idx, chosen_node, asset_type, channel.guild.id)
+
+        thread_link = ""
+        if review_thread:
+            thread_link = "\n{0}".format(review_thread.mention)
+
+
         add_msg = ""
         if not recolor and asset_type == "sprite":
             preview_img = SpriteUtils.getCombinedZipImg(return_file)
@@ -659,8 +682,8 @@ class SpriteBot:
             if recolor or asset_type == "portrait":
                 orig_link = await self.retrieveLinkMsg(full_idx, chosen_node, asset_type, recolor)
                 add_msg += "\nCurrent Version: {0}".format(orig_link)
-        new_msg = await channel.send("{0} {1}\n{2}\n{3}\n{4}".format(author, " ".join(title), cmd_str, diff_str,
-                                                                     formatted_content + add_msg), files=send_files)
+        new_msg = await channel.send("{0} {1}\n{2}\n{3}{4}\n{5}".format(author, " ".join(title), cmd_str, diff_str,
+                                                                        thread_link, formatted_content + add_msg), files=send_files)
 
         pending_dict = chosen_node.__dict__[asset_type+"_pending"]
         change_status = len(pending_dict) == 0
@@ -670,7 +693,6 @@ class SpriteBot:
         await new_msg.add_reaction('\U00002705')
         await new_msg.add_reaction('\U0000274C')
 
-        review_thread = await self.retrieveDiscussion(full_idx, chosen_node, asset_type, new_msg.guild.id)
         if review_thread:
             await review_thread.send("New post by {0}: {1}".format(author, new_msg.jump_url))
 
@@ -800,6 +822,7 @@ class SpriteBot:
         prev_completion_file = TrackerUtils.getCurrentCompletion(orig_node, chosen_node, asset_type)
 
         new_credit = True
+        cur_credits = []
         if delete_author:
             new_credit = False
             TrackerUtils.deleteCredits(gen_path, orig_author)
@@ -869,7 +892,7 @@ class SpriteBot:
         mentions = ["<@!"+str(ii)+">" for ii in approvals]
         approve_msg = "{0} {1} approved by {2}: #{3:03d}: {4}".format(new_revise, asset_type, str(mentions), int(full_idx[0]), new_name_str)
 
-        give_points = 0
+        reward_changes = []
         if not add_author and not delete_author:
             if len(diffs) > 0:
                 approve_msg += "\nChanges: {0}".format(", ".join(diffs))
@@ -888,28 +911,54 @@ class SpriteBot:
                     approve_msg += "\nNote: Shiny form now marked as {0} due to this change.".format(PHASES[TrackerUtils.PHASE_INCOMPLETE])
 
 
-            give_points = current_completion_file - prev_completion_file
-
             if TrackerUtils.isShinyIdx(full_idx):
-                give_points = 1
-                if current_completion_file < TrackerUtils.PHASE_FULL:
-                    give_points = 0
-
-                if asset_type == "sprite":
-                    give_points *= SPRITE_SHINY_WORTH
-                elif asset_type == "portrait":
-                    give_points *= PORTRAIT_SHINY_WORTH
+                new_author = False
+                for credit in cur_credits:
+                    if credit.name == orig_author:
+                        new_author = True
+                        break
+                if not new_author:
+                    reward_changes.append("{0}sr".format(1))
             else:
-                if asset_type == "sprite":
-                    give_points *= SPRITE_WORTH
-                elif asset_type == "portrait":
-                    give_points *= PORTRAIT_WORTH
+                paid_diffs = []
+                for diff in diffs:
+                    if not TrackerUtils.hasExistingCredits(cur_credits, orig_author, diff) and not SpriteUtils.isCopyOf(gen_path, diff):
+                        paid_diffs.append(diff)
 
-            if give_points < 1 and new_credit:
-                give_points = 1
+                if asset_type == "sprite":
+                    dungeon_anims = 0
+                    starter_anims = 0
+                    other_anims = 0
+                    for diff in paid_diffs:
+                        if diff in Constants.DUNGEON_ACTIONS:
+                            dungeon_anims += 1
+                        elif diff in Constants.STARTER_ACTIONS:
+                            starter_anims += 1
+                        else:
+                            other_anims += 1
+
+                    if dungeon_anims > 0:
+                        reward_changes.append("{0}da".format(dungeon_anims))
+                    if starter_anims > 0:
+                        reward_changes.append("{0}sa".format(starter_anims))
+                    if other_anims > 0:
+                        reward_changes.append("{0}oa".format(other_anims))
+
+                elif asset_type == "portrait":
+                    sym_portraits = 0
+                    asym_portraits = 0
+                    for diff in paid_diffs:
+                        if diff.endswith("^"):
+                            asym_portraits += 1
+                        else:
+                            sym_portraits += 1
+                    if sym_portraits > 0:
+                        reward_changes.append("{0}p".format(sym_portraits))
+                    if asym_portraits > 0:
+                        reward_changes.append("{0}ap".format(asym_portraits))
 
             if chosen_node.modreward:
-                give_points = 0
+                reward_changes = []
                 approve_msg += "\nThe non-bounty GP Reward for this {0} will be handled by the approvers.".format(asset_type)
 
         # save the tracker
@@ -922,7 +971,7 @@ class SpriteBot:
         # post about it
         for server_id in self.config.servers:
             if server_id == str(msg.guild.id):
-                await self.getChatChannel(msg.guild.id).send(sender_info + " " + approve_msg + "\n" + new_link)
+                await self.getChatChannel(msg.guild.id).send(sender_info + " " + approve_msg + "\n" + review_thread.mention + "\n" + new_link)
                 await review_thread.send(sender_info + " " + approve_msg + "\n" + new_link)
             else:
                 await self.getChatChannel(int(server_id)).send("{1}: {0}".format(update_msg, msg.guild.name))
@@ -938,16 +987,20 @@ class SpriteBot:
                 await self.getChatChannel(msg.guild.id).send("{0}\nPlease use `!register <your name> <contact info>` to register your name and contact info in the credits (use `!help register` for more info).\nWe recommended using an external contact in case you lose access to your Discord account.".format(orig_author))
 
             # add bounty
+            bounty_points = 0
             result_phase = current_completion_file
             while result_phase > 0:
                 if str(result_phase) in chosen_node.__dict__[asset_type + "_bounty"]:
-                    give_points += chosen_node.__dict__[asset_type + "_bounty"][str(result_phase)]
+                    bounty_points += chosen_node.__dict__[asset_type + "_bounty"][str(result_phase)]
                     del chosen_node.__dict__[asset_type + "_bounty"][str(result_phase)]
                 result_phase -= 1
 
-            if give_points > 0 and orig_author.startswith("<@!") and self.config.points_ch != 0:
+            if bounty_points > 0:
+                reward_changes.append(str(bounty_points))
+
+            if len(reward_changes) > 0 and orig_author.startswith("<@!") and self.config.points_ch != 0:
                 orig_author_id = orig_author[3:-1]
-                await self.client.get_channel(self.config.points_ch).send("!gr {0} {1} {2}".format(orig_author_id, give_points, self.config.servers[str(msg.guild.id)].chat))
+                await self.client.get_channel(self.config.points_ch).send("!gr {0} {1} {2}".format(orig_author_id, "+".join(reward_changes), self.config.servers[str(msg.guild.id)].chat))
 
 
             if not is_shiny:
@@ -1010,6 +1063,24 @@ class SpriteBot:
                     await self.postStagedSubmission(msg.channel, cmd_str, content, shiny_idx, shiny_node, asset_type, sender_info,
                                                     True, auto_diffs, auto_recolor_file, return_name, overcolor_img)
 
+            if self.config.mastodon or self.config.bluesky:
+                status = TrackerUtils.getStatusEmoji(chosen_node, asset_type)
+                tl_msg = "{5} #{3:03d}: {4}\n{0} {1} by {2}".format(new_revise,
+                                                                    asset_type,
+                                                                    self.createCreditAttribution(orig_author, True),
+                                                                    int(full_idx[0]), new_name_str, status)
+
+                img_file = SpriteUtils.getSocialMediaImage(new_link, asset_type)
+                if self.config.mastodon:
+                    try:
+                        await MastodonUtils.post_image(self.tl_api, tl_msg, new_name_str, img_file, asset_type)
+                    except:
+                        await self.sendError("Error sending post!\n{0}".format(traceback.format_exc()))
+                if self.config.bluesky:
+                    try:
+                        await BlueSkyUtils.post_image(self.bsky_api, tl_msg, new_name_str, img_file, asset_type)
+                    except:
+                        await self.sendError("Error sending post!\n{0}".format(traceback.format_exc()))
 
 
     async def submissionDeclined(self, msg, orig_sender, declines):
@@ -1087,7 +1158,10 @@ class SpriteBot:
                     ss = reaction
                 else:
                     async for user in reaction.users():
-                        remove_users.append((reaction, user))
+                        if await self.isAuthorized(user, msg.guild):
+                            pass
+                        else:
+                            remove_users.append((reaction, user))
 
             msg_lines = msg.content.split('\n')
             main_data = msg_lines[0].split()
@@ -1332,7 +1406,7 @@ class SpriteBot:
             try:
                 await message.delete()
             except:
-                print(traceback.format_exc())
+                await self.sendError("Error deleting {0}!\n{1}".format(message.id, traceback.format_exc()))
 
     async def updateThreads(self, server_id):
         server = self.config.servers[server_id]
@@ -1347,7 +1421,7 @@ class SpriteBot:
             if thread.archived:
                 continue
             name_args = thread.name.split()
-            asset_name = name_args[0]
+            asset_name = name_args[0].lower()
             name_seq = [TrackerUtils.sanitizeName(i) for i in name_args[1:]]
             full_idx = TrackerUtils.findFullTrackerIdx(self.tracker, name_seq, 0)
             if full_idx is None:
@@ -1356,6 +1430,9 @@ class SpriteBot:
                 continue
 
             chosen_node = TrackerUtils.getNodeFromIdx(self.tracker, full_idx, 0)
+            if chosen_node is None:
+                await self.sendError("Could not get node when updating thread {0}!".format(thread.name))
+                continue
             pending_dict = chosen_node.__dict__[asset_name+"_pending"]
 
             if len(pending_dict) > 0:
@@ -1363,11 +1440,16 @@ class SpriteBot:
                 continue
 
             # so this is an inactive submission.
-            last_msg = await thread.fetch_message(thread.last_message_id)
-            # subtract one day from current time and if the thread is older than one day, archive it
-            time_before = datetime.datetime.now(last_msg.created_at.tzinfo) - datetime.timedelta(days=1)
-            if last_msg.created_at < time_before:
-                await thread.edit(archived=True)
+            try:
+                last_msg = await thread.fetch_message(thread.last_message_id)
+                # subtract one day from current time and if the thread is older than one day, archive it
+                time_before = datetime.datetime.now(last_msg.created_at.tzinfo) - datetime.timedelta(days=1)
+                if last_msg.created_at < time_before:
+                    await thread.edit(archived=True)
+            except discord.errors.NotFound as err:
+                pass
+            except:
+                await self.sendError("Error fetching message for thread {0}!\n{1}".format(thread.name, traceback.format_exc()))
 
 
     async def retrieveDiscussion(self, full_idx, chosen_node, asset_type, guild_id):
@@ -1634,15 +1716,15 @@ class SpriteBot:
 
         TrackerUtils.replaceFolderPaths(self.config.path, self.tracker, asset_type, full_idx_from, full_idx_to)
 
-        await msg.channel.send(msg.author.mention + " Replaced {0} with {1}.".format(" ".join(name_seq_from), " ".join(name_seq_to)))
+        await msg.channel.send(msg.author.mention + " Replaced {0} with {1}.".format(" ".join(name_seq_to), " ".join(name_seq_from)))
         # if the source is empty in sprite and portrait, and its subunits are empty in sprite and portrait
         # remind to delete
-        await msg.channel.send(msg.author.mention + " {0} is now empty. Use `!delete` if it is no longer needed.".format(" ".join(name_seq_to)))
+        await msg.channel.send(msg.author.mention + " {0} is now empty. Use `!delete` if it is no longer needed.".format(" ".join(name_seq_from)))
 
         self.saveTracker()
         self.changed = True
 
-        await self.gitCommit("Replaced {0} with {1}".format(" ".join(name_seq_from), " ".join(name_seq_to)))
+        await self.gitCommit("Replaced {0} with {1}".format(" ".join(name_seq_to), " ".join(name_seq_from)))
 
     async def moveSlot(self, msg, name_args, asset_type):
         try:
@@ -1807,6 +1889,72 @@ class SpriteBot:
         self.changed = True
 
 
+    async def promote(self, msg, name_args):
+
+        if not self.config.mastodon and not self.config.bluesky:
+            await msg.channel.send(msg.author.mention + " Social Media posting is disabled.")
+            return
+
+        asset_type = "sprite"
+
+        file_name = name_args[-1]
+        has_file_name = False
+        for action in Constants.ACTIONS:
+            if action.lower() == file_name.lower():
+                has_file_name = True
+                break
+
+        if has_file_name:
+            name_args = name_args[:-1]
+        else:
+            file_name = None
+            asset_type = "portrait"
+
+        name_seq = [TrackerUtils.sanitizeName(i) for i in name_args]
+        full_idx = TrackerUtils.findFullTrackerIdx(self.tracker, name_seq, 0)
+        if full_idx is None:
+            await msg.channel.send(msg.author.mention + " No such Pokemon.")
+            return
+        chosen_node = TrackerUtils.getNodeFromIdx(self.tracker, full_idx, 0)
+
+        if asset_type == "sprite":
+            for k in chosen_node.__dict__[asset_type + "_files"]:
+                if file_name.lower() == k.lower():
+                    file_name = k
+                    break
+
+            if file_name not in chosen_node.__dict__[asset_type + "_files"]:
+                await msg.channel.send(msg.author.mention + " Specify a Pokemon and an existing emotion/animation.")
+                return
+
+        credit_data = chosen_node.__dict__[asset_type + "_credit"]
+        chosen_link = await self.retrieveLinkMsg(full_idx, chosen_node, asset_type, False)
+
+        status = TrackerUtils.getStatusEmoji(chosen_node, asset_type)
+        tl_msg = "{5} #{3:03d}: {4}\n{0} {1} by {2}".format("Showcased",
+                                                            asset_type,
+                                                            self.createCreditBlock(credit_data, None, True),
+                                                            int(full_idx[0]), " ".join(name_seq), status)
+
+        img_file = SpriteUtils.getSocialMediaImage(chosen_link, asset_type, file_name)
+
+        urls = []
+        if self.config.mastodon:
+            try:
+                url = await MastodonUtils.post_image(self.tl_api, tl_msg, " ".join(name_seq), img_file, asset_type)
+                urls.append(url)
+            except:
+                await self.sendError("Error sending post!\n{0}".format(traceback.format_exc()))
+        if self.config.bluesky:
+            try:
+                url = await BlueSkyUtils.post_image(self.bsky_api, tl_msg, " ".join(name_seq), img_file, asset_type)
+                urls.append(url)
+            except:
+                await self.sendError("Error sending post!\n{0}".format(traceback.format_exc()))
+
+        await msg.channel.send(msg.author.mention + " {0}".format("\n".join(urls)))
+
+
     async def setLock(self, msg, name_args, asset_type, lock_state):
 
         name_seq = [TrackerUtils.sanitizeName(i) for i in name_args[:-1]]
@@ -1896,30 +2044,41 @@ class SpriteBot:
 
         await msg.channel.send(msg.author.mention + " Cleared links for #{0:03d}: {1}.".format(int(full_idx[0]), " ".join(name_seq)))
 
-    def createCreditAttribution(self, mention):
-        base_name = "`{0}`".format(mention)
-        if mention in self.names:
-            if self.names[mention].name != "":
-                base_name = self.names[mention].name
-            if self.names[mention].contact != "":
-                return "{0} `{1}`".format(base_name, self.names[mention].contact)
+    def createCreditAttribution(self, mention, plainName=False):
+        if plainName:
+            # "plainName" actually refers to "social-media-ready name"
+            # TODO: rename this variable or refactor it as a separate flag
+            base_name = "{0}".format(mention)
+            if mention in self.names:
+                if self.names[mention].name != "":
+                    base_name = self.names[mention].name
+                if self.names[mention].contact != "":
+                    return "{0}: {1}".format(base_name, self.names[mention].contact)
+            return base_name
+        else:
+            base_name = "`{0}`".format(mention)
+            if mention in self.names:
+                if self.names[mention].name != "":
+                    base_name = self.names[mention].name
+                if self.names[mention].contact != "":
+                    return "{0} `{1}`".format(base_name, self.names[mention].contact)
         return base_name
 
     """
     Base credit is used in the case of shinies.
     It is the credit of the base sprite that should be added to the shiny credit.
     """
-    def createCreditBlock(self, credit, base_credit):
+    def createCreditBlock(self, credit, base_credit, plainName=False):
         author_arr = []
-        author_arr.append(self.createCreditAttribution(credit.primary))
+        author_arr.append(self.createCreditAttribution(credit.primary, plainName))
         for author in credit.secondary:
-            author_arr.append(self.createCreditAttribution(author))
+            author_arr.append(self.createCreditAttribution(author, plainName))
         if base_credit is not None:
-            attr = self.createCreditAttribution(base_credit.primary)
+            attr = self.createCreditAttribution(base_credit.primary, plainName)
             if attr not in author_arr:
                 author_arr.append(attr)
             for author in credit.secondary:
-                attr = self.createCreditAttribution(author)
+                attr = self.createCreditAttribution(author, plainName)
                 if attr not in author_arr:
                     author_arr.append(attr)
 
@@ -3178,6 +3337,8 @@ async def on_message(msg: discord.Message):
             elif base_arg == "clearcache" and authorized:
                 await sprite_bot.clearCache(msg, args[1:])
                 # root commands
+            elif base_arg == "promote" and msg.author.id == sprite_bot.config.root:
+                await sprite_bot.promote(msg, args[1:])
             elif base_arg == "rescan" and msg.author.id == sprite_bot.config.root:
                 await sprite_bot.rescan(msg)
             elif base_arg == "unlockportrait" and msg.author.id == sprite_bot.config.root:
@@ -3253,25 +3414,39 @@ async def periodic_update_status():
             await sprite_bot.sendError(traceback.format_exc())
 
         try:
-            # info updates every 1 hour
-            if updates % 360 == 0:
-                sprite_bot.writeLog("Performing Post Update")
-                if sprite_bot.changed or updates == 0:
-                    sprite_bot.changed = False
-                    for server_id in sprite_bot.config.servers:
-                        await sprite_bot.updatePost(sprite_bot.config.servers[server_id])
-                sprite_bot.writeLog("Post Update Complete")
-
-        except Exception as e:
-            await sprite_bot.sendError(traceback.format_exc())
-
-        try:
             # thread updates every 1 hour
             if updates % 360 == 0:
                 sprite_bot.writeLog("Performing Thread Update")
                 for server_id in sprite_bot.config.servers:
                     await sprite_bot.updateThreads(server_id)
                 sprite_bot.writeLog("Thread Update Complete")
+
+        except Exception as e:
+            await sprite_bot.sendError(traceback.format_exc())
+
+        try:
+            # twitter updates every minute
+            if sprite_bot.config.mastodon:
+                if updates % 6 == 0:
+                    sprite_bot.writeLog("Performing Social Media Update")
+                    # check for mentions
+                    old_mention = max(1, sprite_bot.config.last_tl_mention)
+                    sprite_bot.config.last_tl_mention = await MastodonUtils.reply_mentions(sprite_bot, sprite_bot.tl_api, old_mention)
+                    if sprite_bot.config.last_tl_mention != old_mention:
+                        sprite_bot.saveConfig()
+                    sprite_bot.writeLog("Social Media Update Complete")
+        except Exception as e:
+            await sprite_bot.sendError(traceback.format_exc())
+
+        try:
+            # info updates every 1 hour
+            if updates % 360 == 360:
+                sprite_bot.writeLog("Performing Post Update")
+                if sprite_bot.changed or updates == 0:
+                    sprite_bot.changed = False
+                    for server_id in sprite_bot.config.servers:
+                        await sprite_bot.updatePost(sprite_bot.config.servers[server_id])
+                sprite_bot.writeLog("Post Update Complete")
 
         except Exception as e:
             await sprite_bot.sendError(traceback.format_exc())
@@ -3283,7 +3458,7 @@ async def periodic_update_status():
 
 sprite_bot = SpriteBot(scdir, client)
 
-with open(os.path.join(scdir, TOKEN_FILE_PATH)) as token_file:
+with open(os.path.join(scdir, "tokens", TOKEN_FILE_PATH)) as token_file:
     token = token_file.read()
 
 try:
