@@ -2,7 +2,7 @@ from typing import TYPE_CHECKING, List
 from .BaseCommand import BaseCommand
 import discord
 import TrackerUtils
-from Constants import PHASES
+from Constants import PHASES, PermissionLevel
 
 if TYPE_CHECKING:
     from SpriteBot import SpriteBot, BotServer
@@ -12,6 +12,9 @@ class QueryRessourceStatus(BaseCommand):
         super().__init__(spritebot)
         self.ressource_type = ressource_type
         self.is_derivation = is_derivation
+    
+    def getRequiredPermission(self) -> PermissionLevel:
+        return PermissionLevel.EVERYONE
     
     def getCommand(self) -> str:
         if self.is_derivation:
@@ -82,6 +85,7 @@ class QueryRessourceStatus(BaseCommand):
             recolor_shiny = True
 
         chosen_node = TrackerUtils.getNodeFromIdx(self.spritebot.tracker, full_idx, 0)
+        assert chosen_node is not None
         # post the statuses
         response = msg.author.mention + " "
         status = TrackerUtils.getStatusEmoji(chosen_node, self.ressource_type)

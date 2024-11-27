@@ -1,4 +1,6 @@
+from typing import Dict, List, Any, Optional, Tuple
 
+import sys
 import os
 import re
 import shutil
@@ -95,13 +97,13 @@ def mergeCredits(path_from, path_to):
     id_list = []
     with open(path_to, 'r', encoding='utf-8') as txt:
         for line in txt:
-            credit = line.strip().split('\t')
-            id_list.append(CreditEvent(credit[0], credit[1], credit[2], credit[3], credit[4]))
+            splited = line.strip().split('\t')
+            id_list.append(CreditEvent(splited[0], splited[1], splited[2], splited[3], splited[4]))
 
     with open(path_from, 'r', encoding='utf-8') as txt:
         for line in txt:
-            credit = line.strip().split('\t')
-            id_list.append(CreditEvent(credit[0], credit[1], credit[2], credit[3], credit[4]))
+            splited = line.strip().split('\t')
+            id_list.append(CreditEvent(splited[0], splited[1], splited[2], splited[3], splited[4]))
 
     id_list = sorted(id_list, key=lambda x: x.datetime)
 
@@ -162,11 +164,14 @@ class TrackerNode:
         temp_list = [i for i in node_dict]
         temp_list = sorted(temp_list)
 
-        main_dict = { }
-        for key in temp_list:
-            main_dict[key] = node_dict[key]
+        self.subgroups = { }
 
-        self.__dict__ = main_dict
+        for key in temp_list:
+            if key == "subgroups":
+                for sub_key, sub in node_dict[key].items():
+                    self.subgroups[sub_key] = TrackerNode(sub)
+            else:
+                self.__dict__[key] = node_dict[key]
 
         if "sprite_talk" not in self.__dict__:
             self.sprite_talk = {}
@@ -174,11 +179,6 @@ class TrackerNode:
 
         self.sprite_credit = CreditNode(node_dict["sprite_credit"])
         self.portrait_credit = CreditNode(node_dict["portrait_credit"])
-
-        sub_dict = { }
-        for key in self.subgroups:
-            sub_dict[key] = TrackerNode(self.subgroups[key])
-        self.subgroups = sub_dict
 
     def getDict(self):
         node_dict = { }
@@ -225,7 +225,7 @@ def loadNameFile(name_path):
     return name_dict
 
 def initCreditDict():
-    credit_dict = { }
+    credit_dict: Dict[str, Any] = { }
     credit_dict["primary"] = ""
     credit_dict["secondary"] = []
     credit_dict["total"] = 0
@@ -311,8 +311,8 @@ def updateFiles(dict, species_path, prefix):
             tree = ET.parse(os.path.join(species_path, Constants.MULTI_SHEET_XML))
             root = tree.getroot()
             anims_node = root.find('Anims')
-            for anim_node in anims_node.iter('Anim'):
-                name = anim_node.find('Name').text
+            for anim_node in anims_node.iter('Anim'): # type: ignore
+                name = anim_node.find('Name').text # type: ignore
                 file_list.append(name)
     else:
         for inFile in os.listdir(species_path):
@@ -509,7 +509,7 @@ def createShinyIdx(full_idx, shiny):
         new_idx.pop()
     return new_idx
 
-def getNodeFromIdx(tracker_dict, full_idx, depth):
+def getNodeFromIdx(tracker_dict: Dict[str, TrackerNode], full_idx: Optional[List[str]], depth: int) -> Optional[TrackerNode]:
     if full_idx is None:
         return None
     if len(full_idx) == 0:
@@ -525,7 +525,7 @@ def getNodeFromIdx(tracker_dict, full_idx, depth):
     # recursive case, kind of weird
     return getNodeFromIdx(node.subgroups, full_idx, depth+1)
 
-def getStatsFromFilename(filename):
+def getStatsFromFilename(filename: str) -> Tuple[bool, Optional[List[str]], Optional[str], Optional[bool]]:
     # attempt to parse the filename to a destination
     file, ext = os.path.splitext(filename)
     name_idx = file.split("-")
@@ -694,7 +694,7 @@ def updateCreditCompilation(name_path, credit_dict):
                             txt.write("\t\t{0}: {1}\n".format(id_key, ",".join(all_parts)))
                 txt.write("\n")
 
-def updateCompilationStats(name_dict, dict, species_path, prefix, form_name_list, credit_dict):
+def updateCompilationStats(name_dict, dict, species_path, prefix, form_name_list, credit_dict: Dict[str, CreditCompileEntry]):
     # generate the form name
     form_name = " ".join([i for i in form_name_list if i != ""])
     # is there a credits txt?  read it
@@ -851,6 +851,9 @@ def swapFolderPaths(base_path, tracker, asset_type, full_idx_from, full_idx_to):
     chosen_node_from = getNodeFromIdx(tracker, full_idx_from, 0)
     chosen_node_to = getNodeFromIdx(tracker, full_idx_to, 0)
 
+    if chosen_node_from is None or chosen_node_to is None:
+        raise KeyError("Source {} or destination {} node not found in the tracker".format(str(full_idx_from), str(full_idx_to)))
+
     swapNodeAssetFeatures(chosen_node_from, chosen_node_to, asset_type)
 
     # prepare to swap textures
@@ -935,6 +938,9 @@ def swapAllSubNodes(base_path, tracker, full_idx_from, full_idx_to):
     # swap the subnode objects
     chosen_node_from = getNodeFromIdx(tracker, full_idx_from, 0)
     chosen_node_to = getNodeFromIdx(tracker, full_idx_to, 0)
+
+    if chosen_node_from is None or chosen_node_to is None:
+        raise KeyError("Source {} or destination {} node not found in the tracker".format(str(full_idx_from), str(full_idx_to)))
 
     tmp = chosen_node_from.subgroups
     chosen_node_from.subgroups = chosen_node_to.subgroups

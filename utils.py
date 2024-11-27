@@ -14,7 +14,7 @@
 #
 #  You should have received a copy of the GNU General Public License
 #  along with SkyTemple.  If not, see <https://www.gnu.org/licenses/>.
-from typing import List, Set, Dict, Tuple, Optional
+from typing import List, Set, Dict, Tuple, Optional, TypeVar
 
 class MultipleOffsetError(Exception):
     def __init__(self, message):
@@ -48,14 +48,14 @@ def addToBounds(bounds: Tuple[int, int, int, int], add: Tuple[int, int], sub: bo
     return (bounds[0] + add[0] * mult, bounds[1] + add[1] * mult, bounds[2] + add[0] * mult, bounds[3] + add[1] * mult)
 
 
-def addLoc(loc1: Tuple[int, int], loc2: Tuple[int, int], sub: bool = False):
+def addLoc(loc1, loc2, sub: bool = False):
     mult = 1
     if sub:
         mult = -1
     return (loc1[0] + loc2[0] * mult, loc1[1] + loc2[1] * mult)
 
 
-def getCoveredBounds(inImg, max_box: Tuple[int, int, int, int] = None):
+def getCoveredBounds(inImg, max_box: Optional[Tuple[int, int, int, int]] = None):
     if max_box is None:
         max_box = (0, 0, inImg.size[0], inImg.size[1])
     minX, minY = inImg.size
@@ -86,7 +86,7 @@ def addToPalette(palette, img):
 
 def getOffsetFromRGB(img, bounds: Tuple[int, int, int, int], black: bool, r: bool, g: bool, b: bool, white: bool):
     datas = img.getdata()
-    results = [None] * 5
+    results: List[Optional[Tuple[int, int]]] = [None] * 5
     for i in range(bounds[0], bounds[2]):
         for j in range(bounds[1], bounds[3]):
             color = datas[i + j * img.size[0]]
@@ -111,11 +111,11 @@ def getOffsetFromRGB(img, bounds: Tuple[int, int, int, int], black: bool, r: boo
                             if results[0] is not None:
                                 existing_px.append((results[0][0] + bounds[0], results[0][1] + bounds[1]))
                             if results[1] is not None:
-                                existing_px.append((results[0][1] + bounds[0], results[1][1] + bounds[1]))
+                                existing_px.append((results[0][1] + bounds[0], results[1][1] + bounds[1])) # type: ignore
                             if results[2] is not None:
-                                existing_px.append((results[0][2] + bounds[0], results[2][1] + bounds[1]))
+                                existing_px.append((results[0][2] + bounds[0], results[2][1] + bounds[1])) # type: ignore
                             if results[3] is not None:
-                                existing_px.append((results[0][3] + bounds[0], results[3][1] + bounds[1]))
+                                existing_px.append((results[0][3] + bounds[0], results[3][1] + bounds[1])) # type: ignore
                             raise MultipleOffsetError("White pixel found at {0} when r/g/b pixel already found at {1} when searching for offsets!".format((i, j), existing_px))
                 else:
                     if black and color[0] == 0 and color[1] == 0 and color[2] == 0:
@@ -211,3 +211,11 @@ def offsetsEqual(offset1, offset2, imgWidth: int, flip: bool = False):
     if offset1.rhand != rhand:
         return False
     return True
+
+# from https://stackoverflow.com/questions/75833721/unpacking-an-optional-value
+T = TypeVar('T')
+
+def unpack_optional(opt: Optional[T]) -> T:
+    if opt is None:
+        raise ValueError("Optional value is None")
+    return opt

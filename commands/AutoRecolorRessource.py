@@ -1,5 +1,6 @@
 from typing import TYPE_CHECKING, List
 from .BaseCommand import BaseCommand
+from Constants import PermissionLevel
 import discord
 import TrackerUtils
 import SpriteUtils
@@ -12,6 +13,9 @@ class AutoRecolorRessource(BaseCommand):
     def __init__(self, spritebot: "SpriteBot", ressource_type: str):
         super().__init__(spritebot)
         self.ressource_type = ressource_type
+    
+    def getRequiredPermission(self) -> PermissionLevel:
+        return PermissionLevel.EVERYONE
     
     def getCommand(self) -> str:
         return f"autocolor{self.ressource_type}"
