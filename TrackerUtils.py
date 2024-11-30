@@ -989,6 +989,352 @@ def setCanon(dict, canon):
     for subgroup in dict.subgroups:
         setCanon(dict.subgroups[subgroup], canon)
 
+
+def switchToCutscene(tracker, base_path, full_idx, full_name):
+    """
+    to sort sprites:
+    rename "Starter" to "Cutscene"
+    for each node and subnode:
+    check whether the node is a cutscene
+    if so, switch with the cutscene node
+    If a normal is to be moved, its shiny must be moved too!
+    """
+
+    """
+    to sort portraits:
+    rename "Starter" to "Cutscene"
+    for each node and subnode:
+    Get all portraits that are locked
+    Move them to the Cutscene slot
+    Put a copy in the Starter slot
+    Get all portraits that aren't locked
+    Move them to the Starter slot, replacing if existing
+    """
+
+def isNonStarterSlot(tracker, full_idx):
+    if len(full_idx) < 2:
+        return True
+
+    dict = getNodeFromIdx(tracker, full_idx[:2], 0)
+    return "Starter" not in dict.name
+
+
+def isRecolor(tracker, full_idx):
+    if len(full_idx) < 2:
+        return False
+
+    if len(full_idx) > 2 and full_idx[2] == "0001":
+        return True
+
+    dict = getNodeFromIdx(tracker, full_idx[:2], 0)
+    return "Altcolor" in dict.name
+
+def findDictIdxByName(parent_dict, name):
+    for idx in parent_dict.subgroups:
+        dict = parent_dict.subgroups[idx]
+        if dict.name == name:
+            return idx
+    return None
+
+def getStarterCounterpart(tracker, full_idx, starter):
+    if starter:
+        if len(full_idx) < 2:
+            dict = getNodeFromIdx(tracker, full_idx, 0)
+            starter_idx = findDictIdxByName(dict, "Starter")
+            if starter_idx is None:
+                return None
+            return full_idx + [starter_idx]
+        else:
+            parent_dict = getNodeFromIdx(tracker, full_idx[:1], 0)
+            dict = parent_dict.subgroups[full_idx[1]]
+            if dict.name == "":
+                starter_idx = findDictIdxByName(parent_dict, "Starter")
+            else:
+                starter_idx = findDictIdxByName(parent_dict, dict.name + "_Starter")
+            if starter_idx is None:
+                return None
+            return full_idx[:1] + [starter_idx] + full_idx[2:]
+    else:
+        parent_dict = getNodeFromIdx(tracker, full_idx[:1], 0)
+        dict = parent_dict.subgroups[full_idx[1]]
+        if dict.name == "Starter":
+            return full_idx[:1] + ["0000"] + full_idx[2:]
+        else:
+            starter_idx = findDictIdxByName(parent_dict, dict.name.replace("_Starter", ""))
+            if starter_idx is None:
+                return None
+            return full_idx[:1] + [starter_idx] + full_idx[2:]
+
+import SpriteUtils
+
+def printReadyMigrationDests(tracker, dict, base_path, full_idx, full_name):
+
+    for sub_idx in dict.subgroups:
+        new_dict = dict.subgroups[sub_idx]
+        new_idx = full_idx + [sub_idx]
+        new_name = [idx for idx in full_name]
+        if new_dict.name != "":
+            new_name.append(new_dict.name)
+
+        sprite_ready = getStatusForMigrationDest(tracker, base_path, "sprite", new_idx)
+        portrait_ready = getStatusForMigrationDest(tracker, base_path, "portrait", new_idx)
+
+        expanded_idx = [idx for idx in new_idx]
+        while len(expanded_idx) < 4:
+            expanded_idx.append("----")
+
+        if sprite_ready != "-" or portrait_ready != "-":
+            print("{0}\t{1}\t{2}\t{3}".format(sprite_ready, portrait_ready, "\t".join(expanded_idx), " ".join(new_name)))
+
+        printReadyMigrationDests(tracker, new_dict, base_path, new_idx, new_name)
+
+def printReadyMigrations(tracker, dict, base_path, full_idx, full_name):
+
+    for sub_idx in dict.subgroups:
+        new_dict = dict.subgroups[sub_idx]
+        new_idx = full_idx + [sub_idx]
+        new_name = [idx for idx in full_name]
+        if new_dict.name != "":
+            new_name.append(new_dict.name)
+
+        #sprite_ready = getReadyForMigration(tracker, base_path, "sprite", new_idx)
+        #portrait_ready = getReadyForMigration(tracker, base_path, "portrait", new_idx)
+        sprite_ready = getStatusForMigration(tracker, base_path, "sprite", new_idx)
+        portrait_ready = getStatusForMigration(tracker, base_path, "portrait", new_idx)
+
+        expanded_idx = [idx for idx in new_idx]
+        while len(expanded_idx) < 4:
+            expanded_idx.append("----")
+
+        if sprite_ready == "X" or portrait_ready == "X" or sprite_ready == "!" or portrait_ready == "!":
+            print("{0}\t{1}\t{2}\t{3}".format(sprite_ready, portrait_ready, "\t".join(expanded_idx), " ".join(new_name)))
+
+            #if portrait_ready == "X" or portrait_ready == "!":
+            #    chosen_node = getNodeFromIdx(tracker, new_idx, 0)
+            #    locked = []
+            #    for part in chosen_node.portrait_files:
+            #        if chosen_node.portrait_files[part]:
+            #            locked.append(part)
+            #    gen_path = os.path.join(base_path, "portrait", "/".join(new_idx))
+            #    file_data, ext = SpriteUtils.generateFileData(gen_path, "portrait", False, locked)
+            #    file_data.seek(0)
+            #    with open(os.path.join("C:/Users/Gram/Downloads/Locked", "-".join(new_idx) + ext), "wb") as f:
+            #        f.write(file_data.getbuffer())
+
+        printReadyMigrations(tracker, new_dict, base_path, new_idx, new_name)
+
+def getStatusForMigration(tracker, base_path, asset_type, full_idx):
+    dict = getNodeFromIdx(tracker, full_idx, 0)
+    status = getStarterCutsceneNormal(dict, asset_type, base_path, full_idx)
+
+    if status == "starter":
+        return "O"
+    elif status == "cutscene":
+        starter_idx = getStarterCounterpart(tracker, full_idx, True)
+        starter_dict = getNodeFromIdx(tracker, starter_idx, 0)
+        if status == "cutscene":
+            # must have a partially filled starter counterpart, or sound the alarm
+            if starter_dict is None:
+                return "!"
+            if starter_dict.__dict__[asset_type + "_complete"] < PHASE_EXISTS:
+                return "!"
+
+        return "X"
+    else:
+        return "-"
+
+
+def getStatusForMigrationDest(tracker, base_path, asset_type, full_idx):
+
+    dict = getNodeFromIdx(tracker, full_idx, 0)
+    is_base = isNonStarterSlot(tracker, full_idx)
+
+    if is_base:
+        return "-"
+    else:
+        if dict.__dict__[asset_type + "_complete"] > PHASE_INCOMPLETE:
+            return "O"
+        else:
+            return "X"
+
+def getReadyForMigration(tracker, base_path, asset_type, full_idx):
+
+
+    dict = getNodeFromIdx(tracker, full_idx, 0)
+    is_base = isNonStarterSlot(tracker, full_idx)
+    is_recolor = isRecolor(tracker, full_idx)
+    """
+    if a "cutscene mon" slot is detected, verify it has a counterpart "starter" slot that is at least partially filled, alarm if not
+    if a mon has the word "starter" in it, verify its counterpart non-starter slot is a "cutscene mon", alarm if not
+    """
+    status = getStarterCutsceneNormal(dict, asset_type, base_path, full_idx)
+    if is_base:
+        starter_idx = getStarterCounterpart(tracker, full_idx, True)
+        starter_dict = getNodeFromIdx(tracker, starter_idx, 0)
+        if status == "cutscene":
+            # must have a partially filled starter counterpart, or sound the alarm
+            if starter_dict is None:
+                return "X"
+            if dict.__dict__[asset_type + "_complete"] < PHASE_EXISTS:
+                return "X"
+        else:
+            # should NOT have a starter counterpart, or sound the alarm
+            if starter_dict is not None:
+                return "X"
+    else:
+        if status != "starter":
+            # ??? Invalid starter!
+            return "X"
+
+        non_starter_idx = getStarterCounterpart(tracker, full_idx, False)
+        non_starter_dict = getNodeFromIdx(tracker, non_starter_idx, 0)
+        # non-starter dict MUST be cutscene
+        non_starter_status = getStarterCutsceneNormal(non_starter_dict, asset_type, base_path, non_starter_idx)
+        if non_starter_status != "cutscene":
+            return "X"
+
+    if status == "starter":
+        return "~"
+    elif status == "cutscene":
+        return "O"
+    else:
+        return "-"
+
+
+def getStarterCutsceneNormal(dict, asset_type, base_path, full_idx):
+    lock_dict = dict.__dict__[asset_type + "_files"]
+
+    if asset_type == "sprite":
+
+        ds_starter_action_map = {
+            0: "Walk",
+            1: "Attack",
+            2: "",
+            3: "",
+            4: "",
+            5: "Sleep",
+            6: "Hurt",
+            7: "Idle",
+            8: "Swing",
+            9: "Double",
+            10: "Hop",
+            11: "Charge",
+            12: "Rotate",
+            13: "EventSleep",
+            14: "Wake",
+            15: "Eat",
+            16: "Tumble",
+            17: "Pose",
+            18: "Pull",
+            19: "Pain",
+            20: "Float",
+            21: "DeepBreath",
+            22: "Nod",
+            23: "Sit",
+            24: "LookUp",
+            25: "Sink",
+            26: "Trip",
+            27: "Laying",
+            28: "LeapForth",
+            29: "Head",
+            30: "Cringe",
+            31: "LostBalance",
+            32: "TumbleBack",
+            33: "Faint",
+            34: "HitGround"
+        }
+
+        # maps number to animation
+        ds_index_map = { }
+
+        if os.path.exists(os.path.join(base_path, asset_type, "/".join(full_idx), Constants.MULTI_SHEET_XML)):
+            tree = ET.parse(os.path.join(base_path, asset_type, "/".join(full_idx), Constants.MULTI_SHEET_XML))
+            root = tree.getroot()
+            anims_node = root.find('Anims')
+            for anim_node in anims_node.iter('Anim'):
+                name = anim_node.find('Name').text
+                ds_index = -1
+                idx_node = anim_node.find('Index')
+                if idx_node is not None:
+                    ds_index = int(idx_node.text)
+                if ds_index >= 0:
+                    ds_index_map[ds_index] = name
+
+        # check for locks on all starter-required animations
+        # iterate through all ds_indices required, confirming they exist,
+        # and also confirm they map to the right names, if applicable
+        # and also confirm they're locked
+        is_starter = True
+        for ds_idx in ds_starter_action_map:
+            if ds_idx not in ds_index_map:
+                is_starter = False
+                break
+
+            actual_name = ds_index_map[ds_idx]
+            if not lock_dict[actual_name]:
+                is_starter = False
+                break
+
+            needed_name = ds_starter_action_map[ds_idx]
+            if needed_name != "" and needed_name != actual_name:
+                is_starter = False
+                break
+
+        if is_starter:
+            """
+            A "standard starter" has all 13 animation locks [they must map to indices 1-13],
+            plus SPECIFICALLY NAMED animations up to 35 [they must map to specific indices], all locked
+            """
+            return "starter"
+        else:
+            total_locks = 0
+            for ds_idx in ds_index_map:
+                action = ds_index_map[ds_idx]
+                if lock_dict[action]:
+                    total_locks += 1
+
+            if total_locks > 13:
+                """
+                A "cutscene mon" has 13 animation locks, PLUS any that do not conform to the starter standard
+                """
+
+                return "cutscene"
+            else:
+                """
+                A "normal" mon has 13 animation locks or less
+                """
+                return "standard"
+    elif asset_type == "portrait":
+        total_locks = 0
+        for emote in lock_dict:
+            if lock_dict[emote] and emote[-1] != '^':
+                total_locks += 1
+
+        if total_locks <= 1:
+            """
+            A "normal" mon has 1 portrait locked
+            """
+            # check for 1 or less locks
+            return "standard"
+        else:
+            # A POSSIBLY "standard starter" mon has very specifically the standard starter emotes locked, no more no less
+            starter_set = Constants.COMPLETION_EMOTIONS[PHASE_FULL]
+            for idx, emote in enumerate(Constants.EMOTIONS):
+                must_have = (idx in starter_set)
+                is_locked = (emote in lock_dict) and lock_dict[emote]
+                if must_have != is_locked:
+                    return "cutscene"
+
+            # If it's a POSSIBLY "standard starter"...
+            # check if it has proper starter anims, it's a cutscene if no
+            sprite_type = getStarterCutsceneNormal(dict, "sprite", base_path, full_idx)
+            if sprite_type != "starter":
+                return "cutscene"
+
+            return "starter"
+
+    raise Exception()
+
 """
 String operations
 """

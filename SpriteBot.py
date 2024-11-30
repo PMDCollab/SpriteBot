@@ -222,19 +222,8 @@ class SpriteBot:
         ]
         
         self.writeLog("Startup Memory: {0}".format(psutil.Process().memory_info().rss))
-        #self.moveSlot(msg, ["", "->", ""], "sprite")
-        need_starters = []
-        for k in self.tracker:
-            for sk in self.tracker[k].subgroups:
-                if "Starter" in self.tracker[k].subgroups[sk].name:
-                    p = 'X'
-                    if self.tracker[k].subgroups[sk].portrait_required:
-                        p = 'O'
-                    s = 'X'
-                    if self.tracker[k].subgroups[sk].sprite_required:
-                        s = 'O'
-                    need_starters.append((p, s, k, sk))
-                    print("{0}\t{1}\t{2}\t{3}\t{4}\t{5}".format(p, s, k, sk, self.tracker[k].name, self.tracker[k].subgroups[sk].name))
+
+        TrackerUtils.printReadyMigrationDests(over_dict.subgroups, over_dict, self.config.path, [], [])
         
         print("Info Initiated")
 
@@ -1516,7 +1505,12 @@ class SpriteBot:
             target_idx = TrackerUtils.createShinyIdx(full_idx, True)
         else:
             target_idx = full_idx
-        file_data, ext = SpriteUtils.generateFileData(gen_path, asset_type, recolor)
+
+        locked = []
+        for part in chosen_node.__dict__[asset_type + "_files"]:
+            if chosen_node.__dict__[asset_type + "_files"][part]:
+                locked.append(part)
+        file_data, ext = SpriteUtils.generateFileData(gen_path, asset_type, recolor, locked)
         file_data.seek(0)
         file_name = "{0}-{1}{2}".format(req_base, "-".join(target_idx), ext)
 

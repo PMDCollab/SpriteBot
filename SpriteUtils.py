@@ -424,12 +424,12 @@ def getStatsFromTree(file_data):
 Assumes that the data path is always valid.
 Returns file handle and an extension for the file format
 """
-def generateFileData(path, asset_type, recolor):
+def generateFileData(path, asset_type, recolor, includes = None):
     if asset_type == "portrait":
         if recolor:
             portraitImg = preparePortraitRecolor(path)
         else:
-            portraitImg = preparePortraitImage(path)
+            portraitImg = preparePortraitImage(path, includes)
         fileData = BytesIO()
         portraitImg.save(fileData, format='PNG')
         return fileData, ".png"
@@ -1737,12 +1737,14 @@ def colorToHex(color):
 """
 Returns Image
 """
-def preparePortraitImage(path):
+def preparePortraitImage(path, includes = None):
     printImg = Image.new('RGBA', (Constants.PORTRAIT_SHEET_WIDTH, Constants.PORTRAIT_SHEET_HEIGHT), (0, 0, 0, 0))
     maxX = 0
     maxY = 0
     for file in os.listdir(path):
         filename, ext = os.path.splitext(file)
+        if includes is not None and filename not in includes:
+            continue
         if ext == '.png':
             for idx in range(len(Constants.EMOTIONS)):
                 use = False
