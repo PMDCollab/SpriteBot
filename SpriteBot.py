@@ -186,16 +186,20 @@ class SpriteBot:
         # update tracker based on last-modify
         over_dict = TrackerUtils.initSubNode("", True)
         over_dict.subgroups = self.tracker
-        TrackerUtils.fileSystemToJson(over_dict, os.path.join(self.config.path, "sprite"), "sprite", 0)
-        TrackerUtils.fileSystemToJson(over_dict, os.path.join(self.config.path, "portrait"), "portrait", 0)
+        #TrackerUtils.fileSystemToJson(over_dict, os.path.join(self.config.path, "sprite"), "sprite", 0)
+        #TrackerUtils.fileSystemToJson(over_dict, os.path.join(self.config.path, "portrait"), "portrait", 0)
 
         # update credits
-        for name in confirmed_names:
-            if name not in self.names:
-                self.names[name] = confirmed_names[name]
-            self.names[name].sprites = True
-            self.names[name].portraits = True
-        TrackerUtils.updateNameStats(self.names, over_dict)
+        #for name in confirmed_names:
+        #    if name not in self.names:
+        #        self.names[name] = confirmed_names[name]
+        #    self.names[name].sprites = True
+        #    self.names[name].portraits = True
+        #TrackerUtils.updateNameStats(self.names, over_dict)
+
+
+        TrackerUtils.printReadyMigrationDests(over_dict.subgroups, over_dict, self.config.path, [], [])
+
 
         # save updated tracker back to the file
         self.saveTracker()
@@ -223,8 +227,6 @@ class SpriteBot:
         
         self.writeLog("Startup Memory: {0}".format(psutil.Process().memory_info().rss))
 
-        TrackerUtils.printReadyMigrationDests(over_dict.subgroups, over_dict, self.config.path, [], [])
-        
         print("Info Initiated")
 
     def generateCreditCompilation(self):

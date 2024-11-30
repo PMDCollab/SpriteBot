@@ -990,6 +990,55 @@ def setCanon(dict, canon):
         setCanon(dict.subgroups[subgroup], canon)
 
 
+
+def MigrateName(tracker, dict, base_path, full_idx, full_name):
+    """
+    to sort sprites:
+    rename "Starter" to "Cutscene"
+    for each node and subnode:
+    check whether the node's name is "Starter"
+    if so, rename it to "cutscene"
+    """
+    for sub_idx in dict.subgroups:
+        new_node = dict.subgroups[sub_idx]
+        new_idx = full_idx + [sub_idx]
+        new_name = [idx for idx in full_name]
+
+        expanded_idx = [idx for idx in new_idx]
+        while len(expanded_idx) < 4:
+            expanded_idx.append("----")
+
+        if len(new_idx) == 2:
+            if "Starter" in new_node.name:
+                print("{0}\t{1}".format("\t".join(expanded_idx), " ".join(new_name)))
+            new_node.name.replace("Starter", "Cutscene")
+
+        MigrateName(tracker, new_node, base_path, new_idx, new_name)
+
+def MigrateNode(tracker, dict, base_path, full_idx, full_name):
+    """
+    to sort sprites:
+    rename "Starter" to "Cutscene"
+    for each node and subnode:
+    check whether the node's name is "Starter"
+    if so, rename it to "cutscene"
+    check whether the node is a cutscene
+    if so, switch with the cutscene node
+    If a normal is to be moved, its shiny must be moved too!
+    """
+
+    for sub_idx in dict.subgroups:
+        new_dict = dict.subgroups[sub_idx]
+        new_idx = full_idx + [sub_idx]
+        new_name = [idx for idx in full_name]
+        if new_dict.name != "":
+            new_name.append(new_dict.name)
+
+        migrateAsset(tracker, base_path, "sprite", new_idx)
+        migrateAsset(tracker, base_path, "portrait", new_idx)
+
+        MigrateNode(tracker, new_dict, base_path, new_idx, new_name)
+
 def switchToCutscene(tracker, base_path, full_idx, full_name):
     """
     to sort sprites:
@@ -998,17 +1047,6 @@ def switchToCutscene(tracker, base_path, full_idx, full_name):
     check whether the node is a cutscene
     if so, switch with the cutscene node
     If a normal is to be moved, its shiny must be moved too!
-    """
-
-    """
-    to sort portraits:
-    rename "Starter" to "Cutscene"
-    for each node and subnode:
-    Get all portraits that are locked
-    Move them to the Cutscene slot
-    Put a copy in the Starter slot
-    Get all portraits that aren't locked
-    Move them to the Starter slot, replacing if existing
     """
 
 def isNonStarterSlot(tracker, full_idx):
@@ -1156,6 +1194,27 @@ def getStatusForMigrationDest(tracker, base_path, asset_type, full_idx):
             return "O"
         else:
             return "X"
+
+def migrateAsset(tracker, base_path, asset_type, full_idx):
+
+    """
+    If a starter version exists, it must be switched with its respective non-starter version
+    """
+
+    node = getNodeFromIdx(tracker, full_idx, 0)
+    is_base = isNonStarterSlot(tracker, full_idx)
+
+    if not is_base:
+        # switch with its non-starter slot
+        non_starter_idx = getStarterCounterpart(tracker, full_idx, False)
+        non_starter_node = getNodeFromIdx(tracker, non_starter_idx, 0)
+
+        # clear caches
+        clearCache(node, True)
+        clearCache(non_starter_node, True)
+
+        swapFolderPaths(base_path, tracker, asset_type, full_idx, non_starter_idx)
+
 
 def getReadyForMigration(tracker, base_path, asset_type, full_idx):
 
