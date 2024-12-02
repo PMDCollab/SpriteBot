@@ -1011,11 +1011,11 @@ def MigrateName(tracker, dict, base_path, full_idx, full_name):
         if len(new_idx) == 2:
             if "Starter" in new_node.name:
                 print("{0}\t{1}".format("\t".join(expanded_idx), " ".join(new_name)))
-            new_node.name.replace("Starter", "Cutscene")
+                new_node.name = new_node.name.replace("Starter", "Cutscene")
 
         MigrateName(tracker, new_node, base_path, new_idx, new_name)
 
-def MigrateNode(tracker, dict, base_path, full_idx, full_name):
+def MigrateNode(tracker, node, base_path, full_idx, full_name):
     """
     to sort sprites:
     rename "Starter" to "Cutscene"
@@ -1027,17 +1027,25 @@ def MigrateNode(tracker, dict, base_path, full_idx, full_name):
     If a normal is to be moved, its shiny must be moved too!
     """
 
-    for sub_idx in dict.subgroups:
-        new_dict = dict.subgroups[sub_idx]
+    for sub_idx in node.subgroups:
+        new_node = node.subgroups[sub_idx]
         new_idx = full_idx + [sub_idx]
         new_name = [idx for idx in full_name]
-        if new_dict.name != "":
-            new_name.append(new_dict.name)
+        if new_node.name != "":
+            new_name.append(new_node.name)
 
-        migrateAsset(tracker, base_path, "sprite", new_idx)
-        migrateAsset(tracker, base_path, "portrait", new_idx)
+        sprite_ready = migrateAsset(tracker, base_path, "sprite", new_idx)
+        portrait_ready = migrateAsset(tracker, base_path, "portrait", new_idx)
 
-        MigrateNode(tracker, new_dict, base_path, new_idx, new_name)
+
+        expanded_idx = [idx for idx in new_idx]
+        while len(expanded_idx) < 4:
+            expanded_idx.append("----")
+
+        if sprite_ready != "-" or portrait_ready != "-":
+            print("{0}\t{1}\t{2}\t{3}".format(sprite_ready, portrait_ready, "\t".join(expanded_idx), " ".join(new_name)))
+
+        MigrateNode(tracker, new_node, base_path, new_idx, new_name)
 
 def switchToCutscene(tracker, base_path, full_idx, full_name):
     """
@@ -1205,15 +1213,19 @@ def migrateAsset(tracker, base_path, asset_type, full_idx):
     is_base = isNonStarterSlot(tracker, full_idx)
 
     if not is_base:
-        # switch with its non-starter slot
-        non_starter_idx = getStarterCounterpart(tracker, full_idx, False)
-        non_starter_node = getNodeFromIdx(tracker, non_starter_idx, 0)
+        if node.__dict__[asset_type + "_complete"] > PHASE_INCOMPLETE:
+            # switch with its non-starter slot
+            non_starter_idx = getStarterCounterpart(tracker, full_idx, False)
+            non_starter_node = getNodeFromIdx(tracker, non_starter_idx, 0)
 
-        # clear caches
-        clearCache(node, True)
-        clearCache(non_starter_node, True)
+            # clear caches
+            clearCache(node, True)
+            clearCache(non_starter_node, True)
 
-        swapFolderPaths(base_path, tracker, asset_type, full_idx, non_starter_idx)
+            swapFolderPaths(base_path, tracker, asset_type, full_idx, non_starter_idx)
+            return "O"
+
+    return "-"
 
 
 def getReadyForMigration(tracker, base_path, asset_type, full_idx):
