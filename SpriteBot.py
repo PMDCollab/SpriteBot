@@ -199,10 +199,10 @@ class SpriteBot:
 
 
         #TrackerUtils.printReadyMigrationDests(over_dict.subgroups, over_dict, self.config.path, [], [])
-        #TrackerUtils.MigrateNode(over_dict.subgroups, over_dict, self.config.path, [], [])
+        TrackerUtils.MigrateNode(over_dict.subgroups, over_dict, self.config.path, [], [])
 
         # save updated tracker back to the file
-        #self.saveTracker()
+        self.saveTracker()
 
         TrackerUtils.MigrateName(over_dict.subgroups, over_dict, self.config.path, [], [])
 

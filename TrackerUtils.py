@@ -1216,6 +1216,8 @@ def migrateAsset(tracker, base_path, asset_type, full_idx):
         if node.__dict__[asset_type + "_complete"] > PHASE_INCOMPLETE:
             # switch with its non-starter slot
             non_starter_idx = getStarterCounterpart(tracker, full_idx, False)
+            while non_starter_idx[-1] == "0000":
+                del non_starter_idx[-1]
             non_starter_node = getNodeFromIdx(tracker, non_starter_idx, 0)
 
             # clear caches
