@@ -305,7 +305,7 @@ def getCurrentCompletion(orig_dict, dict, prefix):
 
 
 def updateFiles(dict, species_path, prefix):
-    file_list = []
+    file_list = {}
     if prefix == "sprite":
         if os.path.exists(os.path.join(species_path, Constants.MULTI_SHEET_XML)):
             tree = ET.parse(os.path.join(species_path, Constants.MULTI_SHEET_XML))
@@ -313,16 +313,27 @@ def updateFiles(dict, species_path, prefix):
             anims_node = root.find('Anims')
             for anim_node in anims_node.iter('Anim'):
                 name = anim_node.find('Name').text
-                file_list.append(name)
+                file_list[name] = True
     else:
         for inFile in os.listdir(species_path):
             if inFile.endswith(".png"):
                 file, _ = os.path.splitext(inFile)
-                file_list.append(file)
+                file_list[file] = True
 
     for file in file_list:
         if file not in dict.__dict__[prefix + "_files"]:
             dict.__dict__[prefix + "_files"][file] = False
+
+    to_remove = []
+    for file in dict.__dict__[prefix + "_files"]:
+        if file not in file_list:
+            to_remove.append(file)
+
+    for file in to_remove:
+        if dict.__dict__[prefix + "_files"][file]:
+            print("Locked file no longer exists: {0} {1}".format(species_path, file))
+        else:
+            del dict.__dict__[prefix + "_files"][file]
 
 def updateCreditFromEntries(credit_data, credit_entries):
     # updates just the total count and the secondary
@@ -802,6 +813,13 @@ def moveNodeFiles(dir_from, dir_to, merge_credit, is_dir):
         elif os.path.isdir(full_base_path) == is_dir:
             shutil.move(full_base_path, os.path.join(dir_to, file))
 
+def copyNodeFiles(dir_from, dir_to, is_dir):
+    cur_files = os.listdir(dir_from)
+    for file in cur_files:
+        full_base_path = os.path.join(dir_from, file)
+        if os.path.isdir(full_base_path) == is_dir:
+            shutil.copy(full_base_path, os.path.join(dir_to, file))
+
 def deleteNodeFiles(dir_to, include_credit):
     cur_files = os.listdir(dir_to)
     for file in cur_files:
@@ -872,6 +890,30 @@ def swapFolderPaths(base_path, tracker, asset_type, full_idx_from, full_idx_to):
     moveNodeFiles(gen_path_to, gen_path_from, False, False)
     moveNodeFiles(gen_path_tmp, gen_path_to, False, False)
     shutil.rmtree(gen_path_tmp)
+
+
+def copyNodeAssetFeatures(node_from, node_to, asset_type):
+    for key in node_from.__dict__:
+        if key.startswith(asset_type):
+            node_to.__dict__[key] = node_from.__dict__[key]
+
+def copyFolderPaths(base_path, tracker, asset_type, full_idx_from, full_idx_to):
+
+    # swap the nodes in tracker, don't do it recursively
+    chosen_node_from = getNodeFromIdx(tracker, full_idx_from, 0)
+    chosen_node_to = getNodeFromIdx(tracker, full_idx_to, 0)
+
+    copyNodeAssetFeatures(chosen_node_from, chosen_node_to, asset_type)
+
+    # prepare to copy textures
+    gen_path_from = getDirFromIdx(base_path, asset_type, full_idx_from)
+    gen_path_to = getDirFromIdx(base_path, asset_type, full_idx_to)
+
+    if not os.path.exists(gen_path_to):
+        os.makedirs(gen_path_to, exist_ok=True)
+
+    # copy the folders
+    copyNodeFiles(gen_path_from, gen_path_to, False)
 
 
 def replaceNodeAssetFeatures(node_from, node_to, asset_type):

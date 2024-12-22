@@ -1779,6 +1779,61 @@ class SpriteBot:
 
         await self.gitCommit("Swapped {0} with {1}".format(" ".join(name_seq_from), " ".join(name_seq_to)))
 
+    async def cloneSlot(self, msg, name_args, asset_type):
+        try:
+            delim_idx = name_args.index("->")
+        except:
+            await msg.channel.send(msg.author.mention + " Command needs to separate the source and destination with `->`.")
+            return
+
+        name_args_from = name_args[:delim_idx]
+        name_args_to = name_args[delim_idx+1:]
+
+        name_seq_from = [TrackerUtils.sanitizeName(i) for i in name_args_from]
+        full_idx_from = TrackerUtils.findFullTrackerIdx(self.tracker, name_seq_from, 0)
+        if full_idx_from is None:
+            await msg.channel.send(msg.author.mention + " No such Pokemon specified as source.")
+            return
+
+        name_seq_to = [TrackerUtils.sanitizeName(i) for i in name_args_to]
+        full_idx_to = TrackerUtils.findFullTrackerIdx(self.tracker, name_seq_to, 0)
+        if full_idx_to is None:
+            await msg.channel.send(msg.author.mention + " No such Pokemon specified as destination.")
+            return
+
+        chosen_node_from = TrackerUtils.getNodeFromIdx(self.tracker, full_idx_from, 0)
+        chosen_node_to = TrackerUtils.getNodeFromIdx(self.tracker, full_idx_to, 0)
+
+        if chosen_node_from == chosen_node_to:
+            await msg.channel.send(msg.author.mention + " Cannot clone to the same location.")
+            return
+
+        if not chosen_node_to.__dict__[asset_type + "_required"]:
+            await msg.channel.send(msg.author.mention + " Cannot clone when destination {0} is unneeded.".format(asset_type))
+            return
+
+        try:
+            await self.checkMoveLock(full_idx_from, chosen_node_from, full_idx_to, chosen_node_to, asset_type)
+        except SpriteUtils.SpriteVerifyError as e:
+            await msg.channel.send(msg.author.mention + " Cannot clone the locked Pokemon specified as source:\n{0}".format(e.message))
+            return
+
+        if TrackerUtils.isDataPopulated(chosen_node_to):
+            await msg.channel.send(msg.author.mention + " Cannot clone to an occupied destination!")
+            return
+
+        # clear caches
+        TrackerUtils.clearCache(chosen_node_from, True)
+        TrackerUtils.clearCache(chosen_node_to, True)
+
+        TrackerUtils.copyFolderPaths(self.config.path, self.tracker, asset_type, full_idx_from, full_idx_to)
+
+        await msg.channel.send(msg.author.mention + " Copied {0} to {1}.".format(" ".join(name_seq_from), " ".join(name_seq_to)))
+        self.saveTracker()
+        self.changed = True
+
+        await self.gitCommit("Copied {0} to {1}".format(" ".join(name_seq_from), " ".join(name_seq_to)))
+
     async def placeBounty(self, msg, name_args, asset_type):
         if not self.config.use_bounties:
             await msg.channel.send(msg.author.mention + " " + MESSAGE_BOUNTIES_DISABLED)
@@ -2824,6 +2879,8 @@ class SpriteBot:
                   f"`{prefix}dontneed` - Marks a sprite/portrait as unneeded\n" \
                   f"`{prefix}movesprite` - Swaps the sprites for two Pokemon/formes\n" \
                   f"`{prefix}moveportrait` - Swaps the portraits for two Pokemon/formes\n" \
+                  f"`{prefix}clonesprite` - Copies the sprites for two Pokemon/formes\n" \
+                  f"`{prefix}cloneportrait` - Copies the portraits for two Pokemon/formes\n" \
                   f"`{prefix}move` - Swaps the sprites, portraits, and names for two Pokemon/formes\n" \
                   f"`{prefix}spritewip` - Sets the sprite status as Incomplete\n" \
                   f"`{prefix}portraitwip` - Sets the portrait status as Incomplete\n" \
@@ -2955,6 +3012,34 @@ class SpriteBot:
                              f"`{prefix}moveportrait Zoroark Alternate -> Zoroark`\n" \
                              f"`{prefix}moveportrait Missingno_ Kleavor -> Kleavor`\n" \
                              f"`{prefix}moveportrait Minior Blue -> Minior Indigo`"
+            elif base_arg == "clonesprite":
+                return_msg = "**Command Help**\n" \
+                             f"`{prefix}clonesprite <Pokemon Name> [Pokemon Form] [Shiny] [Gender] -> <Pokemon Name 2> [Pokemon Form 2] [Shiny 2] [Gender 2]`\n" \
+                             "Clones the contents of one sprite to another.  " \
+                             "Good for copying alternates.\n" \
+                             "`Pokemon Name` - Name of the Pokemon\n" \
+                             "`Form Name` - [Optional] Form name of the Pokemon\n" \
+                             "`Shiny` - [Optional] Specifies if you want the shiny sprite or not\n" \
+                             "`Gender` - [Optional] Specifies the gender of the Pokemon\n" \
+                             "**Examples**\n" \
+                             f"`{prefix}clonesprite Escavalier -> Accelgor`\n" \
+                             f"`{prefix}clonesprite Zoroark Alternate -> Zoroark`\n" \
+                             f"`{prefix}clonesprite Missingno_ Kleavor -> Kleavor`\n" \
+                             f"`{prefix}clonesprite Minior Blue -> Minior Indigo`"
+            elif base_arg == "cloneportrait":
+                return_msg = "**Command Help**\n" \
+                             f"`{prefix}cloneportrait <Pokemon Name> [Pokemon Form] [Shiny] [Gender] -> <Pokemon Name 2> [Pokemon Form 2] [Shiny 2] [Gender 2]`\n" \
+                             "Clones the contents of one portrait to another.  " \
+                             "Good for copying alternates.\n" \
+                             "`Pokemon Name` - Name of the Pokemon\n" \
+                             "`Form Name` - [Optional] Form name of the Pokemon\n" \
+                             "`Shiny` - [Optional] Specifies if you want the shiny sprite or not\n" \
+                             "`Gender` - [Optional] Specifies the gender of the Pokemon\n" \
+                             "**Examples**\n" \
+                             f"`{prefix}cloneportrait Escavalier -> Accelgor`\n" \
+                             f"`{prefix}cloneportrait Zoroark Alternate -> Zoroark`\n" \
+                             f"`{prefix}cloneportrait Missingno_ Kleavor -> Kleavor`\n" \
+                             f"`{prefix}cloneportrait Minior Blue -> Minior Indigo`"
             elif base_arg == "move":
                 return_msg = "**Command Help**\n" \
                              f"`{prefix}move <Pokemon Name> [Pokemon Form] -> <Pokemon Name 2> [Pokemon Form 2]`\n" \
@@ -3290,6 +3375,10 @@ async def on_message(msg: discord.Message):
                 await sprite_bot.moveSlot(msg, args[1:], "sprite")
             elif base_arg == "moveportrait" and authorized:
                 await sprite_bot.moveSlot(msg, args[1:], "portrait")
+            elif base_arg == "clonesprite" and authorized:
+                await sprite_bot.cloneSlot(msg, args[1:], "sprite")
+            elif base_arg == "cloneportrait" and authorized:
+                await sprite_bot.cloneSlot(msg, args[1:], "portrait")
             elif base_arg == "move" and authorized:
                 await sprite_bot.moveSlotRecursive(msg, args[1:])
             elif base_arg == "replacesprite" and authorized:
