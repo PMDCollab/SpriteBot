@@ -396,15 +396,16 @@ def fileSystemToJson(dict, species_path, prefix, tier):
     if updated:
         dict.__dict__[prefix + "_link"] = ""
 
-def isDataPopulated(sub_dict):
-    if sub_dict.sprite_credit.primary != "":
+def isDataPopulated(sub_dict, check_sprite = True, check_portrait = True, recursive = True):
+    if check_sprite and sub_dict.sprite_credit.primary != "":
         return True
-    if sub_dict.portrait_credit.primary != "":
+    if check_portrait and sub_dict.portrait_credit.primary != "":
         return True
 
-    for sub_idx in sub_dict.subgroups:
-        if isDataPopulated(sub_dict.subgroups[sub_idx]):
-            return True
+    if recursive:
+        for sub_idx in sub_dict.subgroups:
+            if isDataPopulated(sub_dict.subgroups[sub_idx], check_sprite, check_portrait, recursive):
+                return True
     return False
 
 def deleteData(tracker_dict, portrait_path, sprite_path, idx):

@@ -1818,7 +1818,7 @@ class SpriteBot:
             await msg.channel.send(msg.author.mention + " Cannot clone the locked Pokemon specified as source:\n{0}".format(e.message))
             return
 
-        if TrackerUtils.isDataPopulated(chosen_node_to):
+        if TrackerUtils.isDataPopulated(chosen_node_to, asset_type == "sprite", asset_type == "portrait", False):
             await msg.channel.send(msg.author.mention + " Cannot clone to an occupied destination!")
             return
 
@@ -3375,9 +3375,9 @@ async def on_message(msg: discord.Message):
                 await sprite_bot.moveSlot(msg, args[1:], "sprite")
             elif base_arg == "moveportrait" and authorized:
                 await sprite_bot.moveSlot(msg, args[1:], "portrait")
-            elif base_arg == "clonesprite" and authorized:
+            elif base_arg == "clonesprite" and msg.author.id == sprite_bot.config.root:
                 await sprite_bot.cloneSlot(msg, args[1:], "sprite")
-            elif base_arg == "cloneportrait" and authorized:
+            elif base_arg == "cloneportrait" and msg.author.id == sprite_bot.config.root:
                 await sprite_bot.cloneSlot(msg, args[1:], "portrait")
             elif base_arg == "move" and authorized:
                 await sprite_bot.moveSlotRecursive(msg, args[1:])
