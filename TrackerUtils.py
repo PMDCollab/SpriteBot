@@ -1134,27 +1134,33 @@ def getAnimationInternalIndexMap(base_path, new_idx):
 
 def hasCutsceneAltcolorSlots(tracker, base_path, full_idx):
     dict = getNodeFromIdx(tracker, full_idx, 0)
-    has_cutscene = '-'
     has_altcolor = '-'
 
     # get the mapping of animations to internal indices for the base sprite
-    anim_to_index_map_base = getAnimationInternalIndexMap(base_path, full_idx)
+    anim_to_index_map_cutscene = None
 
     for sub_idx in dict.subgroups:
         new_idx = full_idx + [sub_idx]
         new_dict = dict.subgroups[sub_idx]
         if new_dict.name.lower() == "cutscene":
-            has_cutscene = 'O'
-        if new_dict.name.lower() == "altcolor":
+            anim_to_index_map_cutscene = getAnimationInternalIndexMap(base_path, new_idx)
+
+    if anim_to_index_map_cutscene == None:
+        return '-'
+
+    for sub_idx in dict.subgroups:
+        new_idx = full_idx + [sub_idx]
+        new_dict = dict.subgroups[sub_idx]
+        if new_dict.name.lower() == "cutscene_altcolor":
             # get the mapping of animations to internal indices for the altcolor sprite
             anim_to_index_map_alt = getAnimationInternalIndexMap(base_path, new_idx)
 
             is_subset = True
-            for anim_name in anim_to_index_map_alt:
-                if anim_name not in anim_to_index_map_base:
+            for anim_name in anim_to_index_map_cutscene:
+                if anim_name not in anim_to_index_map_alt:
                     is_subset = False
                     break
-                if anim_to_index_map_alt[anim_name] != anim_to_index_map_base[anim_name]:
+                if anim_to_index_map_alt[anim_name] != anim_to_index_map_cutscene[anim_name]:
                     is_subset = False
                     break
 
@@ -1164,7 +1170,7 @@ def hasCutsceneAltcolorSlots(tracker, base_path, full_idx):
             else:
                 has_altcolor = 'O'
 
-    return has_cutscene, has_altcolor
+    return has_altcolor
 
 def printCutsceneAltcolorSlots(tracker, dict, base_path, full_idx, full_name):
     for sub_idx in dict.subgroups:
@@ -1174,14 +1180,14 @@ def printCutsceneAltcolorSlots(tracker, dict, base_path, full_idx, full_name):
         if new_dict.name != "":
             new_name.append(new_dict.name)
 
-        has_cutscene, has_altcolor = hasCutsceneAltcolorSlots(tracker, base_path, new_idx)
+        has_altcolor = hasCutsceneAltcolorSlots(tracker, base_path, new_idx)
 
         expanded_idx = [idx for idx in new_idx]
         while len(expanded_idx) < 4:
             expanded_idx.append("----")
 
-        if has_cutscene != "-" or has_altcolor != "-":
-            print("{0}\t{1}\t{2}\t{3}".format(has_cutscene, has_altcolor, "\t".join(expanded_idx), " ".join(new_name)))
+        if has_altcolor != "-":
+            print("{0}\t{1}\t{2}".format(has_altcolor, "\t".join(expanded_idx), " ".join(new_name)))
 
 
 def printReadyMigrationDests(tracker, dict, base_path, full_idx, full_name):
