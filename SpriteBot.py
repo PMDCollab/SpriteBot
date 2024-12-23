@@ -54,6 +54,7 @@ parser.add_argument('--colors', type=int)
 parser.add_argument('--author')
 parser.add_argument('--addauthor', nargs='?', const=True, default=False)
 parser.add_argument('--deleteauthor', nargs='?', const=True, default=False)
+parser.add_argument('--files')
 
 class MyClient(discord.Client):
     async def setup_hook(self):
@@ -706,6 +707,7 @@ class SpriteBot:
         base_idx = None
         add_author = False
         delete_author = False
+        diffs = []
         if len(msg_lines) > 1:
             try:
                 msg_args = parser.parse_args(msg_lines[1].split())
@@ -715,6 +717,8 @@ class SpriteBot:
                 return
             if msg_args.addauthor:
                 add_author = True
+                if msg_args.files:
+                    diffs, failed_file_names = self.parseFileNames(chosen_node, asset_type, msg_args.files)
             if msg_args.deleteauthor:
                 delete_author = True
             if msg_args.base:
@@ -725,7 +729,6 @@ class SpriteBot:
                     await msg.delete()
                     return
 
-        diffs = []
         if not add_author and not delete_author and len(msg_lines) > 2:
             msg_changes = msg_lines[2]
             if msg_changes.startswith("Changes: "):
@@ -1270,6 +1273,12 @@ class SpriteBot:
                     await msg.delete()
                     await self.getChatChannel(msg.guild.id).send(msg.author.mention + " Cannot base on the same Pokemon.")
                     return
+
+            if msg_args.files:
+                await msg.delete()
+                await self.getChatChannel(msg.guild.id).send(msg.author.mention + " Cannot specify --files in an upload.")
+                return
+
 
             overcolor = msg_args.overcolor
             # at this point, we confirm the file name is valid, now check the contents
@@ -1996,16 +2005,8 @@ class SpriteBot:
         await msg.channel.send(msg.author.mention + " {0}".format("\n".join(urls)))
 
 
-    async def setLock(self, msg, name_args, asset_type, lock_state):
-
-        name_seq = [TrackerUtils.sanitizeName(i) for i in name_args[:-1]]
-        full_idx = TrackerUtils.findFullTrackerIdx(self.tracker, name_seq, 0)
-        if full_idx is None:
-            await msg.channel.send(msg.author.mention + " No such Pokemon.")
-            return
-        chosen_node = TrackerUtils.getNodeFromIdx(self.tracker, full_idx, 0)
-
-        file_names = name_args[-1].split(',')
+    def parseFileNames(self, chosen_node, asset_type, file_args):
+        file_names = file_args.split(',')
         final_file_names = []
         failed_file_names = []
         for file_name in file_names:
@@ -2017,6 +2018,18 @@ class SpriteBot:
                     break
             if failed:
                 failed_file_names.append(file_name)
+        return final_file_names, failed_file_names
+
+    async def setLock(self, msg, name_args, asset_type, lock_state):
+
+        name_seq = [TrackerUtils.sanitizeName(i) for i in name_args[:-1]]
+        full_idx = TrackerUtils.findFullTrackerIdx(self.tracker, name_seq, 0)
+        if full_idx is None:
+            await msg.channel.send(msg.author.mention + " No such Pokemon.")
+            return
+        chosen_node = TrackerUtils.getNodeFromIdx(self.tracker, full_idx, 0)
+
+        final_file_names, failed_file_names = self.parseFileNames(chosen_node, asset_type, name_args[-1])
 
         if len(failed_file_names) > 0:
             await msg.channel.send(msg.author.mention + " Could not find the emotion/animations:\n{0}.".format(",".join(failed_file_names)))
@@ -2180,12 +2193,12 @@ class SpriteBot:
 
     async def addCredit(self, msg, name_args, asset_type):
         # compute answer from current status
-        if len(name_args) < 2:
-            await msg.channel.send(msg.author.mention + " Specify a user ID and Pokemon.")
+        if len(name_args) < 3:
+            await msg.channel.send(msg.author.mention + " Specify a user ID, file list, and Pokemon.")
             return
 
         wanted_author = self.getFormattedCredit(name_args[0])
-        name_seq = [TrackerUtils.sanitizeName(i) for i in name_args[1:]]
+        name_seq = [TrackerUtils.sanitizeName(i) for i in name_args[1:-1]]
         full_idx = TrackerUtils.findFullTrackerIdx(self.tracker, name_seq, 0)
         if full_idx is None:
             await msg.channel.send(msg.author.mention + " No such Pokemon.")
@@ -2206,6 +2219,18 @@ class SpriteBot:
             await msg.channel.send(msg.author.mention + " This server does not support submissions.")
             return
 
+        submit_args = "--addauthor"
+
+        file_names = name_args[-1]
+
+        if file_names != "\"":
+            final_file_names, failed_file_names = self.parseFileNames(chosen_node, asset_type, file_names)
+            if len(failed_file_names) > 0:
+                await msg.channel.send(msg.author.mention + " Could not find the emotion/animations:\n{0}.".format(",".join(failed_file_names)))
+                return False
+
+            submit_args = submit_args + " --files " + ",".join(final_file_names)
+
         submit_channel = self.client.get_channel(chat_id)
         author = "<@!{0}>".format(msg.author.id)
 
@@ -2213,7 +2238,7 @@ class SpriteBot:
         base_file, base_name = SpriteUtils.getLinkData(base_link)
 
         # stage a post in submissions
-        await self.postStagedSubmission(submit_channel, "--addauthor", "", full_idx, chosen_node, asset_type, author + "/" + wanted_author,
+        await self.postStagedSubmission(submit_channel, submit_args, "", full_idx, chosen_node, asset_type, author + "/" + wanted_author,
                                                 False, None, base_file, base_name, None)
 
     async def getAbsentProfiles(self, msg):
@@ -3209,7 +3234,7 @@ class SpriteBot:
                              f"`{prefix}setportraitcredit POWERCRISTAL Jellicent Shiny Female`"
             elif base_arg == "addspritecredit":
                 return_msg = "**Command Help**\n" \
-                             f"`{prefix}addspritecredit <Author ID> <Pokemon Name> [Form Name] [Shiny] [Gender]`\n" \
+                             f"`{prefix}addspritecredit <Author ID> <Pokemon Name> [Form Name] [Shiny] [Gender] <Files>`\n" \
                              "Adds the specified author to the credits of the sprite.  " \
                              "This makes a post in the submissions channel, asking other approvers to sign off.\n" \
                              "`Author ID` - The discord ID of the author to set as primary\n" \
@@ -3217,15 +3242,17 @@ class SpriteBot:
                              "`Form Name` - [Optional] Form name of the Pokemon\n" \
                              "`Shiny` - [Optional] Specifies if you want the shiny sprite or not\n" \
                              "`Gender` - [Optional] Specifies the gender of the Pokemon\n" \
+                             "`Files` - A comma-separated list of the files to change, or \" to represent the last applied credit\n" \
                              "**Examples**\n" \
-                             f"`{prefix}addspritecredit @Audino Unown Shiny`\n" \
-                             f"`{prefix}addspritecredit <@!117780585635643396> Unown Shiny`\n" \
-                             f"`{prefix}addspritecredit POWERCRISTAL Calyrex`\n" \
-                             f"`{prefix}addspritecredit POWERCRISTAL Calyrex Shiny`\n" \
-                             f"`{prefix}addspritecredit POWERCRISTAL Jellicent Shiny Female`"
+                             f"`{prefix}addspritecredit @Audino Unown Shiny \"`\n" \
+                             f"`{prefix}addspritecredit <@!117780585635643396> Unown Shiny \"`\n" \
+                             f"`{prefix}addspritecredit @Audino Unown Shiny Idle,Rotate,Sleep`\n" \
+                             f"`{prefix}addspritecredit POWERCRISTAL Calyrex \"`\n" \
+                             f"`{prefix}addspritecredit POWERCRISTAL Calyrex Shiny \"`\n" \
+                             f"`{prefix}addspritecredit POWERCRISTAL Jellicent Shiny Female \"`"
             elif base_arg == "addportraitcredit":
                 return_msg = "**Command Help**\n" \
-                             f"`{prefix}addportraitcredit <Author ID> <Pokemon Name> [Form Name] [Shiny] [Gender]`\n" \
+                             f"`{prefix}addportraitcredit <Author ID> <Pokemon Name> [Form Name] [Shiny] [Gender] <Files>`\n" \
                              "Adds the specified author to the credits of the portrait.  " \
                              "This makes a post in the submissions channel, asking other approvers to sign off.\n" \
                              "`Author ID` - The discord ID of the author to set as primary\n" \
@@ -3233,12 +3260,14 @@ class SpriteBot:
                              "`Form Name` - [Optional] Form name of the Pokemon\n" \
                              "`Shiny` - [Optional] Specifies if you want the shiny sprite or not\n" \
                              "`Gender` - [Optional] Specifies the gender of the Pokemon\n" \
+                             "`Files` - A comma-separated list of the files to change, or \" to represent the last applied credit\n" \
                              "**Examples**\n" \
-                             f"`{prefix}addportraitcredit @Audino Unown Shiny`\n" \
-                             f"`{prefix}addportraitcredit <@!117780585635643396> Unown Shiny`\n" \
-                             f"`{prefix}addportraitcredit POWERCRISTAL Calyrex`\n" \
-                             f"`{prefix}addportraitcredit POWERCRISTAL Calyrex Shiny`\n" \
-                             f"`{prefix}addportraitcredit POWERCRISTAL Jellicent Shiny Female`"
+                             f"`{prefix}addportraitcredit @Audino Unown Shiny \"`\n" \
+                             f"`{prefix}addportraitcredit <@!117780585635643396> Unown Shiny \"`\n" \
+                             f"`{prefix}addportraitcredit @Audino Unown Shiny Normal,Happy,Angry`\n" \
+                             f"`{prefix}addportraitcredit POWERCRISTAL Calyrex \"`\n" \
+                             f"`{prefix}addportraitcredit POWERCRISTAL Calyrex Shiny \"`\n" \
+                             f"`{prefix}addportraitcredit POWERCRISTAL Jellicent Shiny Female \"`"
             elif base_arg == "modreward":
                 return_msg = "**Command Help**\n" \
                              f"`{prefix}modreward <Pokemon Name> [Form Name]`\n" \
