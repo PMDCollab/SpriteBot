@@ -2005,16 +2005,25 @@ class SpriteBot:
             return
         chosen_node = TrackerUtils.getNodeFromIdx(self.tracker, full_idx, 0)
 
-        file_name = name_args[-1]
-        for k in chosen_node.__dict__[asset_type + "_files"]:
-            if file_name.lower() == k.lower():
-                file_name = k
-                break
+        file_names = name_args[-1].split(',')
+        final_file_names = []
+        failed_file_names = []
+        for file_name in file_names:
+            failed = True
+            for k in chosen_node.__dict__[asset_type + "_files"]:
+                if file_name.lower() == k.lower():
+                    final_file_names.append(k)
+                    failed = False
+                    break
+            if failed:
+                failed_file_names.append(file_name)
 
-        if file_name not in chosen_node.__dict__[asset_type + "_files"]:
-            await msg.channel.send(msg.author.mention + " Specify a Pokemon and an existing emotion/animation.")
+        if len(failed_file_names) > 0:
+            await msg.channel.send(msg.author.mention + " Could not find the emotion/animations:\n{0}.".format(",".join(failed_file_names)))
             return
-        chosen_node.__dict__[asset_type + "_files"][file_name] = lock_state
+
+        for file_name in final_file_names:
+            chosen_node.__dict__[asset_type + "_files"][file_name] = lock_state
 
         status = TrackerUtils.getStatusEmoji(chosen_node, asset_type)
 
@@ -2022,7 +2031,7 @@ class SpriteBot:
         if lock_state:
             lock_str = "locked"
         # set to complete
-        await msg.channel.send(msg.author.mention + " {0} #{1:03d}: {2} {3} is now {4}.".format(status, int(full_idx[0]), " ".join(name_seq), file_name, lock_str))
+        await msg.channel.send(msg.author.mention + " {0} #{1:03d}: {2} {3} is now {4}.".format(status, int(full_idx[0]), " ".join(name_seq), ",".join(final_file_names), lock_str))
 
         self.saveTracker()
         self.changed = True
