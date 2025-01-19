@@ -28,7 +28,7 @@ async def post_image(api, text, img_title, img_file, asset_type):
         media = api.media_post(file_name=img_title, mime_type="image/png", media_file=img_file)
     await asyncio.sleep(20)
     status = api.status_post(status=text, media_ids=media)
-    return status["url"]
+    return status["url"], status["media_attachments"][0]["url"]
 
 def post_text(api, orig_post, msg, media):
 

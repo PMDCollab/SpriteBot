@@ -1060,14 +1060,20 @@ class SpriteBot:
                                                                     int(full_idx[0]), new_name_str, status)
 
                 img_file = SpriteUtils.getSocialMediaImage(new_link, asset_type)
+
+                masto_img = None
                 if self.config.mastodon:
                     try:
-                        await MastodonUtils.post_image(self.tl_api, tl_msg, new_name_str, img_file, asset_type)
+                        url, masto_img = await MastodonUtils.post_image(self.tl_api, tl_msg, new_name_str, img_file, asset_type)
                     except:
                         await self.sendError("Error sending post!\n{0}".format(traceback.format_exc()))
                 if self.config.bluesky:
                     try:
-                        await BlueSkyUtils.post_image(self.bsky_api, tl_msg, new_name_str, img_file, asset_type)
+                        bsky_file = img_file
+                        # a little hack workaround for bsky not supporting gifs: use mastodon's conversion
+                        if asset_type == "sprite" and masto_img is not None:
+                            bsky_file = masto_img
+                        url = await BlueSkyUtils.post_image(self.bsky_api, tl_msg, new_name_str, bsky_file, asset_type)
                     except:
                         await self.sendError("Error sending post!\n{0}".format(traceback.format_exc()))
 
@@ -1991,15 +1997,20 @@ class SpriteBot:
         img_file = SpriteUtils.getSocialMediaImage(chosen_link, asset_type, file_name)
 
         urls = []
+        masto_img = None
         if self.config.mastodon:
             try:
-                url = await MastodonUtils.post_image(self.tl_api, tl_msg, " ".join(name_seq), img_file, asset_type)
+                url, masto_img = await MastodonUtils.post_image(self.tl_api, tl_msg, " ".join(name_seq), img_file, asset_type)
                 urls.append(url)
             except:
                 await self.sendError("Error sending post!\n{0}".format(traceback.format_exc()))
         if self.config.bluesky:
             try:
-                url = await BlueSkyUtils.post_image(self.bsky_api, tl_msg, " ".join(name_seq), img_file, asset_type)
+                bsky_file = img_file
+                # a little hack workaround for bsky not supporting gifs: use mastodon's conversion
+                if asset_type == "sprite" and masto_img is not None:
+                    bsky_file, bsky_name = SpriteUtils.getLinkData(masto_img)
+                url = await BlueSkyUtils.post_image(self.bsky_api, tl_msg, " ".join(name_seq), bsky_file, asset_type)
                 urls.append(url)
             except:
                 await self.sendError("Error sending post!\n{0}".format(traceback.format_exc()))
@@ -3561,6 +3572,7 @@ async def periodic_update_status():
                     sprite_bot.changed = False
                     for server_id in sprite_bot.config.servers:
                         await sprite_bot.updatePost(sprite_bot.config.servers[server_id])
+                        sprite_bot.writeLog("Post Updated for {0}".format(server_id))
                 sprite_bot.writeLog("Post Update Complete")
 
         except Exception as e:

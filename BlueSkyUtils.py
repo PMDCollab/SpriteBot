@@ -48,7 +48,32 @@ def upload_blob(img_data, jwt, mime_type):
     blob_request = json.loads(blob_request.data)
     return blob_request["blob"]
 
-def send_post(user, jwt, text, blob, image_alt):
+
+def send_video_post(user, jwt, text, blob, image_alt):
+    http = urllib3.PoolManager()
+    post_record = {
+        "collection": "app.bsky.feed.post",
+        "repo": user,
+        "record": {
+            "text": text,
+            "createdAt": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+            "embed": {
+                "$type": "app.bsky.embed.video",
+                "video": blob,
+                "alt": image_alt,
+            },
+        },
+    }
+    post_request = http.request(
+        "POST",
+        "https://bsky.social/xrpc/com.atproto.repo.createRecord",
+        body=json.dumps(post_record),
+        headers={"Content-Type": "application/json", "Authorization": f"Bearer {jwt}"},
+    )
+    post_request = json.loads(post_request.data)
+    return post_request
+
+def send_img_post(user, jwt, text, blob, image_alt):
     http = urllib3.PoolManager()
     post_record = {
         "collection": "app.bsky.feed.post",
@@ -74,12 +99,18 @@ def send_post(user, jwt, text, blob, image_alt):
 async def post_image(api, text, img_title, img_file, asset_type):
     img_file.seek(0)
     jwt = get_api_key(api.user, api.password)
+    status = None
+    media = None
     if asset_type == "sprite":
-        media = upload_blob(img_file, jwt, "image/gif")
+        media = upload_blob(img_file, jwt, "video/mp4")
+        await asyncio.sleep(20)
+        status = send_video_post(api.user, jwt, text, media, img_title)
     elif asset_type == "portrait":
         media = upload_blob(img_file, jwt, "image/png")
-    await asyncio.sleep(20)
-    status = send_post(api.user, jwt, text, media, img_title)
+        await asyncio.sleep(20)
+        status = send_img_post(api.user, jwt, text, media, img_title)
+
+
 
     if "uri" in status:
         uri = status["uri"]

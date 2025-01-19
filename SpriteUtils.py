@@ -230,10 +230,10 @@ def getLinkData(url):
     req = urllib.request.Request(url, None, RETRIEVE_HEADERS)
 
     with urllib.request.urlopen(req) as response:
-        zip_data = BytesIO()
-        zip_data.write(response.read())
-        zip_data.seek(0)
-        return zip_data, file
+        file_data = BytesIO()
+        file_data.write(response.read())
+        file_data.seek(0)
+        return file_data, file
 
 def getLinkImg(url):
     clean_url = sanitizeLink(url)
