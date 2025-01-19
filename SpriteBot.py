@@ -1312,6 +1312,8 @@ class SpriteBot:
             line_len = 0
             while line_idx + line_len < len(posts):
                 new_len = len(posts[line_idx + line_len])
+                if new_len >= 1950:
+                    raise Exception("Message too large for post {0}!".format(posts[line_idx + line_len][:1000]))
                 if cur_len + new_len < 1950 and line_len < 25:
                     cur_len += new_len
                     line_len += 1
