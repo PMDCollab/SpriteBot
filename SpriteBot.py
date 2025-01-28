@@ -20,11 +20,11 @@ import Constants
 import MastodonUtils
 import BlueSkyUtils
 
-from commands.QueryRessourceStatus import QueryRessourceStatus
-from commands.AutoRecolorRessource import AutoRecolorRessource
-from commands.ListRessource import ListRessource
-from commands.QueryRessourceCredit import QueryRessourceCredit
-from commands.DeleteRessourceCredit import DeleteRessourceCredit
+from commands.QueryResourceStatus import QueryResourceStatus
+from commands.AutoRecolorResource import AutoRecolorResource
+from commands.ListResource import ListResource
+from commands.QueryResourceCredit import QueryResourceCredit
+from commands.DeleteResourceCredit import DeleteResourceCredit
 from commands.GetProfile import GetProfile
 
 from Constants import PHASES
@@ -205,20 +205,20 @@ class SpriteBot:
 
         # register commands
         self.commands = [
-            QueryRessourceStatus(self, "portrait", False),
-            QueryRessourceStatus(self, "portrait", True),
-            QueryRessourceStatus(self, "sprite", False),
-            QueryRessourceStatus(self, "sprite", True),
-            AutoRecolorRessource(self, "portrait"),
-            AutoRecolorRessource(self, "sprite"),
-            ListRessource(self, "portrait"),
-            ListRessource(self, "sprite"),
-            QueryRessourceCredit(self, "portrait", False),
-            QueryRessourceCredit(self, "sprite", False),
-            QueryRessourceCredit(self, "portrait", True),
-            QueryRessourceCredit(self, "sprite", True),
-            DeleteRessourceCredit(self, "portrait"),
-            DeleteRessourceCredit(self, "sprite"),
+            QueryResourceStatus(self, "portrait", False),
+            QueryResourceStatus(self, "portrait", True),
+            QueryResourceStatus(self, "sprite", False),
+            QueryResourceStatus(self, "sprite", True),
+            AutoRecolorResource(self, "portrait"),
+            AutoRecolorResource(self, "sprite"),
+            ListResource(self, "portrait"),
+            ListResource(self, "sprite"),
+            QueryResourceCredit(self, "portrait", False),
+            QueryResourceCredit(self, "sprite", False),
+            QueryResourceCredit(self, "portrait", True),
+            QueryResourceCredit(self, "sprite", True),
+            DeleteResourceCredit(self, "portrait"),
+            DeleteResourceCredit(self, "sprite"),
             GetProfile(self)
         ]
 

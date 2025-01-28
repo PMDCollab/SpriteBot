@@ -8,24 +8,24 @@ import io
 if TYPE_CHECKING:
     from SpriteBot import SpriteBot, BotServer
 
-class AutoRecolorRessource(BaseCommand):
-    def __init__(self, spritebot: "SpriteBot", ressource_type: str):
+class AutoRecolorResource(BaseCommand):
+    def __init__(self, spritebot: "SpriteBot", resource_type: str):
         super().__init__(spritebot)
-        self.ressource_type = ressource_type
+        self.resource_type = resource_type
     
     def getCommand(self) -> str:
-        return f"autocolor{self.ressource_type}"
+        return f"autocolor{self.resource_type}"
     
     def getSingleLineHelp(self, server_config: "BotServer") -> str:
-        if self.ressource_type == "portrait":
+        if self.resource_type == "portrait":
             return "Generates an automatic recolor of the Pokemon's portrait sheet"
-        elif self.ressource_type == "sprite":
+        elif self.resource_type == "sprite":
             return "Generates an automatic recolor of the Pokemon's sprite sheet"
         else:
             raise NotImplementedError()
     
     def getMultiLineHelp(self, server_config: "BotServer") -> str:
-        if self.ressource_type == "portrait":
+        if self.resource_type == "portrait":
             return f"`{server_config.prefix}autocolor <Pokemon Name> [Form Name] [Gender]`\n" \
                 "Generates an automatic shiny of a Pokemon's portrait sheet, in recolor form. " \
                 "Meant to be used as a starting point to assist in manual recoloring. " \
@@ -34,7 +34,7 @@ class AutoRecolorRessource(BaseCommand):
                 "`Form Name` - [Optional] Form name of the Pokemon\n" \
                 "`Gender` - [Optional] Specifies the gender of the Pokemon, for those with gender differences\n" \
                 + self.generateMultiLineExample(server_config.prefix, ["Pikachu", "Pikachu Female", "Shaymin Sky"])
-        elif self.ressource_type == "sprite":
+        elif self.resource_type == "sprite":
             return f"`{server_config.prefix}autocolor <Pokemon Name> [Form Name] [Gender]`\n" \
                 "Generates an automatic shiny of a Pokemon's sprite sheet, in recolor form. " \
                 "Meant to be used as a starting point to assist in manual recoloring. " \
@@ -64,27 +64,27 @@ class AutoRecolorRessource(BaseCommand):
 
         chosen_node = TrackerUtils.getNodeFromIdx(self.spritebot.tracker, full_idx, 0)
 
-        if chosen_node.__dict__[self.ressource_type + "_credit"].primary == "":
-            await msg.channel.send(msg.author.mention + " Can't recolor a Pokemon that doesn't have a {0}.".format(self.ressource_type))
+        if chosen_node.__dict__[self.resource_type + "_credit"].primary == "":
+            await msg.channel.send(msg.author.mention + " Can't recolor a Pokemon that doesn't have a {0}.".format(self.resource_type))
             return
 
         shiny_idx = TrackerUtils.createShinyIdx(full_idx, True)
         shiny_node = TrackerUtils.getNodeFromIdx(self.spritebot.tracker, shiny_idx, 0)
 
-        if shiny_node.__dict__[self.ressource_type + "_credit"].primary == "":
-            await msg.channel.send(msg.author.mention + " Can't recolor a Pokemon that doesn't have a shiny {0}.".format(self.ressource_type))
+        if shiny_node.__dict__[self.resource_type + "_credit"].primary == "":
+            await msg.channel.send(msg.author.mention + " Can't recolor a Pokemon that doesn't have a shiny {0}.".format(self.resource_type))
             return
 
-        base_link = await self.spritebot.retrieveLinkMsg(full_idx, chosen_node, self.ressource_type, False)
-        cur_recolor_file, _ = SpriteUtils.getLinkFile(base_link, self.ressource_type)
-        base_recolor_link = await self.spritebot.retrieveLinkMsg(full_idx, chosen_node, self.ressource_type, True)
+        base_link = await self.spritebot.retrieveLinkMsg(full_idx, chosen_node, self.resource_type, False)
+        cur_recolor_file, _ = SpriteUtils.getLinkFile(base_link, self.resource_type)
+        base_recolor_link = await self.spritebot.retrieveLinkMsg(full_idx, chosen_node, self.resource_type, True)
         cur_recolor_img = SpriteUtils.getLinkImg(base_recolor_link)
-        base_path = TrackerUtils.getDirFromIdx(self.spritebot.config.path, self.ressource_type, full_idx)
+        base_path = TrackerUtils.getDirFromIdx(self.spritebot.config.path, self.resource_type, full_idx)
         # auto-generate the shiny recolor image, in file form
-        shiny_path = TrackerUtils.getDirFromIdx(self.spritebot.config.path, self.ressource_type, shiny_idx)
-        auto_recolor_img, cmd_str, content = SpriteUtils.autoRecolor(cur_recolor_file, base_path, shiny_path, self.ressource_type)
+        shiny_path = TrackerUtils.getDirFromIdx(self.spritebot.config.path, self.resource_type, shiny_idx)
+        auto_recolor_img, cmd_str, content = SpriteUtils.autoRecolor(cur_recolor_file, base_path, shiny_path, self.resource_type)
         # post it as a staged submission
-        return_name = "{0}-{1}{2}".format(self.ressource_type + "_recolor", "-".join(shiny_idx), ".png")
+        return_name = "{0}-{1}{2}".format(self.resource_type + "_recolor", "-".join(shiny_idx), ".png")
 
         auto_recolor_file = io.BytesIO()
         auto_recolor_img.save(auto_recolor_file, format='PNG')

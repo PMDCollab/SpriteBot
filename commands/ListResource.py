@@ -6,29 +6,29 @@ import TrackerUtils
 if TYPE_CHECKING:
     from SpriteBot import SpriteBot, BotServer
 
-class ListRessource(BaseCommand):
-    def __init__(self, spritebot: "SpriteBot", ressource_type: str):
+class ListResource(BaseCommand):
+    def __init__(self, spritebot: "SpriteBot", resource_type: str):
         super().__init__(spritebot)
-        self.ressource_type = ressource_type
+        self.resource_type = resource_type
     
     def getCommand(self) -> str:
-        return f"list{self.ressource_type}"
+        return f"list{self.resource_type}"
     
     def getSingleLineHelp(self, server_config: "BotServer") -> str:
-        if self.ressource_type == "portrait":
+        if self.resource_type == "portrait":
             return "List all portraits related to a Pokemon"
-        elif self.ressource_type == "sprite":
+        elif self.resource_type == "sprite":
             return "List all sprites related to a Pokemon"
         else:
             raise NotImplementedError()
     
     def getMultiLineHelp(self, server_config: "BotServer") -> str:
-        if self.ressource_type == "portrait":
+        if self.resource_type == "portrait":
             return f"`{server_config.prefix}listportrait <Pokemon Name>`\n" \
                 "List all portraits related to a Pokemon.  This includes all forms, gender, and shiny variants.\n" \
                 "`Pokemon Name` - Name of the Pokemon\n" \
                 + self.generateMultiLineExample(server_config.prefix, ["Pikachu"])
-        elif self.ressource_type == "sprite":
+        elif self.resource_type == "sprite":
             return f"`{server_config.prefix}listsprite <Pokemon Name>`\n" \
                 "List all sprites related to a Pokemon.  This includes all forms, gender, and shiny variants.\n" \
                 "`Pokemon Name` - Name of the Pokemon\n" \
@@ -52,5 +52,5 @@ class ListRessource(BaseCommand):
         posts: List[str] = []
         over_dict = TrackerUtils.initSubNode("", True)
         over_dict.subgroups = { full_idx[0] : chosen_node }
-        self.spritebot.getPostsFromDict(self.ressource_type == 'sprite', self.ressource_type == 'portrait', False, over_dict, posts, [])
+        self.spritebot.getPostsFromDict(self.resource_type == 'sprite', self.resource_type == 'portrait', False, over_dict, posts, [])
         msgs_used, changed = await self.spritebot.sendInfoPosts(msg.channel, posts, [], 0)

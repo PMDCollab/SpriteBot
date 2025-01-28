@@ -7,28 +7,28 @@ import io
 if TYPE_CHECKING:
     from SpriteBot import SpriteBot, BotServer
 
-class QueryRessourceCredit(BaseCommand):
-    def __init__(self, spritebot: "SpriteBot", ressource_type: str, display_history: bool):
+class QueryResourceCredit(BaseCommand):
+    def __init__(self, spritebot: "SpriteBot", resource_type: str, display_history: bool):
         super().__init__(spritebot)
-        self.ressource_type = ressource_type
+        self.resource_type = resource_type
         self.display_history = display_history
     
     def getCommand(self) -> str:
         if self.display_history:
-            return f"{self.ressource_type}history"
+            return f"{self.resource_type}history"
         else:
-            return f"{self.ressource_type}credit"
+            return f"{self.resource_type}credit"
     
     def getSingleLineHelp(self, server_config: "BotServer") -> str:
         if self.display_history:
-            return f"Gets the credit history of the {self.ressource_type}"
+            return f"Gets the credit history of the {self.resource_type}"
         else:
-            return f"Gets the credits of the {self.ressource_type}"
+            return f"Gets the credits of the {self.resource_type}"
     
     def getMultiLineHelp(self, server_config: "BotServer") -> str:
         sprite_example = ["Pikachu", "Pikachu Shiny", "Pikachu Female", "Pikachu Shiny Female", "Shaymin Sky", "Shaymin Sky Shiny"]
         portrait_example = ["Wooper", "Wooper Shiny", "Wooper Female", "Wooper Shiny Female", "Shaymin Sky", "Shaymin Sky Shiny"]
-        if self.display_history and self.ressource_type == "sprite":
+        if self.display_history and self.resource_type == "sprite":
             return f"`{server_config.prefix}spritehistory <Pokemon Name> [Form Name] [Shiny] [Gender]`\n" \
                 "Gets the full credit history for a Pokemon's sprite sheet, including who changed what.\n" \
                 "`Pokemon Name` - Name of the Pokemon\n" \
@@ -36,7 +36,7 @@ class QueryRessourceCredit(BaseCommand):
                 "`Shiny` - [Optional] Specifies if you want the shiny sprite or not\n" \
                 "`Gender` - [Optional] Specifies the gender of the Pokemon, for those with gender differences\n" \
                 + self.generateMultiLineExample(server_config.prefix, sprite_example)
-        elif self.display_history and self.ressource_type == "portrait":
+        elif self.display_history and self.resource_type == "portrait":
             return f"`{server_config.prefix}portraithistory <Pokemon Name> [Form Name] [Shiny] [Gender]`\n" \
                 "Gets the full credit history for a Pokemon's portraits, including who changed what.\n" \
                 "`Pokemon Name` - Name of the Pokemon\n" \
@@ -44,7 +44,7 @@ class QueryRessourceCredit(BaseCommand):
                 "`Shiny` - [Optional] Specifies if you want the shiny portrait or not\n" \
                 "`Gender` - [Optional] Specifies the gender of the Pokemon, for those with gender differences\n" \
                 + self.generateMultiLineExample(server_config.prefix, portrait_example)
-        elif not self.display_history and self.ressource_type == "sprite":
+        elif not self.display_history and self.resource_type == "sprite":
             return f"`{server_config.prefix}spritecredit <Pokemon Name> [Form Name] [Shiny] [Gender]`\n" \
                 "Gets the full credits for a Pokemon's sprite sheet.  Credit them all in your romhacks.\n" \
                 "`Pokemon Name` - Name of the Pokemon\n" \
@@ -52,7 +52,7 @@ class QueryRessourceCredit(BaseCommand):
                 "`Shiny` - [Optional] Specifies if you want the shiny sprite or not\n" \
                 "`Gender` - [Optional] Specifies the gender of the Pokemon, for those with gender differences\n" \
                 + self.generateMultiLineExample(server_config.prefix, sprite_example)
-        elif not self.display_history and self.ressource_type == "portrait":
+        elif not self.display_history and self.resource_type == "portrait":
             return f"`{server_config.prefix}portraitcredit <Pokemon Name> [Form Name] [Shiny] [Gender]`\n" \
                 "Gets the full credits for a Pokemon's portraits.  Credit them all in your romhacks.\n" \
                 "`Pokemon Name` - Name of the Pokemon\n" \
@@ -76,14 +76,14 @@ class QueryRessourceCredit(BaseCommand):
 
         chosen_node = TrackerUtils.getNodeFromIdx(self.spritebot.tracker, full_idx, 0)
 
-        if chosen_node.__dict__[self.ressource_type + "_credit"].primary == "":
+        if chosen_node.__dict__[self.resource_type + "_credit"].primary == "":
             await msg.channel.send(msg.author.mention + " No credit found.")
             return
 
-        gen_path = TrackerUtils.getDirFromIdx(self.spritebot.config.path, self.ressource_type, full_idx)
+        gen_path = TrackerUtils.getDirFromIdx(self.spritebot.config.path, self.resource_type, full_idx)
 
         response = msg.author.mention + " "
-        status = TrackerUtils.getStatusEmoji(chosen_node, self.ressource_type)
+        status = TrackerUtils.getStatusEmoji(chosen_node, self.resource_type)
         response += "Full credit for {0} #{1:03d}: {2}".format(status, int(full_idx[0]), " ".join(name_seq))
 
         credit_str = ""
