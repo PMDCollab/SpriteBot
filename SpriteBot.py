@@ -1933,9 +1933,13 @@ class SpriteBot:
         if full_idx is None:
             await msg.channel.send(msg.author.mention + " No such Pokemon.")
             return
+        if len(full_idx) != 2:
+            await msg.channel.send(msg.author.mention + " Must specify Pokemon and form.")
+            return
+
         chosen_node = TrackerUtils.getNodeFromIdx(self.tracker, full_idx, 0)
 
-        TrackerUtils.setCanon(chosen_node, canon_state)
+        TrackerUtils.setCanon(chosen_node, True)
 
         lock_str = "non-"
         if canon_state:
@@ -2943,6 +2947,8 @@ class SpriteBot:
                   f"`{prefix}register` - Use with arguments to make absentee profiles\n" \
                   f"`{prefix}transferprofile` - Transfers the credit from absentee profile to a real one\n" \
                   f"`{prefix}clearcache` - Clears the image/zip links for a Pokemon/forme/shiny/gender\n" \
+                  f"`{prefix}canon` - Marks the Pokemon forme as non-canon.\n" \
+                  f"`{prefix}noncanon` - Marks the Pokemon forme as canon.\n" \
                   f"Type `{prefix}staffhelp` with the name of a command to learn more about it."
 
         else:
@@ -3336,6 +3342,26 @@ class SpriteBot:
                              f"`{prefix}clearcache Pikachu Shiny Female`\n" \
                              f"`{prefix}clearcache Shaymin Sky`\n" \
                              f"`{prefix}clearcache Shaymin Sky Shiny`"
+            elif base_arg == "canon":
+                return_msg = "**Command Help**\n" \
+                             f"`{prefix}canon <Pokemon Name> [Form Name]`\n" \
+                             "Marks the Pokemon forme as canon. Canon forms generally have their own data slot within a main-series game." \
+                             " Only works on formes and does not work on system-wide non-canon forms.\n" \
+                             " Affects shiny and gender within the form, even if created later.\n" \
+                             "`Pokemon Name` - Name of the Pokemon\n" \
+                             "`Form Name` - [Optional] Form name of the Pokemon\n" \
+                             "**Examples**\n" \
+                             f"`{prefix}canon Pichu Spiky`"
+            elif base_arg == "noncanon":
+                return_msg = "**Command Help**\n" \
+                             f"`{prefix}noncanon <Pokemon Name> [Form Name]`\n" \
+                             "Marks the Pokemon forme as non-canon. Non-canon forms generally do not have their own data slot within a main-series game." \
+                             " Only works on formes and does not work on system-wide non-canon forms.\n" \
+                             " Affects shiny and gender within the form, even if created later.\n" \
+                             "`Pokemon Name` - Name of the Pokemon\n" \
+                             "`Form Name` - [Optional] Form name of the Pokemon\n" \
+                             "**Examples**\n" \
+                             f"`{prefix}noncanon Burmy No_Cloak`"
             else:
                 return_msg = "Unknown Command."
         await msg.channel.send(msg.author.mention + " {0}".format(return_msg))
@@ -3462,6 +3488,10 @@ async def on_message(msg: discord.Message):
                 await sprite_bot.transferProfile(msg, args[1:])
             elif base_arg == "clearcache" and authorized:
                 await sprite_bot.clearCache(msg, args[1:])
+            elif base_arg == "canon" and authorized:
+                await sprite_bot.setCanon(msg, args[1:], True)
+            elif base_arg == "noncanon" and authorized:
+                await sprite_bot.setCanon(msg, args[1:], False)
                 # root commands
             elif base_arg == "promote" and msg.author.id == sprite_bot.config.root:
                 await sprite_bot.promote(msg, args[1:])
@@ -3475,10 +3505,6 @@ async def on_message(msg: discord.Message):
                 await sprite_bot.setLock(msg, args[1:], "portrait", True)
             elif base_arg == "locksprite" and msg.author.id == sprite_bot.config.root:
                 await sprite_bot.setLock(msg, args[1:], "sprite", True)
-            elif base_arg == "canon" and msg.author.id == sprite_bot.config.root:
-                await sprite_bot.setCanon(msg, args[1:], True)
-            elif base_arg == "noncanon" and msg.author.id == sprite_bot.config.root:
-                await sprite_bot.setCanon(msg, args[1:], False)
             elif base_arg == "update" and msg.author.id == sprite_bot.config.root:
                 await sprite_bot.updateBot(msg)
             elif base_arg == "shutdown" and msg.author.id == sprite_bot.config.root:
