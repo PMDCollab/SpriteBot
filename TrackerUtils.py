@@ -1032,6 +1032,23 @@ def setCanon(dict, canon):
     for subgroup in dict.subgroups:
         setCanon(dict.subgroups[subgroup], canon)
 
+def canonCheck(species_name, form_name):
+    if species_name == "Missingno_":
+        return False
+    if re.search(r"(_|\b)Beta\d*(_|\b)", form_name):
+        return False
+    if re.search(r"(_|\b)Skytemple\d*(_|\b)", form_name):
+        return False
+    if re.search(r"(_|\b)Cutscene\d*(_|\b)", form_name):
+        return False
+    if re.search(r"(_|\b)Alternate\d*(_|\b)", form_name):
+        return False
+    if re.search(r"(_|\b)Altcolor\d*(_|\b)", form_name):
+        return False
+    if re.search(r"(_|\b)Temp\d*(_|\b)", form_name):
+        return False
+    return True
+
 """
 String operations
 """

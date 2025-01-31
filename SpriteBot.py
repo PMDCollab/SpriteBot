@@ -2532,17 +2532,7 @@ class SpriteBot:
                 await msg.channel.send(msg.author.mention + " Invalid form name!")
                 return
 
-            canon = True
-            if re.search(r"_?Alternate\d*$", form_name):
-                canon = False
-            if re.search(r"_?Starter\d*$", form_name):
-                canon = False
-            if re.search(r"_?Altcolor\d*$", form_name):
-                canon = False
-            if re.search(r"_?Beta\d*$", form_name):
-                canon = False
-            if species_name == "Missingno_":
-                canon = False
+            canon = TrackerUtils.canonCheck(species_name, form_name)
 
             count = len(species_dict.subgroups)
             new_count = "{:04d}".format(count)
