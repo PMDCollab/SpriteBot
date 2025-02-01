@@ -863,6 +863,34 @@ def swapNodeAssetFeatures(node_from, node_to, asset_type):
             node_to.__dict__[key] = node_from.__dict__[key]
             node_from.__dict__[key] = tmp
 
+def copyNodeAssetFeatures(node_from, node_to, asset_type):
+    for key in node_from.__dict__:
+        if key.startswith(asset_type):
+            node_to.__dict__[key] = node_from.__dict__[key]
+
+def replaceNodeAssetFeatures(node_from, node_to, asset_type):
+    node_new = initSubNode("", False)
+    for key in node_from.__dict__:
+        if key.startswith(asset_type):
+            if key == asset_type + "_files":
+                # pass in keys and set to false, only if new keys are introduced
+                for file_key in node_from.__dict__[key]:
+                    if file_key not in node_to.__dict__[key]:
+                        node_to.__dict__[key][file_key] = False
+            elif key == asset_type + "_talk":
+                # do not overwrite
+                pass
+            elif key == asset_type + "_bounty":
+                for status_key in node_from.__dict__[key]:
+                    if status_key not in node_to.__dict__[key]:
+                        node_to.__dict__[key][status_key] = 0
+                    node_to.__dict__[key][status_key] = node_to.__dict__[key][status_key] + node_from.__dict__[key][status_key]
+            elif key == "canon" or key == "modreward":
+                # do not overwrite canon
+                pass
+            else:
+                node_to.__dict__[key] = node_from.__dict__[key]
+            node_from.__dict__[key] = node_new.__dict__[key]
 
 def swapFolderPaths(base_path, tracker, asset_type, full_idx_from, full_idx_to):
 
@@ -892,12 +920,6 @@ def swapFolderPaths(base_path, tracker, asset_type, full_idx_from, full_idx_to):
     moveNodeFiles(gen_path_tmp, gen_path_to, False, False)
     shutil.rmtree(gen_path_tmp)
 
-
-def copyNodeAssetFeatures(node_from, node_to, asset_type):
-    for key in node_from.__dict__:
-        if key.startswith(asset_type):
-            node_to.__dict__[key] = node_from.__dict__[key]
-
 def copyFolderPaths(base_path, tracker, asset_type, full_idx_from, full_idx_to):
 
     # swap the nodes in tracker, don't do it recursively
@@ -916,27 +938,6 @@ def copyFolderPaths(base_path, tracker, asset_type, full_idx_from, full_idx_to):
     # copy the folders
     copyNodeFiles(gen_path_from, gen_path_to, False)
 
-
-def replaceNodeAssetFeatures(node_from, node_to, asset_type):
-    node_new = initSubNode("", False)
-    for key in node_from.__dict__:
-        if key.startswith(asset_type):
-            if key == asset_type + "_files":
-                # pass in keys and set to false, only if new keys are introduced
-                for file_key in node_from.__dict__[key]:
-                    if file_key not in node_to.__dict__[key]:
-                        node_to.__dict__[key][file_key] = False
-            elif key == asset_type + "_talk":
-                # do not overwrite
-                pass
-            elif key == asset_type + "_bounty":
-                for status_key in node_from.__dict__[key]:
-                    if status_key not in node_to.__dict__[key]:
-                        node_to.__dict__[key][status_key] = 0
-                    node_to.__dict__[key][status_key] = node_to.__dict__[key][status_key] + node_from.__dict__[key][status_key]
-            else:
-                node_to.__dict__[key] = node_from.__dict__[key]
-            node_from.__dict__[key] = node_new.__dict__[key]
 
 def replaceFolderPaths(base_path, tracker, asset_type, full_idx_from, full_idx_to):
 
