@@ -1072,7 +1072,7 @@ class SpriteBot:
                         bsky_file = img_file
                         # a little hack workaround for bsky not supporting gifs: use mastodon's conversion
                         if asset_type == "sprite" and masto_img is not None:
-                            bsky_file = masto_img
+                            bsky_file, bsky_name = SpriteUtils.getLinkData(masto_img)
                         url = await BlueSkyUtils.post_image(self.bsky_api, tl_msg, new_name_str, bsky_file, asset_type)
                     except:
                         await self.sendError("Error sending post!\n{0}".format(traceback.format_exc()))
