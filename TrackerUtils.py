@@ -669,7 +669,7 @@ Name operations
 def updateCreditCompilation(name_path, credit_dict):
 
     with open(name_path, 'w+', encoding='utf-8') as txt:
-        txt.write("All custom graphics not originating from official PMD games are licensed under Attribution-NonCommercial 4.0 International http://creativecommons.org/licenses/by/4.0/.\n")
+        txt.write("All custom graphics not originating from official PMD games are licensed under Attribution-NonCommercial 4.0 International http://creativecommons.org/licenses/by-nc/4.0/.\n")
         txt.write("All graphics referred to in this file can be found in http://sprites.pmdcollab.org/\n\n")
         for handle in credit_dict:
             if len(credit_dict[handle].sprite) > 0 or len(credit_dict[handle].portrait) > 0:
