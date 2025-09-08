@@ -1984,12 +1984,12 @@ class SpriteBot:
         credit_data = chosen_node.__dict__[asset_type + "_credit"]
 
         urls = await self.postSocialMedia(full_idx, asset_type, "Showcased",
-                                          self.createCreditBlock(credit_data, None, True))
+                                          self.createCreditBlock(credit_data, None, True), file_name)
 
         await msg.channel.send(msg.author.mention + " {0}".format("\n".join(urls)))
 
 
-    async def postSocialMedia(self, full_idx, asset_type, update_verb, author):
+    async def postSocialMedia(self, full_idx, asset_type, update_verb, author, file_name = "Idle"):
         chosen_node = TrackerUtils.getNodeFromIdx(self.tracker, full_idx, 0)
         chosen_link = await self.retrieveLinkMsg(full_idx, chosen_node, asset_type, False)
 
@@ -2002,7 +2002,7 @@ class SpriteBot:
                                                             author,
                                                             int(full_idx[0]), name_str, status)
 
-        img_file = SpriteUtils.getSocialMediaImage(chosen_link, asset_type)
+        img_file = SpriteUtils.getSocialMediaImage(chosen_link, asset_type, file_name)
 
         urls = []
         masto_img = None
