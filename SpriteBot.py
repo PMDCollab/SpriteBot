@@ -1778,6 +1778,16 @@ class SpriteBot:
 
         await self.gitCommit("Swapped {0} with {1}".format(" ".join(name_seq_from), " ".join(name_seq_to)))
 
+        if not TrackerUtils.reportableCheck(name_seq_from):
+            #urls = await self.postSocialMedia(full_idx_to, asset_type, "Showcased", self.createCreditBlock(credit_data, None, True))
+            #await msg.channel.send(msg.author.mention + " {0}".format("\n".join(urls)))
+            pass
+
+        if not TrackerUtils.reportableCheck(name_seq_to):
+            #urls = await self.postSocialMedia(full_idx_to, asset_type, "Showcased", self.createCreditBlock(credit_data, None, True))
+            #await msg.channel.send(msg.author.mention + " {0}".format("\n".join(urls)))
+            pass
+
     async def cloneSlot(self, msg, name_args, asset_type):
         try:
             delim_idx = name_args.index("->")
