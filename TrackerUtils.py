@@ -1050,6 +1050,16 @@ def canonCheck(species_name, form_name):
         return False
     return True
 
+def reportableCheck(name_arr):
+    if len(name_arr) < 2:
+        return True
+    form_name = name_arr[1]
+    if re.search(r"(_|\b)Skytemple\d*(_|\b)", form_name):
+        return False
+    if re.search(r"(_|\b)Temp\d*(_|\b)", form_name):
+        return False
+    return True
+
 """
 String operations
 """

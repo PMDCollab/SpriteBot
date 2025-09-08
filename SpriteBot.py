@@ -1052,30 +1052,12 @@ class SpriteBot:
                     await self.postStagedSubmission(msg.channel, cmd_str, content, shiny_idx, shiny_node, asset_type, sender_info,
                                                     True, auto_diffs, auto_recolor_file, return_name, overcolor_img)
 
-            if self.config.mastodon or self.config.bluesky:
-                status = TrackerUtils.getStatusEmoji(chosen_node, asset_type)
-                tl_msg = "{5} #{3:03d}: {4}\n{0} {1} by {2}".format(new_revise,
-                                                                    asset_type,
-                                                                    self.createCreditAttribution(orig_author, True),
-                                                                    int(full_idx[0]), new_name_str, status)
+            name_arr = TrackerUtils.getIdxName(self.tracker, full_idx)
+            postable = TrackerUtils.reportableCheck(name_arr)
+            if postable and (self.config.mastodon or self.config.bluesky):
 
-                img_file = SpriteUtils.getSocialMediaImage(new_link, asset_type)
-
-                masto_img = None
-                if self.config.mastodon:
-                    try:
-                        url, masto_img = await MastodonUtils.post_image(self.tl_api, tl_msg, new_name_str, img_file, asset_type)
-                    except:
-                        await self.sendError("Error sending post!\n{0}".format(traceback.format_exc()))
-                if self.config.bluesky:
-                    try:
-                        bsky_file = img_file
-                        # a little hack workaround for bsky not supporting gifs: use mastodon's conversion
-                        if asset_type == "sprite" and masto_img is not None:
-                            bsky_file, bsky_name = SpriteUtils.getLinkData(masto_img)
-                        url = await BlueSkyUtils.post_image(self.bsky_api, tl_msg, new_name_str, bsky_file, asset_type)
-                    except:
-                        await self.sendError("Error sending post!\n{0}".format(traceback.format_exc()))
+                await self.postSocialMedia(full_idx, asset_type, new_revise,
+                                           self.createCreditAttribution(orig_author, True))
 
 
     async def submissionDeclined(self, msg, orig_sender, declines):
@@ -1990,36 +1972,49 @@ class SpriteBot:
                 return
 
         credit_data = chosen_node.__dict__[asset_type + "_credit"]
+
+        urls = await self.postSocialMedia(full_idx, asset_type, "Showcased",
+                                          self.createCreditBlock(credit_data, None, True))
+
+        await msg.channel.send(msg.author.mention + " {0}".format("\n".join(urls)))
+
+
+    async def postSocialMedia(self, full_idx, asset_type, update_verb, author):
+        chosen_node = TrackerUtils.getNodeFromIdx(self.tracker, full_idx, 0)
         chosen_link = await self.retrieveLinkMsg(full_idx, chosen_node, asset_type, False)
 
-        status = TrackerUtils.getStatusEmoji(chosen_node, asset_type)
-        tl_msg = "{5} #{3:03d}: {4}\n{0} {1} {2}".format("Showcased",
-                                                            asset_type,
-                                                            self.createCreditBlock(credit_data, None, True),
-                                                            int(full_idx[0]), " ".join(name_seq), status)
+        name_arr = TrackerUtils.getIdxName(self.tracker, full_idx)
+        name_str = " ".join(name_arr)
 
-        img_file = SpriteUtils.getSocialMediaImage(chosen_link, asset_type, file_name)
+        status = TrackerUtils.getStatusEmoji(chosen_node, asset_type)
+        tl_msg = "{5} #{3:03d}: {4}\n{0} {1} by {2}".format(update_verb,
+                                                            asset_type,
+                                                            author,
+                                                            int(full_idx[0]), name_str, status)
+
+        img_file = SpriteUtils.getSocialMediaImage(chosen_link, asset_type)
 
         urls = []
         masto_img = None
         if self.config.mastodon:
             try:
-                url, masto_img = await MastodonUtils.post_image(self.tl_api, tl_msg, " ".join(name_seq), img_file, asset_type)
+                url, masto_img = await MastodonUtils.post_image(self.tl_api, tl_msg, name_str, img_file, asset_type)
                 urls.append(url)
             except:
                 await self.sendError("Error sending post!\n{0}".format(traceback.format_exc()))
+
         if self.config.bluesky:
             try:
                 bsky_file = img_file
                 # a little hack workaround for bsky not supporting gifs: use mastodon's conversion
                 if asset_type == "sprite" and masto_img is not None:
                     bsky_file, bsky_name = SpriteUtils.getLinkData(masto_img)
-                url = await BlueSkyUtils.post_image(self.bsky_api, tl_msg, " ".join(name_seq), bsky_file, asset_type)
+                url = await BlueSkyUtils.post_image(self.bsky_api, tl_msg, name_str, bsky_file, asset_type)
                 urls.append(url)
             except:
                 await self.sendError("Error sending post!\n{0}".format(traceback.format_exc()))
 
-        await msg.channel.send(msg.author.mention + " {0}".format("\n".join(urls)))
+        return urls
 
 
     def parseFileNames(self, chosen_node, asset_type, file_args):
@@ -2162,7 +2157,9 @@ class SpriteBot:
                 if attr not in author_arr:
                     author_arr.append(attr)
 
-        block = "By: {0}".format(", ".join(author_arr))
+        block = ", ".join(author_arr)
+        if not plainName:
+            block = "By: {0}".format(block)
         credit_diff = credit.total - len(author_arr)
         if credit_diff > 0:
             block += " +{0} more".format(credit_diff)
@@ -3483,7 +3480,7 @@ async def on_message(msg: discord.Message):
             elif base_arg == "noncanon" and authorized:
                 await sprite_bot.setCanon(msg, args[1:], False)
                 # root commands
-            elif base_arg == "promote" and msg.author.id == sprite_bot.config.root:
+            elif base_arg == "promote" and authorized:
                 await sprite_bot.promote(msg, args[1:])
             elif base_arg == "rescan" and msg.author.id == sprite_bot.config.root:
                 await sprite_bot.rescan(msg)
