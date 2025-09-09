@@ -914,6 +914,9 @@ def verifySpriteLock(dict, chosen_path, precolor_zip, wan_zip, recolor):
             cmp_zip = precolor_zip
             wan_zip = removePalette(wan_zip)
 
+            if precolor_zip is None:
+                raise Exception("The file was submitted in recolor format, but no base file was supplied.")
+
             with zipfile.ZipFile(precolor_zip, 'r') as opened_zip:
                 frames, frame_mapping = getFramesAndMappings(opened_zip, True)
             frame_size = getFrameSizeFromFrames(frames)

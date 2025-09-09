@@ -686,7 +686,7 @@ class SpriteBot:
         self.changed |= change_status
 
 
-    async def submissionApproved(self, msg, orig_sender, orig_author, approvals):
+    async def submissionApproved(self, msg, orig_sender, orig_author, approvals, silent):
         sender_info = orig_sender
         if orig_author != orig_sender:
             sender_info = "{0}/{1}".format(orig_sender, orig_author)
@@ -1054,6 +1054,8 @@ class SpriteBot:
 
             name_arr = TrackerUtils.getIdxName(self.tracker, full_idx)
             postable = TrackerUtils.reportableCheck(name_arr)
+            if silent:
+                postable = False
             if postable and (self.config.mastodon or self.config.bluesky):
 
                 await self.postSocialMedia(full_idx, asset_type, new_revise,
@@ -1123,6 +1125,7 @@ class SpriteBot:
             xs = None
             ws = None
             ss = None
+            ms = None
             remove_users = []
             for reaction in msg.reactions:
                 if reaction.emoji == '\u2705':
@@ -1133,6 +1136,8 @@ class SpriteBot:
                     ws = reaction
                 elif reaction.emoji == '\u2B50':
                     ss = reaction
+                elif reaction.emoji == '\U0001F515':
+                    ms = reaction
                 else:
                     async for user in reaction.users():
                         if await self.isAuthorized(user, msg.guild):
@@ -1152,6 +1157,7 @@ class SpriteBot:
             auto = False
             warn = False
             consent = False
+            silent = False
             approve = []
             decline = []
 
@@ -1192,6 +1198,13 @@ class SpriteBot:
                     elif user.id != self.client.user.id:
                         remove_users.append((xs, user))
 
+            if ms:
+                async for user in ms.users():
+                    if await self.isAuthorized(user, msg.guild) or user.id == orig_sender_id:
+                        silent = True
+                    else:
+                        remove_users.append((ms, user))
+
             file_name = msg.attachments[0].filename
             name_valid, full_idx, asset_type, recolor = TrackerUtils.getStatsFromFilename(file_name)
 
@@ -1199,18 +1212,18 @@ class SpriteBot:
                 await self.submissionDeclined(msg, orig_sender, decline)
                 return True
             elif auto:
-                await self.submissionApproved(msg, orig_sender, orig_author, approve)
+                await self.submissionApproved(msg, orig_sender, orig_author, approve, silent)
                 return False
             elif not warn:
                 if deleting:
                     if len(approve) >= 3 and consent:
-                        await self.submissionApproved(msg, orig_sender, orig_author, approve)
+                        await self.submissionApproved(msg, orig_sender, orig_author, approve, silent)
                         return False
                 elif asset_type == "sprite" and len(approve) >= 3:
-                    await self.submissionApproved(msg, orig_sender, orig_author, approve)
+                    await self.submissionApproved(msg, orig_sender, orig_author, approve, silent)
                     return False
                 elif asset_type == "portrait" and len(approve) >= 2:
-                    await self.submissionApproved(msg, orig_sender, orig_author, approve)
+                    await self.submissionApproved(msg, orig_sender, orig_author, approve, silent)
                     return False
 
             chosen_node = TrackerUtils.getNodeFromIdx(self.tracker, full_idx, 0)
