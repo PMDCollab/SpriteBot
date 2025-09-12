@@ -52,6 +52,7 @@ parser.add_argument('--base', nargs='+')
 parser.add_argument('--colormod', type=int)
 parser.add_argument('--colors', type=int)
 parser.add_argument('--author')
+parser.add_argument('--nocredit', nargs='?', const=True, default=False)
 parser.add_argument('--addauthor', nargs='?', const=True, default=False)
 parser.add_argument('--deleteauthor', nargs='?', const=True, default=False)
 parser.add_argument('--files')
@@ -619,7 +620,8 @@ class SpriteBot:
     async def postStagedSubmission(self, channel, cmd_str, formatted_content, full_idx, chosen_node, asset_type, author, recolor,
                                    diffs, return_file, return_name, overcolor_img):
 
-        deleting = cmd_str == "--deleteauthor"
+        deleting = ("--deleteauthor" in cmd_str)
+        no_credit = ("--nocredit" in cmd_str)
         title = TrackerUtils.getIdxName(self.tracker, full_idx)
 
         return_copy = io.BytesIO()
@@ -628,8 +630,10 @@ class SpriteBot:
         return_file.seek(0)
         send_files = [discord.File(return_copy, return_name)]
 
-        if deleting:
-            diff_str = "Approvers AND the author in question must approve this. Use \U00002705 to approve."
+        if no_credit:
+            diff_str = "The author must approve to confirm the choice to waive credit. Use \U00002705 to approve.\nChanges: {0}".format(", ".join(diffs))
+        elif deleting:
+            diff_str = "Approvers AND the author in question must approve deletion. Use \U00002705 to approve."
         elif diffs is not None and len(diffs) > 0:
             diff_str = "Changes: {0}".format(", ".join(diffs))
         else:
@@ -707,6 +711,7 @@ class SpriteBot:
         base_idx = None
         add_author = False
         delete_author = False
+        no_credit = False
         diffs = []
         if len(msg_lines) > 1:
             try:
@@ -715,6 +720,8 @@ class SpriteBot:
                 await msg.delete()
                 await self.getChatChannel(msg.guild.id).send(msg.author.mention + " Invalid arguments used in submission post.\n`{0}`".format(msg.content))
                 return
+            if msg_args.nocredit:
+                no_credit = True
             if msg_args.addauthor:
                 add_author = True
                 if msg_args.files:
@@ -730,7 +737,10 @@ class SpriteBot:
                     return
 
         if not add_author and not delete_author and len(msg_lines) > 2:
-            msg_changes = msg_lines[2]
+            changes_idx = 2
+            if no_credit:
+                changes_idx += 1
+            msg_changes = msg_lines[changes_idx]
             if msg_changes.startswith("Changes: "):
                 diffs = msg_changes.replace("Changes: ", "").split(", ")
             elif msg_changes != "No Changes.":
@@ -834,7 +844,7 @@ class SpriteBot:
                     new_credit = False
                     break
 
-            TrackerUtils.appendCredits(gen_path, orig_author, ",".join(diffs))
+            TrackerUtils.appendCredits(gen_path, orig_author, ",".join(diffs), no_credit)
 
             # add to universal names list and save if changed
             if orig_author not in self.names:
@@ -848,7 +858,7 @@ class SpriteBot:
             chosen_node.__dict__[asset_type + "_modified"] = str(datetime.datetime.utcnow())
 
             credit_data = chosen_node.__dict__[asset_type + "_credit"]
-            if credit_data.primary != orig_author:
+            if not no_credit and credit_data.primary != orig_author:
                 # only update credit name if the new author is different from the primary
                 credit_entries = TrackerUtils.getCreditEntries(gen_path)
                 if credit_data.primary == "":
@@ -1152,7 +1162,8 @@ class SpriteBot:
             orig_author = sender_data[-1]
             orig_sender_id = int(orig_sender[3:-1])
             args = msg_lines[1]
-            deleting = args == "--deleteauthor"
+            deleting = "--deleteauthor" in args
+            no_credit = "--nocredit" in args
 
             auto = False
             warn = False
@@ -1173,7 +1184,7 @@ class SpriteBot:
             if cks:
                 async for user in cks.users():
                     user_author_id = "<@!{0}>".format(user.id)
-                    if deleting and user_author_id == orig_author:
+                    if (deleting or no_credit) and user_author_id == orig_author:
                         approve.append(user.id)
                         consent = True
                     elif await self.isAuthorized(user, msg.guild):

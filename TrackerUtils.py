@@ -85,11 +85,14 @@ def getFileCredits(path):
                     raise BaseException("Invalid credit line “{}” at {}".format(line, credit_path))
     return id_list
 
-def appendCredits(path, id, diff):
+def appendCredits(path, id, diff, is_old):
     if diff == '':
         diff = '"'
+    status = "CUR"
+    if is_old:
+        status = "OLD"
     with open(os.path.join(path, Constants.CREDIT_TXT), 'a+', encoding='utf-8') as txt:
-        txt.write("{0}\t{1}\tCUR\t{2}\t{3}\n".format(str(datetime.datetime.utcnow()), id, CURRENT_LICENSE, diff))
+        txt.write("{0}\t{1}\t{2}\t{3}\t{4}\n".format(str(datetime.datetime.utcnow()), id, status, CURRENT_LICENSE, diff))
 
 def mergeCredits(path_from, path_to):
     id_list = []
