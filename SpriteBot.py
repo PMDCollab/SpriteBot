@@ -628,7 +628,7 @@ class SpriteBot:
         return_copy.write(return_file.read())
         return_copy.seek(0)
         return_file.seek(0)
-        send_files = [discord.File(return_copy, return_name)]
+        send_files = [(return_copy, return_name)]
 
         if no_credit:
             diff_str = "The author must approve to confirm the choice to waive credit. Use \U00002705 to approve.\nChanges: {0}".format(", ".join(diffs))
@@ -652,7 +652,7 @@ class SpriteBot:
             preview_file = io.BytesIO()
             preview_img.save(preview_file, format='PNG')
             preview_file.seek(0)
-            send_files.append(discord.File(preview_file, return_name.replace('.zip', '.png')))
+            send_files.append((preview_file, return_name.replace('.zip', '.png')))
             add_msg += "\nPreview included."
 
         if overcolor_img is not None:
@@ -666,15 +666,19 @@ class SpriteBot:
             reduced_file = io.BytesIO()
             reduced_img.save(reduced_file, format='PNG')
             reduced_file.seek(0)
-            send_files.append(discord.File(reduced_file, return_name.replace('.png', '_reduced.png')))
+            send_files.append((reduced_file, return_name.replace('.png', '_reduced.png')))
             add_msg += "\nReduced Color Preview included."
 
         if chosen_node.__dict__[asset_type + "_credit"].primary != "":
             if recolor or asset_type == "portrait":
                 orig_link = await self.retrieveLinkMsg(full_idx, chosen_node, asset_type, recolor)
                 add_msg += "\nCurrent Version: {0}".format(orig_link)
+
+        main_files = []
+        for file, name in send_files:
+            main_files.append(discord.File(file, name))
         new_msg = await channel.send("{0} {1}\n{2}\n{3}{4}\n{5}".format(author, " ".join(title), cmd_str, diff_str,
-                                                                        thread_link, formatted_content + add_msg), files=send_files)
+                                                                        thread_link, formatted_content + add_msg), files=main_files)
 
         pending_dict = chosen_node.__dict__[asset_type+"_pending"]
         change_status = len(pending_dict) == 0
@@ -685,7 +689,12 @@ class SpriteBot:
         await new_msg.add_reaction('\U0000274C')
 
         if review_thread:
-            await review_thread.send("New post by {0}: {1}".format(author, new_msg.jump_url))
+            review_files = []
+            for file, name in send_files:
+                file.seek(0)
+                review_files.append(discord.File(file, name))
+            await review_thread.send("{0} {1}\n{2}\n{3}{4}\n{5}".format(author, " ".join(title), cmd_str, diff_str,
+                                                                        thread_link, formatted_content + add_msg), files=review_files)
 
         self.changed |= change_status
 
@@ -1967,7 +1976,7 @@ class SpriteBot:
         self.changed = True
 
 
-    async def promote(self, msg, name_args):
+    async def showcase(self, msg, name_args):
 
         if not self.config.mastodon and not self.config.bluesky:
             await msg.channel.send(msg.author.mention + " Social Media posting is disabled.")
@@ -2964,6 +2973,7 @@ class SpriteBot:
                   f"`{prefix}setportraitcredit` - Sets the primary author of the portrait\n" \
                   f"`{prefix}addspritecredit` - Adds a new author to the credits of the sprite\n" \
                   f"`{prefix}addportraitcredit` - Adds a new author to the credits of the portrait\n" \
+                  f"`{prefix}showcase` - Showcases a sprite or portrait to social media channels\n" \
                   f"`{prefix}modreward` - Toggles whether a sprite/portrait will have a custom reward\n" \
                   f"`{prefix}register` - Use with arguments to make absentee profiles\n" \
                   f"`{prefix}transferprofile` - Transfers the credit from absentee profile to a real one\n" \
@@ -3308,6 +3318,18 @@ class SpriteBot:
                              f"`{prefix}addportraitcredit POWERCRISTAL Calyrex \"`\n" \
                              f"`{prefix}addportraitcredit POWERCRISTAL Calyrex Shiny \"`\n" \
                              f"`{prefix}addportraitcredit POWERCRISTAL Jellicent Shiny Female \"`"
+            elif base_arg == "showcase":
+                return_msg = "**Command Help**\n" \
+                             f"`{prefix}showcase <Pokemon Name> [Form Name] [Shiny] [Gender] <Anim>`\n" \
+                             "Showcases the sprite or portrait to social media.\n" \
+                             "`Pokemon Name` - Name of the Pokemon\n" \
+                             "`Form Name` - [Optional] Form name of the Pokemon\n" \
+                             "`Shiny` - [Optional] Specifies if you want the shiny sprite or not\n" \
+                             "`Gender` - [Optional] Specifies the gender of the Pokemon\n" \
+                             "`Anim` - The animation to showcase. This will cause the sprite to be shown instead of the portrait.\n" \
+                             "**Examples**\n" \
+                             f"`{prefix}showcase Lucario Mega`\n" \
+                             f"`{prefix}showcase Calyrex Sleep`"
             elif base_arg == "modreward":
                 return_msg = "**Command Help**\n" \
                              f"`{prefix}modreward <Pokemon Name> [Form Name]`\n" \
@@ -3514,8 +3536,8 @@ async def on_message(msg: discord.Message):
             elif base_arg == "noncanon" and authorized:
                 await sprite_bot.setCanon(msg, args[1:], False)
                 # root commands
-            elif base_arg == "promote" and authorized:
-                await sprite_bot.promote(msg, args[1:])
+            elif base_arg == "showcase" and authorized:
+                await sprite_bot.showcase(msg, args[1:])
             elif base_arg == "rescan" and msg.author.id == sprite_bot.config.root:
                 await sprite_bot.rescan(msg)
             elif base_arg == "unlockportrait" and msg.author.id == sprite_bot.config.root:
