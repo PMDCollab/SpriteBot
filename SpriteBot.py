@@ -694,7 +694,7 @@ class SpriteBot:
                 file.seek(0)
                 review_files.append(discord.File(file, name))
             await review_thread.send("{0} {1}\n{2}\n{3}{4}\n{5}".format(author, " ".join(title), cmd_str, diff_str,
-                                                                        thread_link, formatted_content + add_msg), files=review_files)
+                                                                        new_msg.jump_url, formatted_content + add_msg), files=review_files)
 
         self.changed |= change_status
 
