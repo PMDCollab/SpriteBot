@@ -1627,32 +1627,37 @@ class SpriteBot:
         explicit_node_from = TrackerUtils.getNodeFromIdx(self.tracker, full_idx_from, 0)
         explicit_node_to = TrackerUtils.getNodeFromIdx(self.tracker, full_idx_to, 0)
 
-        # check the main nodes
-        try:
-            await self.checkMoveLock(full_idx_from, chosen_node_from, full_idx_to, chosen_node_to, "sprite")
-            await self.checkMoveLock(full_idx_from, chosen_node_from, full_idx_to, chosen_node_to, "portrait")
-        except SpriteUtils.SpriteVerifyError as e:
-            await msg.channel.send(msg.author.mention + " Cannot move the locked Pokemon specified as source:\n{0}".format(e.message))
-            return
+        diff_forms_on_same_species = False
+        if len(full_idx_from) == 2 and len(full_idx_to) == 2 and full_idx_from[0] == full_idx_to[0]:
+            diff_forms_on_same_species = True
 
-        try:
-            await self.checkMoveLock(full_idx_to, chosen_node_to, full_idx_from, chosen_node_from, "sprite")
-            await self.checkMoveLock(full_idx_to, chosen_node_to, full_idx_from, chosen_node_from, "portrait")
-        except SpriteUtils.SpriteVerifyError as e:
-            await msg.channel.send(msg.author.mention + " Cannot move the locked Pokemon specified as destination:\n{0}".format(e.message))
-            return
+        if not diff_forms_on_same_species:
+            # check the main nodes
+            try:
+                await self.checkMoveLock(full_idx_from, chosen_node_from, full_idx_to, chosen_node_to, "sprite")
+                await self.checkMoveLock(full_idx_from, chosen_node_from, full_idx_to, chosen_node_to, "portrait")
+            except SpriteUtils.SpriteVerifyError as e:
+                await msg.channel.send(msg.author.mention + " Cannot move the locked Pokemon specified as source:\n{0}".format(e.message))
+                return
 
-        # check the subnodes
-        for sub_idx in explicit_node_from.subgroups:
-            sub_node = explicit_node_from.subgroups[sub_idx]
-            if TrackerUtils.hasLock(sub_node, "sprite", True) or TrackerUtils.hasLock(sub_node, "portrait", True):
-                await msg.channel.send(msg.author.mention + " Cannot move the locked subgroup specified as source.")
+            try:
+                await self.checkMoveLock(full_idx_to, chosen_node_to, full_idx_from, chosen_node_from, "sprite")
+                await self.checkMoveLock(full_idx_to, chosen_node_to, full_idx_from, chosen_node_from, "portrait")
+            except SpriteUtils.SpriteVerifyError as e:
+                await msg.channel.send(msg.author.mention + " Cannot move the locked Pokemon specified as destination:\n{0}".format(e.message))
                 return
-        for sub_idx in explicit_node_to.subgroups:
-            sub_node = explicit_node_to.subgroups[sub_idx]
-            if TrackerUtils.hasLock(sub_node, "sprite", True) or TrackerUtils.hasLock(sub_node, "portrait", True):
-                await msg.channel.send(msg.author.mention + " Cannot move the locked subgroup specified as destination.")
-                return
+
+            # check the subnodes
+            for sub_idx in explicit_node_from.subgroups:
+                sub_node = explicit_node_from.subgroups[sub_idx]
+                if TrackerUtils.hasLock(sub_node, "sprite", True) or TrackerUtils.hasLock(sub_node, "portrait", True):
+                    await msg.channel.send(msg.author.mention + " Cannot move the locked subgroup specified as source.")
+                    return
+            for sub_idx in explicit_node_to.subgroups:
+                sub_node = explicit_node_to.subgroups[sub_idx]
+                if TrackerUtils.hasLock(sub_node, "sprite", True) or TrackerUtils.hasLock(sub_node, "portrait", True):
+                    await msg.channel.send(msg.author.mention + " Cannot move the locked subgroup specified as destination.")
+                    return
 
         # clear caches
         TrackerUtils.clearCache(chosen_node_from, True)
