@@ -846,6 +846,15 @@ def clearCache(chosen_node, recursive):
         for subgroup in chosen_node.subgroups:
             clearCache(chosen_node.subgroups[subgroup], recursive)
 
+def setNodeModReward(chosen_node, modreward, recursive):
+    if chosen_node.name != "":
+        chosen_node.modreward = modreward
+
+    if recursive:
+        for subgroup in chosen_node.subgroups:
+            setNodeModReward(chosen_node.subgroups[subgroup], modreward, recursive)
+
+
 def swapNodeMiscFeatures(node_from, node_to):
     for key in node_from.__dict__:
         if key.startswith("sprite"):

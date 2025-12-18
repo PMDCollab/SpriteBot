@@ -2647,12 +2647,16 @@ class SpriteBot:
         species_dict = self.tracker[species_idx]
 
         if len(args) == 1:
-            species_dict.modreward = not species_dict.modreward
+            new_modreward = not species_dict.modreward
+            species_dict.modreward = new_modreward
+
+            form_dict = species_dict.subgroups['0000']
+            TrackerUtils.setNodeModReward(form_dict, new_modreward, True)
 
             if species_dict.modreward:
-                await msg.channel.send(msg.author.mention + " #{0:03d}: {1}'s rewards will be decided by approvers.".format(int(species_idx), species_name))
+                await msg.channel.send(msg.author.mention + " #{0:03d}: {1}'s rewards will be decided by approvers. (Including shiny and gender slots)".format(int(species_idx), species_name))
             else:
-                await msg.channel.send(msg.author.mention + " #{0:03d}: {1}'s rewards will be given automatically.".format(int(species_idx), species_name))
+                await msg.channel.send(msg.author.mention + " #{0:03d}: {1}'s rewards will be given automatically. (Including shiny and gender slots)".format(int(species_idx), species_name))
         else:
 
             form_name = TrackerUtils.sanitizeName(args[1])
@@ -2662,12 +2666,13 @@ class SpriteBot:
                 return
 
             form_dict = species_dict.subgroups[form_idx]
-            form_dict.modreward = not form_dict.modreward
+            new_modreward = not form_dict.modreward
+            TrackerUtils.setNodeModReward(form_dict, new_modreward, True)
 
             if form_dict.modreward:
-                await msg.channel.send(msg.author.mention + " #{0:03d}: {1} {2}'s rewards will be decided by approvers.".format(int(species_idx), species_name, form_name))
+                await msg.channel.send(msg.author.mention + " #{0:03d}: {1} {2}'s rewards will be decided by approvers. (Including shiny and gender slots)".format(int(species_idx), species_name, form_name))
             else:
-                await msg.channel.send(msg.author.mention + " #{0:03d}: {1} {2}'s rewards will be given automatically.".format(int(species_idx), species_name, form_name))
+                await msg.channel.send(msg.author.mention + " #{0:03d}: {1} {2}'s rewards will be given automatically. (Including shiny and gender slots)".format(int(species_idx), species_name, form_name))
 
         self.saveTracker()
         self.changed = True
