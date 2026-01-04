@@ -2555,11 +2555,11 @@ class SpriteBot:
                 await msg.channel.send(msg.author.mention + " {0} already exists!".format(species_name))
                 return
 
-            count = len(self.tracker)
-            new_idx = "{:04d}".format(count)
+            new_id_int = max([int(i) for i in self.tracker.keys()]) + 1
+            new_idx = "{:04d}".format(new_id_int)
             self.tracker[new_idx] = TrackerUtils.createSpeciesNode(species_name)
 
-            await msg.channel.send(msg.author.mention + " Added #{0:03d}: {1}!".format(count, species_name))
+            await msg.channel.send(msg.author.mention + " Added #{0:03d}: {1}!".format(new_id_int, species_name))
         else:
             if species_idx is None:
                 await msg.channel.send(msg.author.mention + " {0} doesn't exist! Create it first!".format(species_name))
@@ -2579,9 +2579,9 @@ class SpriteBot:
 
             canon = TrackerUtils.canonCheck(species_name, form_name)
 
-            count = len(species_dict.subgroups)
-            new_count = "{:04d}".format(count)
-            species_dict.subgroups[new_count] = TrackerUtils.createFormNode(form_name, canon)
+            new_id_int = max([int(i) for i in species_dict.subgroups.keys()]) + 1
+            new_idx = "{:04d}".format(new_id_int)
+            species_dict.subgroups[new_idx] = TrackerUtils.createFormNode(form_name, canon)
 
             await msg.channel.send(msg.author.mention +
                                    " Added #{0:03d}: {1} {2}!".format(int(species_idx), species_name, form_name))
