@@ -1171,6 +1171,12 @@ def verifyPortraitLock(dict, chosen_path, img, recolor):
     if recolor:
         img = removePalette(img)
 
+    if img.size[0] % Constants.PORTRAIT_SIZE != 0 or img.size[1] % Constants.PORTRAIT_SIZE != 0:
+        if recolor:
+            raise SpriteVerifyError("After palette bar removal, portrait has an invalid size of {0}, Not divisble by {1}x{1}".format(str(img.size), Constants.PORTRAIT_SIZE))
+        else:
+            raise SpriteVerifyError("Portrait has an invalid size of {0}, Not divisble by {1}x{1}".format(str(img.size), Constants.PORTRAIT_SIZE))
+
     in_data = img.getdata()
     changed_files = []
     for xx in range(Constants.PORTRAIT_TILE_X):
