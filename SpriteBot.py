@@ -711,7 +711,13 @@ class SpriteBot:
             await msg.delete()
             return
 
+        # TODO: refactor with above code
         chosen_node = TrackerUtils.getNodeFromIdx(self.tracker, full_idx, 0)
+        if not chosen_node:
+            await self.getChatChannel(msg.guild.id).send(orig_sender + " " + "Removed unknown file: {0}".format(file_name))
+            await msg.delete()
+            return
+
         chosen_path = TrackerUtils.getDirFromIdx(self.config.path, asset_type, full_idx)
         review_thread = await self.retrieveDiscussion(full_idx, chosen_node, asset_type, msg.guild.id)
 
@@ -1089,8 +1095,14 @@ class SpriteBot:
             await self.getChatChannel(msg.guild.id).send(orig_sender + " " + "Removed unknown file: {0}".format(file_name))
             await msg.delete()
             return
-
+        
+        # TODO: refactor with above code
         chosen_node = TrackerUtils.getNodeFromIdx(self.tracker, full_idx, 0)
+        if not chosen_node:
+            await self.getChatChannel(msg.guild.id).send(orig_sender + " " + "Removed unknown file: {0}".format(file_name))
+            await msg.delete()
+            return
+
         review_thread = await self.retrieveDiscussion(full_idx, chosen_node, asset_type, msg.guild.id)
 
         # change the status of the sprite
