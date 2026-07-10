@@ -35,7 +35,7 @@ def get_api_key(user, password):
         body=bytes(json.dumps(post_data), encoding="utf-8"),
     )
     api_key = json.loads(api_key.data)
-    return api_key["accessJwt"]
+    return api_key["accessJwt"] # type: ignore
 
 def upload_blob(img_data, jwt, mime_type):
     http = urllib3.PoolManager()

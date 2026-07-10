@@ -1,4 +1,6 @@
+from typing import Dict, List, Any, Optional, Tuple
 
+import sys
 import os
 import re
 import shutil
@@ -228,7 +230,7 @@ def loadNameFile(name_path):
     return name_dict
 
 def initCreditDict():
-    credit_dict = { }
+    credit_dict: Dict[str, Any] = { }
     credit_dict["primary"] = ""
     credit_dict["secondary"] = []
     credit_dict["total"] = 0
@@ -524,7 +526,7 @@ def createShinyIdx(full_idx, shiny):
         new_idx.pop()
     return new_idx
 
-def getNodeFromIdx(tracker_dict, full_idx, depth):
+def getNodeFromIdx(tracker_dict: Dict[str, TrackerNode], full_idx: Optional[List[str]], depth: int) -> Optional[TrackerNode]:
     if full_idx is None:
         return None
     if len(full_idx) == 0:
@@ -540,7 +542,7 @@ def getNodeFromIdx(tracker_dict, full_idx, depth):
     # recursive case, kind of weird
     return getNodeFromIdx(node.subgroups, full_idx, depth+1)
 
-def getStatsFromFilename(filename):
+def getStatsFromFilename(filename: str) -> Tuple[bool, Optional[List[str]], Optional[str], Optional[bool]]:
     # attempt to parse the filename to a destination
     file, ext = os.path.splitext(filename)
     name_idx = file.split("-")
@@ -709,7 +711,7 @@ def updateCreditCompilation(name_path, credit_dict):
                             txt.write("\t\t{0}: {1}\n".format(id_key, ",".join(all_parts)))
                 txt.write("\n")
 
-def updateCompilationStats(name_dict, dict, species_path, prefix, form_name_list, credit_dict):
+def updateCompilationStats(name_dict, dict, species_path, prefix, form_name_list, credit_dict: Dict[str, CreditCompileEntry]):
     # generate the form name
     form_name = " ".join([i for i in form_name_list if i != ""])
     # is there a credits txt?  read it
@@ -910,6 +912,9 @@ def swapFolderPaths(base_path, tracker, asset_type, full_idx_from, full_idx_to):
     chosen_node_from = getNodeFromIdx(tracker, full_idx_from, 0)
     chosen_node_to = getNodeFromIdx(tracker, full_idx_to, 0)
 
+    if chosen_node_from is None or chosen_node_to is None:
+        raise KeyError("Source {} or destination {} node not found in the tracker".format(str(full_idx_from), str(full_idx_to)))
+
     swapNodeAssetFeatures(chosen_node_from, chosen_node_to, asset_type)
 
     # prepare to swap textures
@@ -991,6 +996,9 @@ def swapAllSubNodes(base_path, tracker, full_idx_from, full_idx_to):
     # swap the subnode objects
     chosen_node_from = getNodeFromIdx(tracker, full_idx_from, 0)
     chosen_node_to = getNodeFromIdx(tracker, full_idx_to, 0)
+
+    if chosen_node_from is None or chosen_node_to is None:
+        raise KeyError("Source {} or destination {} node not found in the tracker".format(str(full_idx_from), str(full_idx_to)))
 
     tmp = chosen_node_from.subgroups
     chosen_node_from.subgroups = chosen_node_to.subgroups
