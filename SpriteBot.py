@@ -98,6 +98,7 @@ class BotConfig:
         self.points = 0
         self.error_ch = 0
         self.points_ch = 0
+        self.points_user = 0
         self.update_ch = 0
         self.update_msg = 0
         self.use_bounties = False
@@ -437,6 +438,13 @@ class SpriteBot:
             return True
         return False
 
+    def remove_self_mention(self, split_args):
+        for idx in range(len(split_args)):
+            single_arg = split_args[len(split_args) - 1 - idx]
+            if single_arg == self.client.user.mention:
+                del split_args[len(split_args) - 1 - idx]
+        return split_args
+
     async def generateLink(self, file_data, filename):
         # file_data is a file-like object to post with
         # post the file to the admin under a specific filename
@@ -593,7 +601,7 @@ class SpriteBot:
         await msg.delete()
 
 
-    async def stageSubmission(self, msg, full_idx, chosen_node, asset_type, author, recolor, diffs, overcolor):
+    async def stageSubmission(self, msg, split_args, full_idx, chosen_node, asset_type, author, recolor, diffs, overcolor):
 
         try:
             return_file, return_name = SpriteUtils.getLinkFile(msg.attachments[0].url, asset_type)
@@ -612,7 +620,7 @@ class SpriteBot:
             if recolor:
                 overcolor_img = SpriteUtils.removePalette(overcolor_img)
 
-        await self.postStagedSubmission(msg.channel, msg.content.replace('\n', ' '), "", full_idx, chosen_node, asset_type, author, recolor,
+        await self.postStagedSubmission(msg.channel, split_args, "", full_idx, chosen_node, asset_type, author, recolor,
                                         diffs, return_file, return_name, overcolor_img)
 
         await msg.delete()
@@ -1012,9 +1020,9 @@ class SpriteBot:
             if bounty_points > 0:
                 reward_changes.append(str(bounty_points))
 
-            if len(reward_changes) > 0 and orig_author.startswith("<@!") and self.config.points_ch != 0:
+            if len(reward_changes) > 0 and orig_author.startswith("<@!") and self.config.points_ch != 0 and self.config.points_user != 0:
                 orig_author_id = orig_author[3:-1]
-                await self.client.get_channel(self.config.points_ch).send("!gr {0} {1} {2}".format(orig_author_id, "+".join(reward_changes), self.config.servers[str(msg.guild.id)].chat))
+                await self.client.get_channel(self.config.points_ch).send("<@!{0}> !gr {1} {2} {3}".format(self.config.points_user, orig_author_id, "+".join(reward_changes), self.config.servers[str(msg.guild.id)].chat))
 
 
             if not is_shiny:
@@ -1095,7 +1103,7 @@ class SpriteBot:
             await self.getChatChannel(msg.guild.id).send(orig_sender + " " + "Removed unknown file: {0}".format(file_name))
             await msg.delete()
             return
-        
+
         # TODO: refactor with above code
         chosen_node = TrackerUtils.getNodeFromIdx(self.tracker, full_idx, 0)
         if not chosen_node:
@@ -1287,8 +1295,19 @@ class SpriteBot:
                 await self.getChatChannel(msg.guild.id).send(msg.author.mention + " Invalid filename {0}. Do not change the filename from the original name given by !portrait or !sprite .".format(file_name))
                 return False
 
+            mentioned = False
+            for mention in msg.mentions:
+                if mention.id == self.client.user.id:
+                    mentioned = True
+
+            if not mentioned:
+                await msg.delete()
+                await self.getChatChannel(msg.guild.id).send(msg.author.mention + " Please ping me in your submission. Slash command support coming soon. Your message:\n`{0}`".format(msg.content))
+                return False
+
             try:
-                msg_args = parser.parse_args(msg.content.split())
+                split_args = self.remove_self_mention(msg.content.split())
+                msg_args = parser.parse_args(split_args)
             except SystemExit:
                 await msg.delete()
                 await self.getChatChannel(msg.guild.id).send(msg.author.mention + " Invalid arguments used in submission post.\n`{0}`".format(msg.content))
@@ -1333,7 +1352,7 @@ class SpriteBot:
 
                 author = "{0}/{1}".format(author, sanitized_author)
 
-            await self.stageSubmission(msg, full_idx, chosen_node, asset_type, author, recolor, diffs, overcolor)
+            await self.stageSubmission(msg, " ".join(split_args), full_idx, chosen_node, asset_type, author, recolor, diffs, overcolor)
             return True
 
 
@@ -1926,7 +1945,7 @@ class SpriteBot:
                 return
         else:
             channel = self.client.get_channel(self.config.points_ch)
-            resp = await channel.send("!checkr {0}".format(msg.author.id))
+            resp = await channel.send("<@!{0}> !checkr {1}".format(self.config.points_user, msg.author.id))
 
             # check for enough points
             def check(m):
@@ -2880,19 +2899,19 @@ class SpriteBot:
 
     async def help(self, msg, args):
         server_config = self.config.servers[str(msg.guild.id)]
-        prefix = server_config.prefix
+
         use_bounties = self.config.use_bounties
         if len(args) == 0:
             return_msg = "**Commands**\n"
 
             for command in self.commands:
-                return_msg += f"`{prefix}{command.getCommand()}` - {command.getSingleLineHelp(server_config)}\n"
+                return_msg += f"`{command.getCommand()}` - {command.getSingleLineHelp(server_config)}\n"
             if use_bounties:
-                return_msg += f"`{prefix}spritebounty` - Place a bounty on a sprite\n" \
-                              f"`{prefix}portraitbounty` - Place a bounty on a portrait\n" \
-                              f"`{prefix}bounties` - View top bounties\n"
-            return_msg += f"`{prefix}register` - Register your profile\n" \
-                          f"Type `{prefix}help` with the name of a command to learn more about it."
+                return_msg += f"`spritebounty` - Place a bounty on a sprite\n" \
+                              f"`portraitbounty` - Place a bounty on a portrait\n" \
+                              f"`bounties` - View top bounties\n"
+            return_msg += f"`register` - Register your profile\n" \
+                          f"Type `help` with the name of a command to learn more about it."
 
         else:
             base_arg = args[0]
@@ -2906,7 +2925,7 @@ class SpriteBot:
             elif base_arg == "spritebounty":
                 if use_bounties:
                     return_msg = "**Command Help**\n" \
-                                f"`{prefix}spritebounty <Pokemon Name> [Form Name] [Shiny] [Gender] <Points>`\n" \
+                                f"`spritebounty <Pokemon Name> [Form Name] [Shiny] [Gender] <Points>`\n" \
                                 "Places a bounty on a missing or incomplete sprite, using your Guild Points.\n" \
                                 "`Pokemon Name` - Name of the Pokemon\n" \
                                 "`Form Name` - [Optional] Form name of the Pokemon\n" \
@@ -2914,19 +2933,19 @@ class SpriteBot:
                                 "`Gender` - [Optional] Specifies the gender of the Pokemon, for those with gender differences\n" \
                                 "`Points` - The number of guild points you wish to donate\n" \
                                 "**Examples**\n" \
-                                f"`{prefix}spritebounty Meowstic 1`\n" \
-                                f"`{prefix}spritebounty Meowstic 5`\n" \
-                                f"`{prefix}spritebounty Meowstic Shiny 1`\n" \
-                                f"`{prefix}spritebounty Meowstic Female 1`\n" \
-                                f"`{prefix}spritebounty Meowstic Shiny Female 1`\n" \
-                                f"`{prefix}spritebounty Diancie Mega 1`\n" \
-                                f"`{prefix}spritebounty Diancie Mega Shiny 1`"
+                                f"`spritebounty Meowstic 1`\n" \
+                                f"`spritebounty Meowstic 5`\n" \
+                                f"`spritebounty Meowstic Shiny 1`\n" \
+                                f"`spritebounty Meowstic Female 1`\n" \
+                                f"`spritebounty Meowstic Shiny Female 1`\n" \
+                                f"`spritebounty Diancie Mega 1`\n" \
+                                f"`spritebounty Diancie Mega Shiny 1`"
                 else:
                     return_msg = MESSAGE_BOUNTIES_DISABLED
             elif base_arg == "portraitbounty":
                 if use_bounties:
                     return_msg = "**Command Help**\n" \
-                                f"`{prefix}portraitbounty <Pokemon Name> [Form Name] [Shiny] [Gender] <Points>`\n" \
+                                f"`portraitbounty <Pokemon Name> [Form Name] [Shiny] [Gender] <Points>`\n" \
                                 "Places a bounty on a missing or incomplete portrait, using your Guild Points.\n" \
                                 "`Pokemon Name` - Name of the Pokemon\n" \
                                 "`Form Name` - [Optional] Form name of the Pokemon\n" \
@@ -2934,148 +2953,148 @@ class SpriteBot:
                                 "`Gender` - [Optional] Specifies the gender of the Pokemon, for those with gender differences\n" \
                                 "`Points` - The number of guild points you wish to donate\n" \
                                 "**Examples**\n" \
-                                f"`{prefix}portraitbounty Meowstic 1`\n" \
-                                f"`{prefix}portraitbounty Meowstic 5`\n" \
-                                f"`{prefix}portraitbounty Meowstic Shiny 1`\n" \
-                                f"`{prefix}portraitbounty Meowstic Female 1`\n" \
-                                f"`{prefix}portraitbounty Meowstic Shiny Female 1`\n" \
-                                f"`{prefix}portraitbounty Diancie Mega 1`\n" \
-                                f"`{prefix}portraitbounty Diancie Mega Shiny 1`"
+                                f"`portraitbounty Meowstic 1`\n" \
+                                f"`portraitbounty Meowstic 5`\n" \
+                                f"`portraitbounty Meowstic Shiny 1`\n" \
+                                f"`portraitbounty Meowstic Female 1`\n" \
+                                f"`portraitbounty Meowstic Shiny Female 1`\n" \
+                                f"`portraitbounty Diancie Mega 1`\n" \
+                                f"`portraitbounty Diancie Mega Shiny 1`"
                 else:
                     return_msg = MESSAGE_BOUNTIES_DISABLED
             elif base_arg == "bounties":
                 if use_bounties:
                     return_msg = "**Command Help**\n" \
-                                f"`{prefix}bounties [Type]`\n" \
+                                f"`bounties [Type]`\n" \
                                 "View the top sprites/portraits that have bounties placed on them.  " \
                                 "You will claim a bounty when you successfully submit that sprite/portrait.\n" \
                                 "`Type` - [Optional] Can be `sprite` or `portrait`\n" \
                                 "**Examples**\n" \
-                                f"`{prefix}bounties`\n" \
-                                f"`{prefix}bounties sprite`"
+                                f"`bounties`\n" \
+                                f"`bounties sprite`"
                 else:
                     return_msg = MESSAGE_BOUNTIES_DISABLED
             elif base_arg == "register":
                 return_msg = "**Command Help**\n" \
-                             f"`{prefix}register <Name> <Contact>`\n" \
+                             f"`register <Name> <Contact>`\n" \
                              "Registers your name and contact info for crediting purposes.  " \
                              "If you do not register, credits will be given to your discord ID instead.\n" \
                              "`Name` - Your preferred name\n" \
                              "`Contact` - Your preferred contact info; can be email, url, etc.\n" \
                              "**Examples**\n" \
-                             f"`{prefix}register Audino https://github.com/audinowho`"
+                             f"`register Audino https://github.com/audinowho`"
             else:
                 return_msg = "Unknown Command."
         await msg.channel.send(msg.author.mention + " {0}".format(return_msg))
 
 
     async def staffhelp(self, msg, args):
-        prefix = self.config.servers[str(msg.guild.id)].prefix
+
         if len(args) == 0:
             return_msg = "**Approver Commands**\n" \
-                  f"`{prefix}add` - Adds a Pokemon or forme to the current list\n" \
-                  f"`{prefix}delete` - Deletes an empty Pokemon or forme\n" \
-                  f"`{prefix}rename` - Renames a Pokemon or forme\n" \
-                  f"`{prefix}addgender` - Adds the female sprite/portrait to the Pokemon\n" \
-                  f"`{prefix}deletegender` - Removes the female sprite/portrait from the Pokemon\n" \
-                  f"`{prefix}need` - Marks a sprite/portrait as needed\n" \
-                  f"`{prefix}dontneed` - Marks a sprite/portrait as unneeded\n" \
-                  f"`{prefix}movesprite` - Swaps the sprites for two Pokemon/formes\n" \
-                  f"`{prefix}moveportrait` - Swaps the portraits for two Pokemon/formes\n" \
-                  f"`{prefix}clonesprite` - Copies the sprites for two Pokemon/formes\n" \
-                  f"`{prefix}cloneportrait` - Copies the portraits for two Pokemon/formes\n" \
-                  f"`{prefix}move` - Swaps the sprites, portraits, and names for two Pokemon/formes\n" \
-                  f"`{prefix}spritewip` - Sets the sprite status as Incomplete\n" \
-                  f"`{prefix}portraitwip` - Sets the portrait status as Incomplete\n" \
-                  f"`{prefix}spriteexists` - Sets the sprite status as Exists\n" \
-                  f"`{prefix}portraitexists` - Sets the portrait status as Exists\n" \
-                  f"`{prefix}spritefilled` - Sets the sprite status as Fully Featured\n" \
-                  f"`{prefix}portraitfilled` - Sets the portrait status as Fully Featured\n" \
-                  f"`{prefix}setspritecredit` - Sets the primary author of the sprite\n" \
-                  f"`{prefix}setportraitcredit` - Sets the primary author of the portrait\n" \
-                  f"`{prefix}addspritecredit` - Adds a new author to the credits of the sprite\n" \
-                  f"`{prefix}addportraitcredit` - Adds a new author to the credits of the portrait\n" \
-                  f"`{prefix}showcase` - Showcases a sprite or portrait to social media channels\n" \
-                  f"`{prefix}modreward` - Toggles whether a sprite/portrait will have a custom reward\n" \
-                  f"`{prefix}register` - Use with arguments to make absentee profiles\n" \
-                  f"`{prefix}transferprofile` - Transfers the credit from absentee profile to a real one\n" \
-                  f"`{prefix}clearcache` - Clears the image/zip links for a Pokemon/forme/shiny/gender\n" \
-                  f"`{prefix}canon` - Marks the Pokemon forme as non-canon.\n" \
-                  f"`{prefix}noncanon` - Marks the Pokemon forme as canon.\n" \
-                  f"Type `{prefix}staffhelp` with the name of a command to learn more about it."
+                  f"`add` - Adds a Pokemon or forme to the current list\n" \
+                  f"`delete` - Deletes an empty Pokemon or forme\n" \
+                  f"`rename` - Renames a Pokemon or forme\n" \
+                  f"`addgender` - Adds the female sprite/portrait to the Pokemon\n" \
+                  f"`deletegender` - Removes the female sprite/portrait from the Pokemon\n" \
+                  f"`need` - Marks a sprite/portrait as needed\n" \
+                  f"`dontneed` - Marks a sprite/portrait as unneeded\n" \
+                  f"`movesprite` - Swaps the sprites for two Pokemon/formes\n" \
+                  f"`moveportrait` - Swaps the portraits for two Pokemon/formes\n" \
+                  f"`clonesprite` - Copies the sprites for two Pokemon/formes\n" \
+                  f"`cloneportrait` - Copies the portraits for two Pokemon/formes\n" \
+                  f"`move` - Swaps the sprites, portraits, and names for two Pokemon/formes\n" \
+                  f"`spritewip` - Sets the sprite status as Incomplete\n" \
+                  f"`portraitwip` - Sets the portrait status as Incomplete\n" \
+                  f"`spriteexists` - Sets the sprite status as Exists\n" \
+                  f"`portraitexists` - Sets the portrait status as Exists\n" \
+                  f"`spritefilled` - Sets the sprite status as Fully Featured\n" \
+                  f"`portraitfilled` - Sets the portrait status as Fully Featured\n" \
+                  f"`setspritecredit` - Sets the primary author of the sprite\n" \
+                  f"`setportraitcredit` - Sets the primary author of the portrait\n" \
+                  f"`addspritecredit` - Adds a new author to the credits of the sprite\n" \
+                  f"`addportraitcredit` - Adds a new author to the credits of the portrait\n" \
+                  f"`showcase` - Showcases a sprite or portrait to social media channels\n" \
+                  f"`modreward` - Toggles whether a sprite/portrait will have a custom reward\n" \
+                  f"`register` - Use with arguments to make absentee profiles\n" \
+                  f"`transferprofile` - Transfers the credit from absentee profile to a real one\n" \
+                  f"`clearcache` - Clears the image/zip links for a Pokemon/forme/shiny/gender\n" \
+                  f"`canon` - Marks the Pokemon forme as non-canon.\n" \
+                  f"`noncanon` - Marks the Pokemon forme as canon.\n" \
+                  f"Type `staffhelp` with the name of a command to learn more about it."
 
         else:
             base_arg = args[0]
             if base_arg == "add":
                 return_msg = "**Command Help**\n" \
-                             f"`{prefix}add <Pokemon Name> [Form Name]`\n" \
+                             f"`add <Pokemon Name> [Form Name]`\n" \
                              "Adds a Pokemon to the dex, or a form to the existing Pokemon.\n" \
                              "`Pokemon Name` - Name of the Pokemon\n" \
                              "`Form Name` - [Optional] Form name of the Pokemon\n" \
                              "**Examples**\n" \
-                             f"`{prefix}add Calyrex`\n" \
-                             f"`{prefix}add Mr_Mime Galar`\n" \
-                             f"`{prefix}add Missingno_ Kotora`"
+                             f"`add Calyrex`\n" \
+                             f"`add Mr_Mime Galar`\n" \
+                             f"`add Missingno_ Kotora`"
             elif base_arg == "delete":
                 return_msg = "**Command Help**\n" \
-                             f"`{prefix}delete <Pokemon Name> [Form Name]`\n" \
+                             f"`delete <Pokemon Name> [Form Name]`\n" \
                              "Deletes a Pokemon or form of an existing Pokemon.  " \
                              "Only works if the slot + its children are empty.\n" \
                              "`Pokemon Name` - Name of the Pokemon\n" \
                              "`Form Name` - [Optional] Form name of the Pokemon\n" \
                              "**Examples**\n" \
-                             f"`{prefix}delete Pikablu`\n" \
-                             f"`{prefix}delete Arceus Mega`"
+                             f"`delete Pikablu`\n" \
+                             f"`delete Arceus Mega`"
             elif base_arg == "rename":
                 return_msg = "**Command Help**\n" \
-                             f"`{prefix}rename <Pokemon Name> [Form Name] <New Name>`\n" \
+                             f"`rename <Pokemon Name> [Form Name] <New Name>`\n" \
                              "Changes the existing species or form to the new name.\n" \
                              "`Pokemon Name` - Name of the Pokemon\n" \
                              "`Form Name` - [Optional] Form name of the Pokemon\n" \
                              "`New Name` - New Pokemon of Form name\n" \
                              "**Examples**\n" \
-                             f"`{prefix}rename Calrex Calyrex`\n" \
-                             f"`{prefix}rename Vulpix Aloha Alola`"
+                             f"`rename Calrex Calyrex`\n" \
+                             f"`rename Vulpix Aloha Alola`"
             elif base_arg == "addgender":
                 return_msg = "**Command Help**\n" \
-                             f"`{prefix}addgender <Asset Type> <Pokemon Name> [Pokemon Form] <Male or Female>`\n" \
+                             f"`addgender <Asset Type> <Pokemon Name> [Pokemon Form] <Male or Female>`\n" \
                              "Adds a slot for the male/female version of the species, or form of the species.\n" \
                              "`Asset Type` - \"sprite\" or \"portrait\"\n" \
                              "`Pokemon Name` - Name of the Pokemon\n" \
                              "`Form Name` - [Optional] Form name of the Pokemon\n" \
                              "**Examples**\n" \
-                             f"`{prefix}addgender Sprite Venusaur Female`\n" \
-                             f"`{prefix}addgender Portrait Steelix Female`\n" \
-                             f"`{prefix}addgender Sprite Raichu Alola Male`"
+                             f"`addgender Sprite Venusaur Female`\n" \
+                             f"`addgender Portrait Steelix Female`\n" \
+                             f"`addgender Sprite Raichu Alola Male`"
             elif base_arg == "deletegender":
                 return_msg = "**Command Help**\n" \
-                             f"`{prefix}deletegender <Asset Type> <Pokemon Name> [Pokemon Form]`\n" \
+                             f"`deletegender <Asset Type> <Pokemon Name> [Pokemon Form]`\n" \
                              "Removes the slot for the male/female version of the species, or form of the species.  " \
                              "Only works if empty.\n" \
                              "`Asset Type` - \"sprite\" or \"portrait\"\n" \
                              "`Pokemon Name` - Name of the Pokemon\n" \
                              "`Form Name` - [Optional] Form name of the Pokemon\n" \
                              "**Examples**\n" \
-                             f"`{prefix}deletegender Sprite Venusaur`\n" \
-                             f"`{prefix}deletegender Portrait Steelix`\n" \
-                             f"`{prefix}deletegender Sprite Raichu Alola`"
+                             f"`deletegender Sprite Venusaur`\n" \
+                             f"`deletegender Portrait Steelix`\n" \
+                             f"`deletegender Sprite Raichu Alola`"
             elif base_arg == "need":
                 return_msg = "**Command Help**\n" \
-                             f"`{prefix}need <Asset Type> <Pokemon Name> [Pokemon Form] [Shiny]`\n" \
+                             f"`need <Asset Type> <Pokemon Name> [Pokemon Form] [Shiny]`\n" \
                              "Marks a sprite/portrait as Needed.  This is the default for all sprites/portraits.\n" \
                              "`Asset Type` - \"sprite\" or \"portrait\"\n" \
                              "`Pokemon Name` - Name of the Pokemon\n" \
                              "`Form Name` - [Optional] Form name of the Pokemon\n" \
                              "`Shiny` - [Optional] Specifies if you want the shiny sprite or not\n" \
                              "**Examples**\n" \
-                             f"`{prefix}need Sprite Venusaur`\n" \
-                             f"`{prefix}need Portrait Steelix`\n" \
-                             f"`{prefix}need Portrait Minior Red`\n" \
-                             f"`{prefix}need Portrait Minior Shiny`\n" \
-                             f"`{prefix}need Sprite Castform Sunny Shiny`"
+                             f"`need Sprite Venusaur`\n" \
+                             f"`need Portrait Steelix`\n" \
+                             f"`need Portrait Minior Red`\n" \
+                             f"`need Portrait Minior Shiny`\n" \
+                             f"`need Sprite Castform Sunny Shiny`"
             elif base_arg == "dontneed":
                 return_msg = "**Command Help**\n" \
-                             f"`{prefix}dontneed <Asset Type> <Pokemon Name> [Pokemon Form] [Shiny]`\n" \
+                             f"`dontneed <Asset Type> <Pokemon Name> [Pokemon Form] [Shiny]`\n" \
                              "Marks a sprite/portrait as Unneeded.  " \
                              "Unneeded sprites/portraits are marked with \u26AB and do not need submissions.\n" \
                              "`Asset Type` - \"sprite\" or \"portrait\"\n" \
@@ -3083,14 +3102,14 @@ class SpriteBot:
                              "`Form Name` - [Optional] Form name of the Pokemon\n" \
                              "`Shiny` - [Optional] Specifies if you want the shiny sprite or not\n" \
                              "**Examples**\n" \
-                             f"`{prefix}dontneed Sprite Venusaur`\n" \
-                             f"`{prefix}dontneed Portrait Steelix`\n" \
-                             f"`{prefix}dontneed Portrait Minior Red`\n" \
-                             f"`{prefix}dontneed Portrait Minior Shiny`\n" \
-                             f"`{prefix}dontneed Sprite Alcremie Shiny`"
+                             f"`dontneed Sprite Venusaur`\n" \
+                             f"`dontneed Portrait Steelix`\n" \
+                             f"`dontneed Portrait Minior Red`\n" \
+                             f"`dontneed Portrait Minior Shiny`\n" \
+                             f"`dontneed Sprite Alcremie Shiny`"
             elif base_arg == "movesprite":
                 return_msg = "**Command Help**\n" \
-                             f"`{prefix}movesprite <Pokemon Name> [Pokemon Form] [Shiny] [Gender] -> <Pokemon Name 2> [Pokemon Form 2] [Shiny 2] [Gender 2]`\n" \
+                             f"`movesprite <Pokemon Name> [Pokemon Form] [Shiny] [Gender] -> <Pokemon Name 2> [Pokemon Form 2] [Shiny 2] [Gender 2]`\n" \
                              "Swaps the contents of one sprite with another.  " \
                              "Good for promoting alternates to main, temp Pokemon to newly revealed dex numbers, " \
                              "or just fixing mistakes.\n" \
@@ -3099,13 +3118,13 @@ class SpriteBot:
                              "`Shiny` - [Optional] Specifies if you want the shiny sprite or not\n" \
                              "`Gender` - [Optional] Specifies the gender of the Pokemon\n" \
                              "**Examples**\n" \
-                             f"`{prefix}movesprite Escavalier -> Accelgor`\n" \
-                             f"`{prefix}movesprite Zoroark Alternate -> Zoroark`\n" \
-                             f"`{prefix}movesprite Missingno_ Kleavor -> Kleavor`\n" \
-                             f"`{prefix}movesprite Minior Blue -> Minior Indigo`"
+                             f"`movesprite Escavalier -> Accelgor`\n" \
+                             f"`movesprite Zoroark Alternate -> Zoroark`\n" \
+                             f"`movesprite Missingno_ Kleavor -> Kleavor`\n" \
+                             f"`movesprite Minior Blue -> Minior Indigo`"
             elif base_arg == "moveportrait":
                 return_msg = "**Command Help**\n" \
-                             f"`{prefix}moveportrait <Pokemon Name> [Pokemon Form] [Shiny] [Gender] -> <Pokemon Name 2> [Pokemon Form 2] [Shiny 2] [Gender 2]`\n" \
+                             f"`moveportrait <Pokemon Name> [Pokemon Form] [Shiny] [Gender] -> <Pokemon Name 2> [Pokemon Form 2] [Shiny 2] [Gender 2]`\n" \
                              "Swaps the contents of one portrait with another.  " \
                              "Good for promoting alternates to main, temp Pokemon to newly revealed dex numbers, " \
                              "or just fixing mistakes.\n" \
@@ -3114,13 +3133,13 @@ class SpriteBot:
                              "`Shiny` - [Optional] Specifies if you want the shiny sprite or not\n" \
                              "`Gender` - [Optional] Specifies the gender of the Pokemon\n" \
                              "**Examples**\n" \
-                             f"`{prefix}moveportrait Escavalier -> Accelgor`\n" \
-                             f"`{prefix}moveportrait Zoroark Alternate -> Zoroark`\n" \
-                             f"`{prefix}moveportrait Missingno_ Kleavor -> Kleavor`\n" \
-                             f"`{prefix}moveportrait Minior Blue -> Minior Indigo`"
+                             f"`moveportrait Escavalier -> Accelgor`\n" \
+                             f"`moveportrait Zoroark Alternate -> Zoroark`\n" \
+                             f"`moveportrait Missingno_ Kleavor -> Kleavor`\n" \
+                             f"`moveportrait Minior Blue -> Minior Indigo`"
             elif base_arg == "clonesprite":
                 return_msg = "**Command Help**\n" \
-                             f"`{prefix}clonesprite <Pokemon Name> [Pokemon Form] [Shiny] [Gender] -> <Pokemon Name 2> [Pokemon Form 2] [Shiny 2] [Gender 2]`\n" \
+                             f"`clonesprite <Pokemon Name> [Pokemon Form] [Shiny] [Gender] -> <Pokemon Name 2> [Pokemon Form 2] [Shiny 2] [Gender 2]`\n" \
                              "Clones the contents of one sprite to another.  " \
                              "Good for copying alternates.\n" \
                              "`Pokemon Name` - Name of the Pokemon\n" \
@@ -3128,13 +3147,13 @@ class SpriteBot:
                              "`Shiny` - [Optional] Specifies if you want the shiny sprite or not\n" \
                              "`Gender` - [Optional] Specifies the gender of the Pokemon\n" \
                              "**Examples**\n" \
-                             f"`{prefix}clonesprite Escavalier -> Accelgor`\n" \
-                             f"`{prefix}clonesprite Zoroark Alternate -> Zoroark`\n" \
-                             f"`{prefix}clonesprite Missingno_ Kleavor -> Kleavor`\n" \
-                             f"`{prefix}clonesprite Minior Blue -> Minior Indigo`"
+                             f"`clonesprite Escavalier -> Accelgor`\n" \
+                             f"`clonesprite Zoroark Alternate -> Zoroark`\n" \
+                             f"`clonesprite Missingno_ Kleavor -> Kleavor`\n" \
+                             f"`clonesprite Minior Blue -> Minior Indigo`"
             elif base_arg == "cloneportrait":
                 return_msg = "**Command Help**\n" \
-                             f"`{prefix}cloneportrait <Pokemon Name> [Pokemon Form] [Shiny] [Gender] -> <Pokemon Name 2> [Pokemon Form 2] [Shiny 2] [Gender 2]`\n" \
+                             f"`cloneportrait <Pokemon Name> [Pokemon Form] [Shiny] [Gender] -> <Pokemon Name 2> [Pokemon Form 2] [Shiny 2] [Gender 2]`\n" \
                              "Clones the contents of one portrait to another.  " \
                              "Good for copying alternates.\n" \
                              "`Pokemon Name` - Name of the Pokemon\n" \
@@ -3142,13 +3161,13 @@ class SpriteBot:
                              "`Shiny` - [Optional] Specifies if you want the shiny sprite or not\n" \
                              "`Gender` - [Optional] Specifies the gender of the Pokemon\n" \
                              "**Examples**\n" \
-                             f"`{prefix}cloneportrait Escavalier -> Accelgor`\n" \
-                             f"`{prefix}cloneportrait Zoroark Alternate -> Zoroark`\n" \
-                             f"`{prefix}cloneportrait Missingno_ Kleavor -> Kleavor`\n" \
-                             f"`{prefix}cloneportrait Minior Blue -> Minior Indigo`"
+                             f"`cloneportrait Escavalier -> Accelgor`\n" \
+                             f"`cloneportrait Zoroark Alternate -> Zoroark`\n" \
+                             f"`cloneportrait Missingno_ Kleavor -> Kleavor`\n" \
+                             f"`cloneportrait Minior Blue -> Minior Indigo`"
             elif base_arg == "move":
                 return_msg = "**Command Help**\n" \
-                             f"`{prefix}move <Pokemon Name> [Pokemon Form] -> <Pokemon Name 2> [Pokemon Form 2]`\n" \
+                             f"`move <Pokemon Name> [Pokemon Form] -> <Pokemon Name 2> [Pokemon Form 2]`\n" \
                              "Swaps the name, sprites, and portraits of one slot with another.  " \
                              "This can only be done with Pokemon or formes, and the swap is recursive to shiny/genders.  " \
                              "Good for promoting alternate forms to base form, temp Pokemon to newly revealed dex numbers, " \
@@ -3156,13 +3175,13 @@ class SpriteBot:
                              "`Pokemon Name` - Name of the Pokemon\n" \
                              "`Form Name` - [Optional] Form name of the Pokemon\n" \
                              "**Examples**\n" \
-                             f"`{prefix}move Escavalier -> Accelgor`\n" \
-                             f"`{prefix}move Zoroark Alternate -> Zoroark`\n" \
-                             f"`{prefix}move Missingno_ Kleavor -> Kleavor`\n" \
-                             f"`{prefix}move Minior Blue -> Minior Indigo`"
+                             f"`move Escavalier -> Accelgor`\n" \
+                             f"`move Zoroark Alternate -> Zoroark`\n" \
+                             f"`move Missingno_ Kleavor -> Kleavor`\n" \
+                             f"`move Minior Blue -> Minior Indigo`"
             elif base_arg == "replacesprite":
                 return_msg = "**Command Help**\n" \
-                             f"`{prefix}replacesprite <Pokemon Name> [Pokemon Form] [Shiny] [Gender] -> <Pokemon Name 2> [Pokemon Form 2] [Shiny 2] [Gender 2]`\n" \
+                             f"`replacesprite <Pokemon Name> [Pokemon Form] [Shiny] [Gender] -> <Pokemon Name 2> [Pokemon Form 2] [Shiny 2] [Gender 2]`\n" \
                              "Replaces the contents of one sprite with another.  " \
                              "Good for promoting scratch-made alternates to main.\n" \
                              "`Pokemon Name` - Name of the Pokemon\n" \
@@ -3170,10 +3189,10 @@ class SpriteBot:
                              "`Shiny` - [Optional] Specifies if you want the shiny sprite or not\n" \
                              "`Gender` - [Optional] Specifies the gender of the Pokemon\n" \
                              "**Examples**\n" \
-                             f"`{prefix}replacesprite Zoroark Alternate -> Zoroark`"
+                             f"`replacesprite Zoroark Alternate -> Zoroark`"
             elif base_arg == "replaceportrait":
                 return_msg = "**Command Help**\n" \
-                             f"`{prefix}replaceportrait <Pokemon Name> [Pokemon Form] [Shiny] [Gender] -> <Pokemon Name 2> [Pokemon Form 2] [Shiny 2] [Gender 2]`\n" \
+                             f"`replaceportrait <Pokemon Name> [Pokemon Form] [Shiny] [Gender] -> <Pokemon Name 2> [Pokemon Form 2] [Shiny 2] [Gender 2]`\n" \
                              "Replaces the contents of one portrait with another.  " \
                              "Good for promoting scratch-made alternates to main.\n" \
                              "`Pokemon Name` - Name of the Pokemon\n" \
@@ -3181,100 +3200,100 @@ class SpriteBot:
                              "`Shiny` - [Optional] Specifies if you want the shiny sprite or not\n" \
                              "`Gender` - [Optional] Specifies the gender of the Pokemon\n" \
                              "**Examples**\n" \
-                             f"`{prefix}replaceportrait Zoroark Alternate -> Zoroark`"
+                             f"`replaceportrait Zoroark Alternate -> Zoroark`"
             elif base_arg == "spritewip":
                 return_msg = "**Command Help**\n" \
-                             f"`{prefix}spritewip <Pokemon Name> [Form Name] [Shiny] [Gender]`\n" \
+                             f"`spritewip <Pokemon Name> [Form Name] [Shiny] [Gender]`\n" \
                              "Manually sets the sprite status as \u26AA Incomplete.\n" \
                              "`Pokemon Name` - Name of the Pokemon\n" \
                              "`Form Name` - [Optional] Form name of the Pokemon\n" \
                              "`Shiny` - [Optional] Specifies if you want the shiny sprite or not\n" \
                              "`Gender` - [Optional] Specifies the gender of the Pokemon\n" \
                              "**Examples**\n" \
-                             f"`{prefix}spritewip Pikachu`\n" \
-                             f"`{prefix}spritewip Pikachu Shiny`\n" \
-                             f"`{prefix}spritewip Pikachu Female`\n" \
-                             f"`{prefix}spritewip Pikachu Shiny Female`\n" \
-                             f"`{prefix}spritewip Shaymin Sky`\n" \
-                             f"`{prefix}spritewip Shaymin Sky Shiny`"
+                             f"`spritewip Pikachu`\n" \
+                             f"`spritewip Pikachu Shiny`\n" \
+                             f"`spritewip Pikachu Female`\n" \
+                             f"`spritewip Pikachu Shiny Female`\n" \
+                             f"`spritewip Shaymin Sky`\n" \
+                             f"`spritewip Shaymin Sky Shiny`"
             elif base_arg == "portraitwip":
                 return_msg = "**Command Help**\n" \
-                             f"`{prefix}portraitwip <Pokemon Name> [Form Name] [Shiny] [Gender]`\n" \
+                             f"`portraitwip <Pokemon Name> [Form Name] [Shiny] [Gender]`\n" \
                              "Manually sets the portrait status as \u26AA Incomplete.\n" \
                              "`Pokemon Name` - Name of the Pokemon\n" \
                              "`Form Name` - [Optional] Form name of the Pokemon\n" \
                              "`Shiny` - [Optional] Specifies if you want the shiny sprite or not\n" \
                              "`Gender` - [Optional] Specifies the gender of the Pokemon\n" \
                              "**Examples**\n" \
-                             f"`{prefix}portraitwip Pikachu`\n" \
-                             f"`{prefix}portraitwip Pikachu Shiny`\n" \
-                             f"`{prefix}portraitwip Pikachu Female`\n" \
-                             f"`{prefix}portraitwip Pikachu Shiny Female`\n" \
-                             f"`{prefix}portraitwip Shaymin Sky`\n" \
-                             f"`{prefix}portraitwip Shaymin Sky Shiny`"
+                             f"`portraitwip Pikachu`\n" \
+                             f"`portraitwip Pikachu Shiny`\n" \
+                             f"`portraitwip Pikachu Female`\n" \
+                             f"`portraitwip Pikachu Shiny Female`\n" \
+                             f"`portraitwip Shaymin Sky`\n" \
+                             f"`portraitwip Shaymin Sky Shiny`"
             elif base_arg == "spriteexists":
                 return_msg = "**Command Help**\n" \
-                             f"`{prefix}spriteexists <Pokemon Name> [Form Name] [Shiny] [Gender]`\n" \
+                             f"`spriteexists <Pokemon Name> [Form Name] [Shiny] [Gender]`\n" \
                              "Manually sets the sprite status as \u2705 Available.\n" \
                              "`Pokemon Name` - Name of the Pokemon\n" \
                              "`Form Name` - [Optional] Form name of the Pokemon\n" \
                              "`Shiny` - [Optional] Specifies if you want the shiny sprite or not\n" \
                              "`Gender` - [Optional] Specifies the gender of the Pokemon\n" \
                              "**Examples**\n" \
-                             f"`{prefix}spriteexists Pikachu`\n" \
-                             f"`{prefix}spriteexists Pikachu Shiny`\n" \
-                             f"`{prefix}spriteexists Pikachu Female`\n" \
-                             f"`{prefix}spriteexists Pikachu Shiny Female`\n" \
-                             f"`{prefix}spriteexists Shaymin Sky`\n" \
-                             f"`{prefix}spriteexists Shaymin Sky Shiny`"
+                             f"`spriteexists Pikachu`\n" \
+                             f"`spriteexists Pikachu Shiny`\n" \
+                             f"`spriteexists Pikachu Female`\n" \
+                             f"`spriteexists Pikachu Shiny Female`\n" \
+                             f"`spriteexists Shaymin Sky`\n" \
+                             f"`spriteexists Shaymin Sky Shiny`"
             elif base_arg == "portraitexists":
                 return_msg = "**Command Help**\n" \
-                             f"`{prefix}portraitexists <Pokemon Name> [Form Name] [Shiny] [Gender]`\n" \
+                             f"`portraitexists <Pokemon Name> [Form Name] [Shiny] [Gender]`\n" \
                              "Manually sets the portrait status as \u2705 Available.\n" \
                              "`Pokemon Name` - Name of the Pokemon\n" \
                              "`Form Name` - [Optional] Form name of the Pokemon\n" \
                              "`Shiny` - [Optional] Specifies if you want the shiny sprite or not\n" \
                              "`Gender` - [Optional] Specifies the gender of the Pokemon\n" \
                              "**Examples**\n" \
-                             f"`{prefix}portraitexists Pikachu`\n" \
-                             f"`{prefix}portraitexists Pikachu Shiny`\n" \
-                             f"`{prefix}portraitexists Pikachu Female`\n" \
-                             f"`{prefix}portraitexists Pikachu Shiny Female`\n" \
-                             f"`{prefix}portraitexists Shaymin Sky`\n" \
-                             f"`{prefix}portraitexists Shaymin Sky Shiny`"
+                             f"`portraitexists Pikachu`\n" \
+                             f"`portraitexists Pikachu Shiny`\n" \
+                             f"`portraitexists Pikachu Female`\n" \
+                             f"`portraitexists Pikachu Shiny Female`\n" \
+                             f"`portraitexists Shaymin Sky`\n" \
+                             f"`portraitexists Shaymin Sky Shiny`"
             elif base_arg == "spritefilled":
                 return_msg = "**Command Help**\n" \
-                             f"`{prefix}spritefilled <Pokemon Name> [Form Name] [Shiny] [Gender]`\n" \
+                             f"`spritefilled <Pokemon Name> [Form Name] [Shiny] [Gender]`\n" \
                              "Manually sets the sprite status as \u2B50 Fully Featured.\n" \
                              "`Pokemon Name` - Name of the Pokemon\n" \
                              "`Form Name` - [Optional] Form name of the Pokemon\n" \
                              "`Shiny` - [Optional] Specifies if you want the shiny sprite or not\n" \
                              "`Gender` - [Optional] Specifies the gender of the Pokemon\n" \
                              "**Examples**\n" \
-                             f"`{prefix}spritefilled Pikachu`\n" \
-                             f"`{prefix}spritefilled Pikachu Shiny`\n" \
-                             f"`{prefix}spritefilled Pikachu Female`\n" \
-                             f"`{prefix}spritefilled Pikachu Shiny Female`\n" \
-                             f"`{prefix}spritefilled Shaymin Sky`\n" \
-                             f"`{prefix}spritefilled Shaymin Sky Shiny`"
+                             f"`spritefilled Pikachu`\n" \
+                             f"`spritefilled Pikachu Shiny`\n" \
+                             f"`spritefilled Pikachu Female`\n" \
+                             f"`spritefilled Pikachu Shiny Female`\n" \
+                             f"`spritefilled Shaymin Sky`\n" \
+                             f"`spritefilled Shaymin Sky Shiny`"
             elif base_arg == "portraitfilled":
                 return_msg = "**Command Help**\n" \
-                             f"`{prefix}portraitfilled <Pokemon Name> [Form Name] [Shiny] [Gender]`\n" \
+                             f"`portraitfilled <Pokemon Name> [Form Name] [Shiny] [Gender]`\n" \
                              "Manually sets the portrait status as \u2B50 Fully Featured.\n" \
                              "`Pokemon Name` - Name of the Pokemon\n" \
                              "`Form Name` - [Optional] Form name of the Pokemon\n" \
                              "`Shiny` - [Optional] Specifies if you want the shiny sprite or not\n" \
                              "`Gender` - [Optional] Specifies the gender of the Pokemon\n" \
                              "**Examples**\n" \
-                             f"`{prefix}portraitfilled Pikachu`\n" \
-                             f"`{prefix}portraitfilled Pikachu Shiny`\n" \
-                             f"`{prefix}portraitfilled Pikachu Female`\n" \
-                             f"`{prefix}portraitfilled Pikachu Shiny Female`\n" \
-                             f"`{prefix}portraitfilled Shaymin Sky`\n" \
-                             f"`{prefix}portraitfilled Shaymin Sky Shiny`"
+                             f"`portraitfilled Pikachu`\n" \
+                             f"`portraitfilled Pikachu Shiny`\n" \
+                             f"`portraitfilled Pikachu Female`\n" \
+                             f"`portraitfilled Pikachu Shiny Female`\n" \
+                             f"`portraitfilled Shaymin Sky`\n" \
+                             f"`portraitfilled Shaymin Sky Shiny`"
             elif base_arg == "setspritecredit":
                 return_msg = "**Command Help**\n" \
-                             f"`{prefix}setspritecredit <Author ID> <Pokemon Name> [Form Name] [Shiny] [Gender]`\n" \
+                             f"`setspritecredit <Author ID> <Pokemon Name> [Form Name] [Shiny] [Gender]`\n" \
                              "Manually sets the primary author of a sprite to the specified author.  " \
                              "The specified author must already exist in the credits for the sprite.\n" \
                              "`Author ID` - The discord ID of the author to set as primary\n" \
@@ -3283,14 +3302,14 @@ class SpriteBot:
                              "`Shiny` - [Optional] Specifies if you want the shiny sprite or not\n" \
                              "`Gender` - [Optional] Specifies the gender of the Pokemon\n" \
                              "**Examples**\n" \
-                             f"`{prefix}setspritecredit @Audino Unown Shiny`\n" \
-                             f"`{prefix}setspritecredit <@!117780585635643396> Unown Shiny`\n" \
-                             f"`{prefix}setspritecredit POWERCRISTAL Calyrex`\n" \
-                             f"`{prefix}setspritecredit POWERCRISTAL Calyrex Shiny`\n" \
-                             f"`{prefix}setspritecredit POWERCRISTAL Jellicent Shiny Female`"
+                             f"`setspritecredit @Audino Unown Shiny`\n" \
+                             f"`setspritecredit <@!117780585635643396> Unown Shiny`\n" \
+                             f"`setspritecredit POWERCRISTAL Calyrex`\n" \
+                             f"`setspritecredit POWERCRISTAL Calyrex Shiny`\n" \
+                             f"`setspritecredit POWERCRISTAL Jellicent Shiny Female`"
             elif base_arg == "setportraitcredit":
                 return_msg = "**Command Help**\n" \
-                             f"`{prefix}setportraitcredit <Author ID> <Pokemon Name> [Form Name] [Shiny] [Gender]`\n" \
+                             f"`setportraitcredit <Author ID> <Pokemon Name> [Form Name] [Shiny] [Gender]`\n" \
                              "Manually sets the primary author of a portrait to the specified author.  " \
                              "The specified author must already exist in the credits for the portrait.\n" \
                              "`Author ID` - The discord ID of the author to set as primary\n" \
@@ -3299,14 +3318,14 @@ class SpriteBot:
                              "`Shiny` - [Optional] Specifies if you want the shiny sprite or not\n" \
                              "`Gender` - [Optional] Specifies the gender of the Pokemon\n" \
                              "**Examples**\n" \
-                             f"`{prefix}setportraitcredit @Audino Unown Shiny`\n" \
-                             f"`{prefix}setportraitcredit <@!117780585635643396> Unown Shiny`\n" \
-                             f"`{prefix}setportraitcredit POWERCRISTAL Calyrex`\n" \
-                             f"`{prefix}setportraitcredit POWERCRISTAL Calyrex Shiny`\n" \
-                             f"`{prefix}setportraitcredit POWERCRISTAL Jellicent Shiny Female`"
+                             f"`setportraitcredit @Audino Unown Shiny`\n" \
+                             f"`setportraitcredit <@!117780585635643396> Unown Shiny`\n" \
+                             f"`setportraitcredit POWERCRISTAL Calyrex`\n" \
+                             f"`setportraitcredit POWERCRISTAL Calyrex Shiny`\n" \
+                             f"`setportraitcredit POWERCRISTAL Jellicent Shiny Female`"
             elif base_arg == "addspritecredit":
                 return_msg = "**Command Help**\n" \
-                             f"`{prefix}addspritecredit <Author ID> <Pokemon Name> [Form Name] [Shiny] [Gender] <Files>`\n" \
+                             f"`addspritecredit <Author ID> <Pokemon Name> [Form Name] [Shiny] [Gender] <Files>`\n" \
                              "Adds the specified author to the credits of the sprite.  " \
                              "This makes a post in the submissions channel, asking other approvers to sign off.\n" \
                              "`Author ID` - The discord ID of the author to set as primary\n" \
@@ -3316,15 +3335,15 @@ class SpriteBot:
                              "`Gender` - [Optional] Specifies the gender of the Pokemon\n" \
                              "`Files` - A comma-separated list of the files to change, or \" to represent the last applied credit\n" \
                              "**Examples**\n" \
-                             f"`{prefix}addspritecredit @Audino Unown Shiny \"`\n" \
-                             f"`{prefix}addspritecredit <@!117780585635643396> Unown Shiny \"`\n" \
-                             f"`{prefix}addspritecredit @Audino Unown Shiny Idle,Rotate,Sleep`\n" \
-                             f"`{prefix}addspritecredit POWERCRISTAL Calyrex \"`\n" \
-                             f"`{prefix}addspritecredit POWERCRISTAL Calyrex Shiny \"`\n" \
-                             f"`{prefix}addspritecredit POWERCRISTAL Jellicent Shiny Female \"`"
+                             f"`addspritecredit @Audino Unown Shiny \"`\n" \
+                             f"`addspritecredit <@!117780585635643396> Unown Shiny \"`\n" \
+                             f"`addspritecredit @Audino Unown Shiny Idle,Rotate,Sleep`\n" \
+                             f"`addspritecredit POWERCRISTAL Calyrex \"`\n" \
+                             f"`addspritecredit POWERCRISTAL Calyrex Shiny \"`\n" \
+                             f"`addspritecredit POWERCRISTAL Jellicent Shiny Female \"`"
             elif base_arg == "addportraitcredit":
                 return_msg = "**Command Help**\n" \
-                             f"`{prefix}addportraitcredit <Author ID> <Pokemon Name> [Form Name] [Shiny] [Gender] <Files>`\n" \
+                             f"`addportraitcredit <Author ID> <Pokemon Name> [Form Name] [Shiny] [Gender] <Files>`\n" \
                              "Adds the specified author to the credits of the portrait.  " \
                              "This makes a post in the submissions channel, asking other approvers to sign off.\n" \
                              "`Author ID` - The discord ID of the author to set as primary\n" \
@@ -3334,15 +3353,15 @@ class SpriteBot:
                              "`Gender` - [Optional] Specifies the gender of the Pokemon\n" \
                              "`Files` - A comma-separated list of the files to change, or \" to represent the last applied credit\n" \
                              "**Examples**\n" \
-                             f"`{prefix}addportraitcredit @Audino Unown Shiny \"`\n" \
-                             f"`{prefix}addportraitcredit <@!117780585635643396> Unown Shiny \"`\n" \
-                             f"`{prefix}addportraitcredit @Audino Unown Shiny Normal,Happy,Angry`\n" \
-                             f"`{prefix}addportraitcredit POWERCRISTAL Calyrex \"`\n" \
-                             f"`{prefix}addportraitcredit POWERCRISTAL Calyrex Shiny \"`\n" \
-                             f"`{prefix}addportraitcredit POWERCRISTAL Jellicent Shiny Female \"`"
+                             f"`addportraitcredit @Audino Unown Shiny \"`\n" \
+                             f"`addportraitcredit <@!117780585635643396> Unown Shiny \"`\n" \
+                             f"`addportraitcredit @Audino Unown Shiny Normal,Happy,Angry`\n" \
+                             f"`addportraitcredit POWERCRISTAL Calyrex \"`\n" \
+                             f"`addportraitcredit POWERCRISTAL Calyrex Shiny \"`\n" \
+                             f"`addportraitcredit POWERCRISTAL Jellicent Shiny Female \"`"
             elif base_arg == "showcase":
                 return_msg = "**Command Help**\n" \
-                             f"`{prefix}showcase <Pokemon Name> [Form Name] [Shiny] [Gender] <Anim>`\n" \
+                             f"`showcase <Pokemon Name> [Form Name] [Shiny] [Gender] <Anim>`\n" \
                              "Showcases the sprite or portrait to social media.\n" \
                              "`Pokemon Name` - Name of the Pokemon\n" \
                              "`Form Name` - [Optional] Form name of the Pokemon\n" \
@@ -3350,49 +3369,49 @@ class SpriteBot:
                              "`Gender` - [Optional] Specifies the gender of the Pokemon\n" \
                              "`Anim` - The animation to showcase. This will cause the sprite to be shown instead of the portrait.\n" \
                              "**Examples**\n" \
-                             f"`{prefix}showcase Lucario Mega`\n" \
-                             f"`{prefix}showcase Calyrex Sleep`"
+                             f"`showcase Lucario Mega`\n" \
+                             f"`showcase Calyrex Sleep`"
             elif base_arg == "modreward":
                 return_msg = "**Command Help**\n" \
-                             f"`{prefix}modreward <Pokemon Name> [Form Name]`\n" \
+                             f"`modreward <Pokemon Name> [Form Name]`\n" \
                              "Toggles whether a Pokemon/form will have a custom reward.  " \
                              "Instead of the bot automatically handing out GP, the approver must do so instead.\n" \
                              "`Pokemon Name` - Name of the Pokemon\n" \
                              "`Form Name` - [Optional] Form name of the Pokemon\n" \
                              "**Examples**\n" \
-                             f"`{prefix}modreward Unown`\n" \
-                             f"`{prefix}modreward Minior Red`"
+                             f"`modreward Unown`\n" \
+                             f"`modreward Minior Red`"
             elif base_arg == "register":
                 return_msg = "**Command Help**\n" \
-                             f"`{prefix}register <Author ID> <Name> <Contact>`\n" \
+                             f"`register <Author ID> <Name> <Contact>`\n" \
                              "Registers an absentee profile with name and contact info for crediting purposes.  " \
                              "If a discord ID is provided, the profile is force-edited " \
                              "(can be used to remove inappropriate content)." \
                              "This command is also available for self-registration.  " \
-                             f"Check the `{prefix}help` version for more.\n" \
+                             f"Check the `help` version for more.\n" \
                              "`Author ID` - The desired ID of the absentee profile\n" \
                              "`Name` - The person's preferred name\n" \
                              "`Contact` - The person's preferred contact info\n" \
                              "**Examples**\n" \
-                             f"`{prefix}register SUGIMORI Sugimori https://twitter.com/SUPER_32X`\n" \
-                             f"`{prefix}register @Audino Audino https://github.com/audinowho`\n" \
-                             f"`{prefix}register <@!117780585635643396> Audino https://github.com/audinowho`"
+                             f"`register SUGIMORI Sugimori https://twitter.com/SUPER_32X`\n" \
+                             f"`register @Audino Audino https://github.com/audinowho`\n" \
+                             f"`register <@!117780585635643396> Audino https://github.com/audinowho`"
             elif base_arg == "transferprofile":
                 return_msg = "**Command Help**\n" \
-                             f"`{prefix}transferprofile <Author ID> <New Author ID>`\n" \
+                             f"`transferprofile <Author ID> <New Author ID>`\n" \
                              "Transfers the credit from absentee profile to a real one.  " \
                              "Used for when an absentee's discord account is confirmed " \
                              "and credit needs te be moved to the new name." \
                              "This command is also available for self-registration.  " \
-                             f"Check the `{prefix}help` version for more.\n" \
+                             f"Check the `help` version for more.\n" \
                              "`Author ID` - The desired ID of the absentee profile\n" \
                              "`New Author ID` - The real discord ID of the author\n" \
                              "**Examples**\n" \
-                             f"`{prefix}transferprofile AUDINO_WHO <@!117780585635643396>`\n" \
-                             f"`{prefix}transferprofile AUDINO_WHO @Audino`"
+                             f"`transferprofile AUDINO_WHO <@!117780585635643396>`\n" \
+                             f"`transferprofile AUDINO_WHO @Audino`"
             elif base_arg == "clearcache":
                 return_msg = "**Command Help**\n" \
-                             f"`{prefix}clearcache <Pokemon Name> [Form Name] [Shiny] [Gender]`\n" \
+                             f"`clearcache <Pokemon Name> [Form Name] [Shiny] [Gender]`\n" \
                              "Clears the all uploaded images related to a Pokemon, allowing them to be regenerated.  " \
                              "This includes all portrait image and sprite zip links, " \
                              "meant to be used whenever those links somehow become stale.\n" \
@@ -3401,32 +3420,32 @@ class SpriteBot:
                              "`Shiny` - [Optional] Specifies if you want the shiny sprite or not\n" \
                              "`Gender` - [Optional] Specifies the gender of the Pokemon\n" \
                              "**Examples**\n" \
-                             f"`{prefix}clearcache Pikachu`\n" \
-                             f"`{prefix}clearcache Pikachu Shiny`\n" \
-                             f"`{prefix}clearcache Pikachu Female`\n" \
-                             f"`{prefix}clearcache Pikachu Shiny Female`\n" \
-                             f"`{prefix}clearcache Shaymin Sky`\n" \
-                             f"`{prefix}clearcache Shaymin Sky Shiny`"
+                             f"`clearcache Pikachu`\n" \
+                             f"`clearcache Pikachu Shiny`\n" \
+                             f"`clearcache Pikachu Female`\n" \
+                             f"`clearcache Pikachu Shiny Female`\n" \
+                             f"`clearcache Shaymin Sky`\n" \
+                             f"`clearcache Shaymin Sky Shiny`"
             elif base_arg == "canon":
                 return_msg = "**Command Help**\n" \
-                             f"`{prefix}canon <Pokemon Name> [Form Name]`\n" \
+                             f"`canon <Pokemon Name> [Form Name]`\n" \
                              "Marks the Pokemon forme as canon. Canon forms generally have their own data slot within a main-series game." \
                              " Only works on formes and does not work on system-wide non-canon forms.\n" \
                              " Affects shiny and gender within the form, even if created later.\n" \
                              "`Pokemon Name` - Name of the Pokemon\n" \
                              "`Form Name` - [Optional] Form name of the Pokemon\n" \
                              "**Examples**\n" \
-                             f"`{prefix}canon Pichu Spiky`"
+                             f"`canon Pichu Spiky`"
             elif base_arg == "noncanon":
                 return_msg = "**Command Help**\n" \
-                             f"`{prefix}noncanon <Pokemon Name> [Form Name]`\n" \
+                             f"`noncanon <Pokemon Name> [Form Name]`\n" \
                              "Marks the Pokemon forme as non-canon. Non-canon forms generally do not have their own data slot within a main-series game." \
                              " Only works on formes and does not work on system-wide non-canon forms.\n" \
                              " Affects shiny and gender within the form, even if created later.\n" \
                              "`Pokemon Name` - Name of the Pokemon\n" \
                              "`Form Name` - [Optional] Form name of the Pokemon\n" \
                              "**Examples**\n" \
-                             f"`{prefix}noncanon Burmy No_Cloak`"
+                             f"`noncanon Burmy No_Cloak`"
             else:
                 return_msg = "Unknown Command."
         await msg.channel.send(msg.author.mention + " {0}".format(return_msg))
@@ -3454,11 +3473,20 @@ async def on_message(msg: discord.Message):
             return
 
         content = msg.content
+
+        mentioned = False
+        for mention in msg.mentions:
+            if mention.id == sprite_bot.client.user.id:
+                mentioned = True
+
+        cmd_args = content.split()[1:]
+
         # only respond to the proper author
-        if msg.author.id == sprite_bot.config.root and content.startswith("!init"):
-            args = content[len("!"):].split(' ')
-            await sprite_bot.initServer(msg, args[1:])
-            return
+        if msg.author.id == sprite_bot.config.root and mentioned and len(cmd_args) > 0:
+            base_arg = cmd_args[0].lower()
+            if base_arg == "init":
+                await sprite_bot.initServer(msg, cmd_args[1:])
+                return
 
         # only respond to the proper guilds
         guild_id_str = str(msg.guild.id)
@@ -3466,110 +3494,114 @@ async def on_message(msg: discord.Message):
             return
 
         server = sprite_bot.config.servers[guild_id_str]
-        prefix = server.prefix
 
         if msg.channel.id == server.chat:
-            if not content.startswith(prefix):
+            prefix = server.prefix
+            if content.startswith(prefix):
+                await msg.channel.send(msg.author.mention + " Bot commands no longer use the `!` prefix. Instead, mention me at the beginning of the message.")
                 return
-            args = content[len(prefix):].split()
+
+            base_arg = cmd_args[0].lower()
+
+            if not mentioned:
+                return
 
             authorized = await sprite_bot.isAuthorized(msg.author, msg.guild)
-            base_arg = args[0].lower()
 
             for command in sprite_bot.commands:
                 if base_arg == command.getCommand():
-                    await command.executeCommand(msg, args[1:])
+                    await command.executeCommand(msg, cmd_args[1:])
                     return
 
             if base_arg == "help":
-                await sprite_bot.help(msg, args[1:])
+                await sprite_bot.help(msg, cmd_args[1:])
             elif base_arg == "staffhelp":
-                await sprite_bot.staffhelp(msg, args[1:])
+                await sprite_bot.staffhelp(msg, cmd_args[1:])
                 # primary commands
             elif base_arg == "spritebounty":
-                await sprite_bot.placeBounty(msg, args[1:], "sprite")
+                await sprite_bot.placeBounty(msg, cmd_args[1:], "sprite")
             elif base_arg == "portraitbounty":
-                await sprite_bot.placeBounty(msg, args[1:], "portrait")
+                await sprite_bot.placeBounty(msg, cmd_args[1:], "portrait")
             elif base_arg == "bounties":
-                await sprite_bot.listBounties(msg, args[1:])
+                await sprite_bot.listBounties(msg, cmd_args[1:])
             elif base_arg == "register":
-                await sprite_bot.setProfile(msg, args[1:])
+                await sprite_bot.setProfile(msg, cmd_args[1:])
             elif base_arg == "absentprofiles":
                 await sprite_bot.getAbsentProfiles(msg)
             elif base_arg == "unregister":
-                await sprite_bot.deleteProfile(msg, args[1:])
+                await sprite_bot.deleteProfile(msg, cmd_args[1:])
                 # authorized commands
             elif base_arg == "add" and authorized:
-                await sprite_bot.addSpeciesForm(msg, args[1:])
+                await sprite_bot.addSpeciesForm(msg, cmd_args[1:])
             elif base_arg == "delete" and authorized:
-                await sprite_bot.removeSpeciesForm(msg, args[1:])
+                await sprite_bot.removeSpeciesForm(msg, cmd_args[1:])
             elif base_arg == "rename" and authorized:
-                await sprite_bot.renameSpeciesForm(msg, args[1:])
+                await sprite_bot.renameSpeciesForm(msg, cmd_args[1:])
             elif base_arg == "addgender" and authorized:
-                await sprite_bot.addGender(msg, args[1:])
+                await sprite_bot.addGender(msg, cmd_args[1:])
             elif base_arg == "deletegender" and authorized:
-                await sprite_bot.removeGender(msg, args[1:])
+                await sprite_bot.removeGender(msg, cmd_args[1:])
             elif base_arg == "need" and authorized:
-                await sprite_bot.setNeed(msg, args[1:], True)
+                await sprite_bot.setNeed(msg, cmd_args[1:], True)
             elif base_arg == "dontneed" and authorized:
-                await sprite_bot.setNeed(msg, args[1:], False)
+                await sprite_bot.setNeed(msg, cmd_args[1:], False)
             elif base_arg == "movesprite" and authorized:
-                await sprite_bot.moveSlot(msg, args[1:], "sprite")
+                await sprite_bot.moveSlot(msg, cmd_args[1:], "sprite")
             elif base_arg == "moveportrait" and authorized:
-                await sprite_bot.moveSlot(msg, args[1:], "portrait")
+                await sprite_bot.moveSlot(msg, cmd_args[1:], "portrait")
             elif base_arg == "clonesprite" and msg.author.id == sprite_bot.config.root:
-                await sprite_bot.cloneSlot(msg, args[1:], "sprite")
+                await sprite_bot.cloneSlot(msg, cmd_args[1:], "sprite")
             elif base_arg == "cloneportrait" and msg.author.id == sprite_bot.config.root:
-                await sprite_bot.cloneSlot(msg, args[1:], "portrait")
+                await sprite_bot.cloneSlot(msg, cmd_args[1:], "portrait")
             elif base_arg == "move" and authorized:
-                await sprite_bot.moveSlotRecursive(msg, args[1:])
+                await sprite_bot.moveSlotRecursive(msg, cmd_args[1:])
             elif base_arg == "replacesprite" and authorized:
-                await sprite_bot.replaceSlot(msg, args[1:], "sprite")
+                await sprite_bot.replaceSlot(msg, cmd_args[1:], "sprite")
             elif base_arg == "replaceportrait" and authorized:
-                await sprite_bot.replaceSlot(msg, args[1:], "portrait")
+                await sprite_bot.replaceSlot(msg, cmd_args[1:], "portrait")
             elif base_arg == "spritewip" and authorized:
-                await sprite_bot.completeSlot(msg, args[1:], "sprite", TrackerUtils.PHASE_INCOMPLETE)
+                await sprite_bot.completeSlot(msg, cmd_args[1:], "sprite", TrackerUtils.PHASE_INCOMPLETE)
             elif base_arg == "portraitwip" and authorized:
-                await sprite_bot.completeSlot(msg, args[1:], "portrait", TrackerUtils.PHASE_INCOMPLETE)
+                await sprite_bot.completeSlot(msg, cmd_args[1:], "portrait", TrackerUtils.PHASE_INCOMPLETE)
             elif base_arg == "spriteexists" and authorized:
-                await sprite_bot.completeSlot(msg, args[1:], "sprite", TrackerUtils.PHASE_EXISTS)
+                await sprite_bot.completeSlot(msg, cmd_args[1:], "sprite", TrackerUtils.PHASE_EXISTS)
             elif base_arg == "portraitexists" and authorized:
-                await sprite_bot.completeSlot(msg, args[1:], "portrait", TrackerUtils.PHASE_EXISTS)
+                await sprite_bot.completeSlot(msg, cmd_args[1:], "portrait", TrackerUtils.PHASE_EXISTS)
             elif base_arg == "spritefilled" and authorized:
-                await sprite_bot.completeSlot(msg, args[1:], "sprite", TrackerUtils.PHASE_FULL)
+                await sprite_bot.completeSlot(msg, cmd_args[1:], "sprite", TrackerUtils.PHASE_FULL)
             elif base_arg == "portraitfilled" and authorized:
-                await sprite_bot.completeSlot(msg, args[1:], "portrait", TrackerUtils.PHASE_FULL)
+                await sprite_bot.completeSlot(msg, cmd_args[1:], "portrait", TrackerUtils.PHASE_FULL)
             elif base_arg == "setspritecredit" and authorized:
-                await sprite_bot.resetCredit(msg, args[1:], "sprite")
+                await sprite_bot.resetCredit(msg, cmd_args[1:], "sprite")
             elif base_arg == "setportraitcredit" and authorized:
-                await sprite_bot.resetCredit(msg, args[1:], "portrait")
+                await sprite_bot.resetCredit(msg, cmd_args[1:], "portrait")
             elif base_arg == "addspritecredit" and authorized:
-                await sprite_bot.addCredit(msg, args[1:], "sprite")
+                await sprite_bot.addCredit(msg, cmd_args[1:], "sprite")
             elif base_arg == "addportraitcredit" and authorized:
-                await sprite_bot.addCredit(msg, args[1:], "portrait")
+                await sprite_bot.addCredit(msg, cmd_args[1:], "portrait")
             elif base_arg == "modreward" and authorized:
-                await sprite_bot.modSpeciesForm(msg, args[1:])
+                await sprite_bot.modSpeciesForm(msg, cmd_args[1:])
             elif base_arg == "transferprofile" and authorized:
-                await sprite_bot.transferProfile(msg, args[1:])
+                await sprite_bot.transferProfile(msg, cmd_args[1:])
             elif base_arg == "clearcache" and authorized:
-                await sprite_bot.clearCache(msg, args[1:])
+                await sprite_bot.clearCache(msg, cmd_args[1:])
             elif base_arg == "canon" and authorized:
-                await sprite_bot.setCanon(msg, args[1:], True)
+                await sprite_bot.setCanon(msg, cmd_args[1:], True)
             elif base_arg == "noncanon" and authorized:
-                await sprite_bot.setCanon(msg, args[1:], False)
+                await sprite_bot.setCanon(msg, cmd_args[1:], False)
                 # root commands
             elif base_arg == "showcase" and authorized:
-                await sprite_bot.showcase(msg, args[1:])
+                await sprite_bot.showcase(msg, cmd_args[1:])
             elif base_arg == "rescan" and msg.author.id == sprite_bot.config.root:
                 await sprite_bot.rescan(msg)
             elif base_arg == "unlockportrait" and msg.author.id == sprite_bot.config.root:
-                await sprite_bot.setLock(msg, args[1:], "portrait", False)
+                await sprite_bot.setLock(msg, cmd_args[1:], "portrait", False)
             elif base_arg == "unlocksprite" and msg.author.id == sprite_bot.config.root:
-                await sprite_bot.setLock(msg, args[1:], "sprite", False)
+                await sprite_bot.setLock(msg, cmd_args[1:], "sprite", False)
             elif base_arg == "lockportrait" and msg.author.id == sprite_bot.config.root:
-                await sprite_bot.setLock(msg, args[1:], "portrait", True)
+                await sprite_bot.setLock(msg, cmd_args[1:], "portrait", True)
             elif base_arg == "locksprite" and msg.author.id == sprite_bot.config.root:
-                await sprite_bot.setLock(msg, args[1:], "sprite", True)
+                await sprite_bot.setLock(msg, cmd_args[1:], "sprite", True)
             elif base_arg == "update" and msg.author.id == sprite_bot.config.root:
                 await sprite_bot.updateBot(msg)
             elif base_arg == "shutdown" and msg.author.id == sprite_bot.config.root:
@@ -3582,7 +3614,7 @@ async def on_message(msg: discord.Message):
             elif base_arg in ["gr", "tr", "checkr"]:
                 pass
             else:
-                await msg.channel.send(msg.author.mention + " Unknown Command.")
+                await msg.channel.send(msg.author.mention + " Unknown Command. Run \"" + sprite_bot.client.user.mention + " help\" for commands.")
 
         elif msg.channel.id == sprite_bot.config.servers[guild_id_str].submit:
             changed_tracker = await sprite_bot.pollSubmission(msg)
