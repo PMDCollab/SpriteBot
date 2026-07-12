@@ -35,7 +35,7 @@ class DeleteResourceCredit(BaseCommand):
                 "Deletes the specified author from the credits of the portrait.  " \
                 "This makes a post in the submissions channel, asking other approvers to sign off." \
                 "The post must be approved by the author being removed.\n" \
-                "`Author ID` - The discord ID of the author to set as primary\n" \
+                "`Author ID` - The discord ID of the author to remove\n" \
                 "`Pokemon Name` - Name of the Pokemon\n" \
                 "`Form Name` - [Optional] Form name of the Pokemon\n" \
                 "`Shiny` - [Optional] Specifies if you want the shiny sprite or not\n" \
@@ -46,7 +46,7 @@ class DeleteResourceCredit(BaseCommand):
                 "Deletes the specified author from the credits of the sprite.  " \
                 "This makes a post in the submissions channel, asking other approvers to sign off." \
                 "The post must be approved by the author being removed.\n" \
-                "`Author ID` - The discord ID of the author to set as primary\n" \
+                "`Author ID` - The discord ID of the author to remove\n" \
                 "`Pokemon Name` - Name of the Pokemon\n" \
                 "`Form Name` - [Optional] Form name of the Pokemon\n" \
                 "`Shiny` - [Optional] Specifies if you want the shiny sprite or not\n" \
