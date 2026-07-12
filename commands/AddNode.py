@@ -41,7 +41,7 @@ class AddNode(BaseCommand):
                 await msg.channel.send(msg.author.mention + " {0} already exists!".format(species_name))
                 return
 
-            new_id_int = max([int(i) for i in self.tracker.keys()]) + 1
+            new_id_int = max([int(i) for i in self.spritebot.tracker.keys()]) + 1
             new_idx = "{:04d}".format(new_id_int)
             self.spritebot.tracker[new_idx] = TrackerUtils.createSpeciesNode(species_name)
 

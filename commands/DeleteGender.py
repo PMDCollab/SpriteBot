@@ -15,7 +15,7 @@ class DeleteGender(BaseCommand):
         return "deletegender"
     
     def getSingleLineHelp(self, server_config: "BotServer") -> str:
-        return "Removes the female sprite/portrait from the Pokemon"
+        return "Removes the male/female slot from the Pokemon's sprite/portrait"
     
     def getMultiLineHelp(self, server_config: "BotServer") -> str:
         return f"`{server_config.prefix}deletegender <Asset Type> <Pokemon Name> [Pokemon Form]`\n" \

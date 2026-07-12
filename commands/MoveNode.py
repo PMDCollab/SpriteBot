@@ -128,10 +128,11 @@ class MoveNode(BaseCommand):
         await msg.channel.send(msg.author.mention + " Swapped {0} with {1}.".format(" ".join(name_seq_from), " ".join(name_seq_to)))
         # if the source is empty in sprite and portrait, and its subunits are empty in sprite and portrait
         # remind to delete
+        server_config = self.spritebot.config.servers[str(msg.guild.id)]
         if not TrackerUtils.isDataPopulated(chosen_node_from):
-            await msg.channel.send(msg.author.mention + " {0} is now empty. Use `!delete` if it is no longer needed.".format(" ".join(name_seq_to)))
+            await msg.channel.send(msg.author.mention + " {0} is now empty. Use `{1}delete` if it is no longer needed.".format(" ".join(name_seq_to), server_config.prefix))
         if not TrackerUtils.isDataPopulated(chosen_node_to):
-            await msg.channel.send(msg.author.mention + " {0} is now empty. Use `!delete` if it is no longer needed.".format(" ".join(name_seq_from)))
+            await msg.channel.send(msg.author.mention + " {0} is now empty. Use `{1}delete` if it is no longer needed.".format(" ".join(name_seq_from), server_config.prefix))
 
         self.spritebot.saveTracker()
         self.spritebot.changed = True
