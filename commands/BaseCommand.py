@@ -36,5 +36,5 @@ class BaseCommand:
         else:
             result = "**Examples**\n"
             for example in examples_args:
-                result += f"`{self.getCommand()} {example}`\n"
+                result += f"`{prefix}{self.getCommand()} {example}`\n"
             return result
