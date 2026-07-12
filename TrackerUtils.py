@@ -76,30 +76,37 @@ def hasExistingCredits(cur_credits, orig_author, diff):
 
 def getFileCredits(path):
     id_list = []
-    if os.path.exists(os.path.join(path, Constants.CREDIT_TXT)):
-        with open(os.path.join(path, Constants.CREDIT_TXT), 'r', encoding='utf-8') as txt:
+    credit_path = os.path.join(path, Constants.CREDIT_TXT)
+    if os.path.exists(credit_path):
+        with open(credit_path, 'r', encoding='utf-8') as txt:
             for line in txt:
                 credit = line.strip().split('\t')
-                id_list.append(CreditEvent(credit[0], credit[1], credit[2], credit[3], credit[4]))
+                if len(credit) >= 5:
+                    id_list.append(CreditEvent(credit[0], credit[1], credit[2], credit[3], credit[4]))
+                else:
+                    raise BaseException("Invalid credit line “{}” at {}".format(line, credit_path))
     return id_list
 
-def appendCredits(path, id, diff):
+def appendCredits(path, id, diff, is_old):
     if diff == '':
         diff = '"'
+    status = "CUR"
+    if is_old:
+        status = "OLD"
     with open(os.path.join(path, Constants.CREDIT_TXT), 'a+', encoding='utf-8') as txt:
-        txt.write("{0}\t{1}\tCUR\t{2}\t{3}\n".format(str(datetime.datetime.utcnow()), id, CURRENT_LICENSE, diff))
+        txt.write("{0}\t{1}\t{2}\t{3}\t{4}\n".format(str(datetime.datetime.utcnow()), id, status, CURRENT_LICENSE, diff))
 
 def mergeCredits(path_from, path_to):
     id_list = []
     with open(path_to, 'r', encoding='utf-8') as txt:
         for line in txt:
-            splited = line.strip().split('\t')
-            id_list.append(CreditEvent(splited[0], splited[1], splited[2], splited[3], splited[4]))
+            credit = line.strip().split('\t')
+            id_list.append(CreditEvent(credit[0], credit[1], credit[2], credit[3], credit[4]))
 
     with open(path_from, 'r', encoding='utf-8') as txt:
         for line in txt:
-            splited = line.strip().split('\t')
-            id_list.append(CreditEvent(splited[0], splited[1], splited[2], splited[3], splited[4]))
+            credit = line.strip().split('\t')
+            id_list.append(CreditEvent(credit[0], credit[1], credit[2], credit[3], credit[4]))
 
     id_list = sorted(id_list, key=lambda x: x.datetime)
 
@@ -301,7 +308,7 @@ def getCurrentCompletion(orig_dict, dict, prefix):
 
 
 def updateFiles(dict, species_path, prefix):
-    file_list = []
+    file_list = {}
     if prefix == "sprite":
         if os.path.exists(os.path.join(species_path, Constants.MULTI_SHEET_XML)):
             tree = ET.parse(os.path.join(species_path, Constants.MULTI_SHEET_XML))
@@ -309,16 +316,27 @@ def updateFiles(dict, species_path, prefix):
             anims_node = root.find('Anims')
             for anim_node in anims_node.iter('Anim'): # type: ignore
                 name = anim_node.find('Name').text # type: ignore
-                file_list.append(name)
+                file_list[name] = True
     else:
         for inFile in os.listdir(species_path):
             if inFile.endswith(".png"):
                 file, _ = os.path.splitext(inFile)
-                file_list.append(file)
+                file_list[file] = True
 
     for file in file_list:
         if file not in dict.__dict__[prefix + "_files"]:
             dict.__dict__[prefix + "_files"][file] = False
+
+    to_remove = []
+    for file in dict.__dict__[prefix + "_files"]:
+        if file not in file_list:
+            to_remove.append(file)
+
+    for file in to_remove:
+        if dict.__dict__[prefix + "_files"][file]:
+            print("Locked file no longer exists: {0} {1}".format(species_path, file))
+        else:
+            del dict.__dict__[prefix + "_files"][file]
 
 def updateCreditFromEntries(credit_data, credit_entries):
     # updates just the total count and the secondary
@@ -381,15 +399,16 @@ def fileSystemToJson(dict, species_path, prefix, tier):
     if updated:
         dict.__dict__[prefix + "_link"] = ""
 
-def isDataPopulated(sub_dict):
-    if sub_dict.sprite_credit.primary != "":
+def isDataPopulated(sub_dict, check_sprite = True, check_portrait = True, recursive = True):
+    if check_sprite and sub_dict.sprite_credit.primary != "":
         return True
-    if sub_dict.portrait_credit.primary != "":
+    if check_portrait and sub_dict.portrait_credit.primary != "":
         return True
 
-    for sub_idx in sub_dict.subgroups:
-        if isDataPopulated(sub_dict.subgroups[sub_idx]):
-            return True
+    if recursive:
+        for sub_idx in sub_dict.subgroups:
+            if isDataPopulated(sub_dict.subgroups[sub_idx], check_sprite, check_portrait, recursive):
+                return True
     return False
 
 def deleteData(tracker_dict, portrait_path, sprite_path, idx):
@@ -653,7 +672,7 @@ Name operations
 def updateCreditCompilation(name_path, credit_dict):
 
     with open(name_path, 'w+', encoding='utf-8') as txt:
-        txt.write("All custom graphics not originating from official PMD games are licensed under Attribution-NonCommercial 4.0 International http://creativecommons.org/licenses/by/4.0/.\n")
+        txt.write("All custom graphics not originating from official PMD games are licensed under Attribution-NonCommercial 4.0 International http://creativecommons.org/licenses/by-nc/4.0/.\n")
         txt.write("All graphics referred to in this file can be found in http://sprites.pmdcollab.org/\n\n")
         for handle in credit_dict:
             if len(credit_dict[handle].sprite) > 0 or len(credit_dict[handle].portrait) > 0:
@@ -778,7 +797,7 @@ def renameFileCredits(species_path, old_name, new_name):
                     entry[1] = new_name
             with open(fullPath, 'w', encoding='utf-8') as txt:
                 for entry in id_list:
-                    txt.write(entry[0] + "\t" + entry[1] + "\t" + entry[2] + "\t" + entry[3] + "\n")
+                    txt.write(entry[0] + "\t" + entry[1] + "\t" + entry[2] + "\t" + entry[3] + "\t" + entry[4] + "\n")
 
 def getDirFromIdx(base_path, asset_type, full_idx):
     full_arr = [base_path, asset_type] + full_idx
@@ -797,6 +816,13 @@ def moveNodeFiles(dir_from, dir_to, merge_credit, is_dir):
             shutil.move(full_base_path, os.path.join(dir_to, file))
         elif os.path.isdir(full_base_path) == is_dir:
             shutil.move(full_base_path, os.path.join(dir_to, file))
+
+def copyNodeFiles(dir_from, dir_to, is_dir):
+    cur_files = os.listdir(dir_from)
+    for file in cur_files:
+        full_base_path = os.path.join(dir_from, file)
+        if os.path.isdir(full_base_path) == is_dir:
+            shutil.copy(full_base_path, os.path.join(dir_to, file))
 
 def deleteNodeFiles(dir_to, include_credit):
     cur_files = os.listdir(dir_to)
@@ -820,6 +846,15 @@ def clearCache(chosen_node, recursive):
         for subgroup in chosen_node.subgroups:
             clearCache(chosen_node.subgroups[subgroup], recursive)
 
+def setNodeModReward(chosen_node, modreward, recursive):
+    if chosen_node.name != "":
+        chosen_node.modreward = modreward
+
+    if recursive:
+        for subgroup in chosen_node.subgroups:
+            setNodeModReward(chosen_node.subgroups[subgroup], modreward, recursive)
+
+
 def swapNodeMiscFeatures(node_from, node_to):
     for key in node_from.__dict__:
         if key.startswith("sprite"):
@@ -840,6 +875,34 @@ def swapNodeAssetFeatures(node_from, node_to, asset_type):
             node_to.__dict__[key] = node_from.__dict__[key]
             node_from.__dict__[key] = tmp
 
+def copyNodeAssetFeatures(node_from, node_to, asset_type):
+    for key in node_from.__dict__:
+        if key.startswith(asset_type):
+            node_to.__dict__[key] = node_from.__dict__[key]
+
+def replaceNodeAssetFeatures(node_from, node_to, asset_type):
+    node_new = initSubNode("", False)
+    for key in node_from.__dict__:
+        if key.startswith(asset_type):
+            if key == asset_type + "_files":
+                # pass in keys and set to false, only if new keys are introduced
+                for file_key in node_from.__dict__[key]:
+                    if file_key not in node_to.__dict__[key]:
+                        node_to.__dict__[key][file_key] = False
+            elif key == asset_type + "_talk":
+                # do not overwrite
+                pass
+            elif key == asset_type + "_bounty":
+                for status_key in node_from.__dict__[key]:
+                    if status_key not in node_to.__dict__[key]:
+                        node_to.__dict__[key][status_key] = 0
+                    node_to.__dict__[key][status_key] = node_to.__dict__[key][status_key] + node_from.__dict__[key][status_key]
+            elif key == "canon" or key == "modreward":
+                # do not overwrite canon
+                pass
+            else:
+                node_to.__dict__[key] = node_from.__dict__[key]
+            node_from.__dict__[key] = node_new.__dict__[key]
 
 def swapFolderPaths(base_path, tracker, asset_type, full_idx_from, full_idx_to):
 
@@ -872,27 +935,24 @@ def swapFolderPaths(base_path, tracker, asset_type, full_idx_from, full_idx_to):
     moveNodeFiles(gen_path_tmp, gen_path_to, False, False)
     shutil.rmtree(gen_path_tmp)
 
+def copyFolderPaths(base_path, tracker, asset_type, full_idx_from, full_idx_to):
 
-def replaceNodeAssetFeatures(node_from, node_to, asset_type):
-    node_new = initSubNode("", False)
-    for key in node_from.__dict__:
-        if key.startswith(asset_type):
-            if key == asset_type + "_files":
-                # pass in keys and set to false, only if new keys are introduced
-                for file_key in node_from.__dict__[key]:
-                    if file_key not in node_to.__dict__[key]:
-                        node_to.__dict__[key][file_key] = False
-            elif key == asset_type + "_talk":
-                # do not overwrite
-                pass
-            elif key == asset_type + "_bounty":
-                for status_key in node_from.__dict__[key]:
-                    if status_key not in node_to.__dict__[key]:
-                        node_to.__dict__[key][status_key] = 0
-                    node_to.__dict__[key][status_key] = node_to.__dict__[key][status_key] + node_from.__dict__[key][status_key]
-            else:
-                node_to.__dict__[key] = node_from.__dict__[key]
-            node_from.__dict__[key] = node_new.__dict__[key]
+    # swap the nodes in tracker, don't do it recursively
+    chosen_node_from = getNodeFromIdx(tracker, full_idx_from, 0)
+    chosen_node_to = getNodeFromIdx(tracker, full_idx_to, 0)
+
+    copyNodeAssetFeatures(chosen_node_from, chosen_node_to, asset_type)
+
+    # prepare to copy textures
+    gen_path_from = getDirFromIdx(base_path, asset_type, full_idx_from)
+    gen_path_to = getDirFromIdx(base_path, asset_type, full_idx_to)
+
+    if not os.path.exists(gen_path_to):
+        os.makedirs(gen_path_to, exist_ok=True)
+
+    # copy the folders
+    copyNodeFiles(gen_path_from, gen_path_to, False)
+
 
 def replaceFolderPaths(base_path, tracker, asset_type, full_idx_from, full_idx_to):
 
@@ -990,6 +1050,33 @@ def setCanon(dict, canon):
 
     for subgroup in dict.subgroups:
         setCanon(dict.subgroups[subgroup], canon)
+
+def canonCheck(species_name, form_name):
+    if species_name == "Missingno_":
+        return False
+    if re.search(r"(_|\b)Beta\d*(_|\b)", form_name):
+        return False
+    if re.search(r"(_|\b)Skytemple\d*(_|\b)", form_name):
+        return False
+    if re.search(r"(_|\b)Cutscene\d*(_|\b)", form_name):
+        return False
+    if re.search(r"(_|\b)Alternate\d*(_|\b)", form_name):
+        return False
+    if re.search(r"(_|\b)Altcolor\d*(_|\b)", form_name):
+        return False
+    if re.search(r"(_|\b)Temp\d*(_|\b)", form_name):
+        return False
+    return True
+
+def reportableCheck(name_arr):
+    if len(name_arr) < 2:
+        return True
+    form_name = name_arr[1]
+    if re.search(r"(_|\b)Skytemple\d*(_|\b)", form_name):
+        return False
+    if re.search(r"(_|\b)Temp\d*(_|\b)", form_name):
+        return False
+    return True
 
 """
 String operations

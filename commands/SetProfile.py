@@ -73,6 +73,7 @@ class SetProfile(BaseCommand):
                 new_credit = TrackerUtils.CreditEntry(args[0], args[1])
             else:
                 await msg.channel.send(msg.author.mention + " Invalid amounts of arguments")
+                return
 
         if entry_key in self.spritebot.names:
             new_credit.sprites = self.spritebot.names[entry_key].sprites

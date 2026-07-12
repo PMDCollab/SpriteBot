@@ -8,19 +8,19 @@ import SpriteUtils
 if TYPE_CHECKING:
     from SpriteBot import SpriteBot, BotServer
 
-class DeleteRessourceCredit(BaseCommand):
-    def __init__(self, spritebot: "SpriteBot", ressource_type: str):
+class DeleteResourceCredit(BaseCommand):
+    def __init__(self, spritebot: "SpriteBot", resource_type: str):
         super().__init__(spritebot)
-        self.ressource_type = ressource_type
+        self.resource_type = resource_type
     
     def getRequiredPermission(self) -> PermissionLevel:
         return PermissionLevel.EVERYONE
     
     def getCommand(self) -> str:
-        return f"delete{self.ressource_type}credit"
+        return f"delete{self.resource_type}credit"
     
     def getSingleLineHelp(self, server_config: "BotServer") -> str:
-        return f"Removes an author to the credits of the {self.ressource_type}"
+        return f"Removes an author to the credits of the {self.resource_type}"
     
     def getMultiLineHelp(self, server_config: "BotServer") -> str:
         example_args = [
@@ -30,23 +30,23 @@ class DeleteRessourceCredit(BaseCommand):
             "@Audino Calyrex Shiny",
             "@Audino Jellicent Shiny Female"
         ]
-        if self.ressource_type == "portrait":
+        if self.resource_type == "portrait":
             return f"`{server_config.prefix}deleteportraitcredit <Author ID> <Pokemon Name> [Form Name] [Shiny] [Gender]`\n" \
                 "Deletes the specified author from the credits of the portrait.  " \
                 "This makes a post in the submissions channel, asking other approvers to sign off." \
                 "The post must be approved by the author being removed.\n" \
-                "`Author ID` - The discord ID of the author to set as primary\n" \
+                "`Author ID` - The discord ID of the author to remove\n" \
                 "`Pokemon Name` - Name of the Pokemon\n" \
                 "`Form Name` - [Optional] Form name of the Pokemon\n" \
                 "`Shiny` - [Optional] Specifies if you want the shiny sprite or not\n" \
                 "`Gender` - [Optional] Specifies the gender of the Pokemon\n" \
                 + self.generateMultiLineExample(server_config.prefix, example_args)
-        elif self.ressource_type == "sprite":
+        elif self.resource_type == "sprite":
             return f"`{server_config.prefix}deletespritecredit <Author ID> <Pokemon Name> [Form Name] [Shiny] [Gender]`\n" \
                 "Deletes the specified author from the credits of the sprite.  " \
                 "This makes a post in the submissions channel, asking other approvers to sign off." \
                 "The post must be approved by the author being removed.\n" \
-                "`Author ID` - The discord ID of the author to set as primary\n" \
+                "`Author ID` - The discord ID of the author to remove\n" \
                 "`Pokemon Name` - Name of the Pokemon\n" \
                 "`Form Name` - [Optional] Form name of the Pokemon\n" \
                 "`Shiny` - [Optional] Specifies if you want the shiny sprite or not\n" \
@@ -80,11 +80,11 @@ class DeleteRessourceCredit(BaseCommand):
 
         chosen_node = TrackerUtils.getNodeFromIdx(self.spritebot.tracker, full_idx, 0)
 
-        if chosen_node.__dict__[self.ressource_type + "_credit"].primary == "":
-            await msg.channel.send(msg.author.mention + " This command only works on filled {0}.".format(self.ressource_type))
+        if chosen_node.__dict__[self.resource_type + "_credit"].primary == "":
+            await msg.channel.send(msg.author.mention + " This command only works on filled {0}.".format(self.resource_type))
             return
 
-        gen_path = TrackerUtils.getDirFromIdx(self.spritebot.config.path, self.ressource_type, full_idx)
+        gen_path = TrackerUtils.getDirFromIdx(self.spritebot.config.path, self.resource_type, full_idx)
         credit_entries = TrackerUtils.getFileCredits(gen_path)
         has_credit = False
         latest_credit = False
@@ -99,7 +99,7 @@ class DeleteRessourceCredit(BaseCommand):
                 latest_credit = False
 
         if not has_credit:
-            await msg.channel.send(msg.author.mention + " The author must be in the credits list for this {0}.".format(self.ressource_type))
+            await msg.channel.send(msg.author.mention + " The author must be in the credits list for this {0}.".format(self.resource_type))
             return
 
         if latest_credit:
@@ -118,9 +118,9 @@ class DeleteRessourceCredit(BaseCommand):
         submit_channel = self.spritebot.client.get_channel(chat_id)
         author = "<@!{0}>".format(msg.author.id)
 
-        base_link = await self.spritebot.retrieveLinkMsg(full_idx, chosen_node, self.ressource_type, False)
+        base_link = await self.spritebot.retrieveLinkMsg(full_idx, chosen_node, self.resource_type, False)
         base_file, base_name = SpriteUtils.getLinkData(base_link)
 
         # stage a post in submissions
-        await self.spritebot.postStagedSubmission(submit_channel, "--deleteauthor", "", full_idx, chosen_node, self.ressource_type, author + "/" + wanted_author,
+        await self.spritebot.postStagedSubmission(submit_channel, "--deleteauthor", "", full_idx, chosen_node, self.resource_type, author + "/" + wanted_author,
                                         False, None, base_file, base_name, None)

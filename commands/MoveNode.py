@@ -81,32 +81,37 @@ class MoveNode(BaseCommand):
         assert explicit_node_from is not None
         assert explicit_node_to is not None
 
-        # check the main nodes
-        try:
-            await self.spritebot.checkMoveLock(full_idx_from, chosen_node_from, full_idx_to, chosen_node_to, "sprite")
-            await self.spritebot.checkMoveLock(full_idx_from, chosen_node_from, full_idx_to, chosen_node_to, "portrait")
-        except SpriteUtils.SpriteVerifyError as e:
-            await msg.channel.send(msg.author.mention + " Cannot move the locked Pokemon specified as source:\n{0}".format(e.message))
-            return
+        diff_forms_on_same_species = False
+        if len(full_idx_from) == 2 and len(full_idx_to) == 2 and full_idx_from[0] == full_idx_to[0]:
+            diff_forms_on_same_species = True
 
-        try:
-            await self.spritebot.checkMoveLock(full_idx_to, chosen_node_to, full_idx_from, chosen_node_from, "sprite")
-            await self.spritebot.checkMoveLock(full_idx_to, chosen_node_to, full_idx_from, chosen_node_from, "portrait")
-        except SpriteUtils.SpriteVerifyError as e:
-            await msg.channel.send(msg.author.mention + " Cannot move the locked Pokemon specified as destination:\n{0}".format(e.message))
-            return
+        if not diff_forms_on_same_species:
+            # check the main nodes
+            try:
+                await self.spritebot.checkMoveLock(full_idx_from, chosen_node_from, full_idx_to, chosen_node_to, "sprite")
+                await self.spritebot.checkMoveLock(full_idx_from, chosen_node_from, full_idx_to, chosen_node_to, "portrait")
+            except SpriteUtils.SpriteVerifyError as e:
+                await msg.channel.send(msg.author.mention + " Cannot move the locked Pokemon specified as source:\n{0}".format(e.message))
+                return
 
-        # check the subnodes
-        for sub_idx in explicit_node_from.subgroups:
-            sub_node = explicit_node_from.subgroups[sub_idx]
-            if TrackerUtils.hasLock(sub_node, "sprite", True) or TrackerUtils.hasLock(sub_node, "portrait", True):
-                await msg.channel.send(msg.author.mention + " Cannot move the locked subgroup specified as source.")
+            try:
+                await self.spritebot.checkMoveLock(full_idx_to, chosen_node_to, full_idx_from, chosen_node_from, "sprite")
+                await self.spritebot.checkMoveLock(full_idx_to, chosen_node_to, full_idx_from, chosen_node_from, "portrait")
+            except SpriteUtils.SpriteVerifyError as e:
+                await msg.channel.send(msg.author.mention + " Cannot move the locked Pokemon specified as destination:\n{0}".format(e.message))
                 return
-        for sub_idx in explicit_node_to.subgroups:
-            sub_node = explicit_node_to.subgroups[sub_idx]
-            if TrackerUtils.hasLock(sub_node, "sprite", True) or TrackerUtils.hasLock(sub_node, "portrait", True):
-                await msg.channel.send(msg.author.mention + " Cannot move the locked subgroup specified as destination.")
-                return
+
+            # check the subnodes
+            for sub_idx in explicit_node_from.subgroups:
+                sub_node = explicit_node_from.subgroups[sub_idx]
+                if TrackerUtils.hasLock(sub_node, "sprite", True) or TrackerUtils.hasLock(sub_node, "portrait", True):
+                    await msg.channel.send(msg.author.mention + " Cannot move the locked subgroup specified as source.")
+                    return
+            for sub_idx in explicit_node_to.subgroups:
+                sub_node = explicit_node_to.subgroups[sub_idx]
+                if TrackerUtils.hasLock(sub_node, "sprite", True) or TrackerUtils.hasLock(sub_node, "portrait", True):
+                    await msg.channel.send(msg.author.mention + " Cannot move the locked subgroup specified as destination.")
+                    return
 
         # clear caches
         TrackerUtils.clearCache(chosen_node_from, True)
@@ -123,10 +128,11 @@ class MoveNode(BaseCommand):
         await msg.channel.send(msg.author.mention + " Swapped {0} with {1}.".format(" ".join(name_seq_from), " ".join(name_seq_to)))
         # if the source is empty in sprite and portrait, and its subunits are empty in sprite and portrait
         # remind to delete
+        server_config = self.spritebot.config.servers[str(msg.guild.id)]
         if not TrackerUtils.isDataPopulated(chosen_node_from):
-            await msg.channel.send(msg.author.mention + " {0} is now empty. Use `!delete` if it is no longer needed.".format(" ".join(name_seq_to)))
+            await msg.channel.send(msg.author.mention + " {0} is now empty. Use `{1}delete` if it is no longer needed.".format(" ".join(name_seq_to), server_config.prefix))
         if not TrackerUtils.isDataPopulated(chosen_node_to):
-            await msg.channel.send(msg.author.mention + " {0} is now empty. Use `!delete` if it is no longer needed.".format(" ".join(name_seq_from)))
+            await msg.channel.send(msg.author.mention + " {0} is now empty. Use `{1}delete` if it is no longer needed.".format(" ".join(name_seq_from), server_config.prefix))
 
         self.spritebot.saveTracker()
         self.spritebot.changed = True

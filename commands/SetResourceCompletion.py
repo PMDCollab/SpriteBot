@@ -8,11 +8,11 @@ from Constants import PHASES
 if TYPE_CHECKING:
     from SpriteBot import SpriteBot, BotServer
 
-class SetRessourceCompletion(BaseCommand):
-    def __init__(self, spritebot: "SpriteBot", ressource_type: str, completion: int):
+class SetResourceCompletion(BaseCommand):
+    def __init__(self, spritebot: "SpriteBot", resource_type: str, completion: int):
         super().__init__(spritebot)
-        self.ressource_type = ressource_type
-        #TODO: completion should eventually be replaced by a class or enum once better in-memory ressource typing is implemented.
+        self.resource_type = resource_type
+        #TODO: completion should eventually be replaced by a class or enum once better in-memory resource typing is implemented.
         self.completion = completion
     
     def getRequiredPermission(self):
@@ -49,17 +49,17 @@ class SetRessourceCompletion(BaseCommand):
             raise NotImplementedError()
     
     def getCommand(self) -> str:
-        return self.ressource_type + self.getCompletionCommandCode()
+        return self.resource_type + self.getCompletionCommandCode()
     
     def getSingleLineHelp(self, server_config: "BotServer") -> str:
-        return f"Set the {self.ressource_type} status to {self.getCompletionName()}"
+        return f"Set the {self.resource_type} status to {self.getCompletionName()}"
     
     def getMultiLineHelp(self, server_config: "BotServer") -> str:
         return f"`{server_config.prefix}{self.getCommand()} <Pokemon Name> [Form Name] [Shiny] [Gender]`\n" \
-            f"Manually sets the {self.ressource_type} status as {self.getCompletionEmoji()} {self.getCompletionName()}.\n" \
+            f"Manually sets the {self.resource_type} status as {self.getCompletionEmoji()} {self.getCompletionName()}.\n" \
             "`Pokemon Name` - Name of the Pokemon\n" \
             "`Form Name` - [Optional] Form name of the Pokemon\n" \
-            f"`Shiny` - [Optional] Specifies if you want the shiny {self.ressource_type} or not\n" \
+            f"`Shiny` - [Optional] Specifies if you want the shiny {self.resource_type} or not\n" \
             "`Gender` - [Optional] Specifies the gender of the Pokemon\n" \
             + self.generateMultiLineExample(
                 server_config.prefix,
@@ -84,16 +84,16 @@ class SetRessourceCompletion(BaseCommand):
         phase_str = PHASES[self.completion]
 
         # if the node has no credit, fail
-        if chosen_node.__dict__[self.ressource_type + "_credit"].primary == "" and self.completion > TrackerUtils.PHASE_INCOMPLETE:
-            status = TrackerUtils.getStatusEmoji(chosen_node, self.ressource_type)
+        if chosen_node.__dict__[self.resource_type + "_credit"].primary == "" and self.completion > TrackerUtils.PHASE_INCOMPLETE:
+            status = TrackerUtils.getStatusEmoji(chosen_node, self.resource_type)
             await msg.channel.send(msg.author.mention +
                                    " {0} #{1:03d}: {2} has no data and cannot be marked {3}.".format(status, int(full_idx[0]), " ".join(name_seq), phase_str))
             return
 
         # set to complete
-        chosen_node.__dict__[self.ressource_type + "_complete"] = self.completion
+        chosen_node.__dict__[self.resource_type + "_complete"] = self.completion
 
-        status = TrackerUtils.getStatusEmoji(chosen_node, self.ressource_type)
+        status = TrackerUtils.getStatusEmoji(chosen_node, self.resource_type)
         await msg.channel.send(msg.author.mention + " {0} #{1:03d}: {2} marked as {3}.".format(status, int(full_idx[0]), " ".join(name_seq), phase_str))
 
         self.spritebot.saveTracker()

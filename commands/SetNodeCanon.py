@@ -46,6 +46,10 @@ class SetNodeCanon(BaseCommand):
         if full_idx is None:
             await msg.channel.send(msg.author.mention + " No such Pokemon.")
             return
+        if len(full_idx) != 2:
+            await msg.channel.send(msg.author.mention + " Must specify Pokemon and form.")
+            return
+
         chosen_node = TrackerUtils.getNodeFromIdx(self.spritebot.tracker, full_idx, 0)
 
         TrackerUtils.setCanon(chosen_node, self.canon)

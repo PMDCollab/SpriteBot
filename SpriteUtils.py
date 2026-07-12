@@ -230,10 +230,10 @@ def getLinkData(url):
     req = urllib.request.Request(url, None, RETRIEVE_HEADERS)
 
     with urllib.request.urlopen(req) as response:
-        zip_data = BytesIO()
-        zip_data.write(response.read())
-        zip_data.seek(0)
-        return zip_data, file
+        file_data = BytesIO()
+        file_data.write(response.read())
+        file_data.seek(0)
+        return file_data, file
 
 def getLinkImg(url):
     clean_url = sanitizeLink(url)
@@ -916,6 +916,9 @@ def verifySpriteLock(dict, chosen_path, precolor_zip, wan_zip, recolor):
             cmp_zip = precolor_zip
             wan_zip = removePalette(wan_zip)
 
+            if precolor_zip is None:
+                raise Exception("The file was submitted in recolor format, but no base file was supplied.")
+
             with zipfile.ZipFile(precolor_zip, 'r') as opened_zip:
                 frames, frame_mapping = getFramesAndMappings(opened_zip, True)
             frame_size = getFrameSizeFromFrames(frames)
@@ -1169,6 +1172,12 @@ def verifyPortraitLock(dict, chosen_path, img, recolor):
     # make sure all locked portraits are the same as their original counterparts
     if recolor:
         img = removePalette(img)
+
+    if img.size[0] % Constants.PORTRAIT_SIZE != 0 or img.size[1] % Constants.PORTRAIT_SIZE != 0:
+        if recolor:
+            raise SpriteVerifyError("After palette bar removal, portrait has an invalid size of {0}, Not divisble by {1}x{1}".format(str(img.size), Constants.PORTRAIT_SIZE))
+        else:
+            raise SpriteVerifyError("Portrait has an invalid size of {0}, Not divisble by {1}x{1}".format(str(img.size), Constants.PORTRAIT_SIZE))
 
     in_data = img.getdata()
     changed_files = []

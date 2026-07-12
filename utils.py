@@ -48,7 +48,7 @@ def addToBounds(bounds: Tuple[int, int, int, int], add: Tuple[int, int], sub: bo
     return (bounds[0] + add[0] * mult, bounds[1] + add[1] * mult, bounds[2] + add[0] * mult, bounds[3] + add[1] * mult)
 
 
-def addLoc(loc1, loc2, sub: bool = False):
+def addLoc(loc1: Tuple[int, int], loc2: Tuple[int, int], sub: bool = False):
     mult = 1
     if sub:
         mult = -1

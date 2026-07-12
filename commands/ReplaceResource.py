@@ -8,23 +8,23 @@ import SpriteUtils
 if TYPE_CHECKING:
     from SpriteBot import SpriteBot, BotServer
 
-class ReplaceRessource(BaseCommand):
-    def __init__(self, spritebot: "SpriteBot", ressource_type: str):
+class ReplaceResource(BaseCommand):
+    def __init__(self, spritebot: "SpriteBot", resource_type: str):
         super().__init__(spritebot)
-        self.ressource_type = ressource_type
+        self.resource_type = resource_type
     
     def getRequiredPermission(self) -> PermissionLevel:
         return PermissionLevel.STAFF
     
     def getCommand(self) -> str:
-        return f"replace{self.ressource_type}"
+        return f"replace{self.resource_type}"
     
     def getSingleLineHelp(self, server_config: "BotServer") -> str:
-        return f"Replace the content of one {self.ressource_type} with another"
+        return f"Replace the content of one {self.resource_type} with another"
     
     def getMultiLineHelp(self, server_config: "BotServer") -> str:
         return f"`{server_config.prefix}{self.getCommand()} <Pokemon Name> [Pokemon Form] [Shiny] [Gender] -> <Pokemon Name 2> [Pokemon Form 2] [Shiny 2] [Gender 2]`\n" \
-        "Replaces the contents of one {self.ressource_type} with another.  " \
+        "Replaces the contents of one {self.resource_type} with another.  " \
         "Good for promoting scratch-made alternates to main.\n" \
         "`Pokemon Name` - Name of the Pokemon\n" \
         "`Form Name` - [Optional] Form name of the Pokemon\n" \
@@ -61,21 +61,21 @@ class ReplaceRessource(BaseCommand):
             await msg.channel.send(msg.author.mention + " Cannot move to the same location.")
             return
 
-        if not chosen_node_from.__dict__[self.ressource_type + "_required"]:
-            await msg.channel.send(msg.author.mention + " Cannot move when source {0} is unneeded.".format(self.ressource_type))
+        if not chosen_node_from.__dict__[self.resource_type + "_required"]:
+            await msg.channel.send(msg.author.mention + " Cannot move when source {0} is unneeded.".format(self.resource_type))
             return
-        if not chosen_node_to.__dict__[self.ressource_type + "_required"]:
-            await msg.channel.send(msg.author.mention + " Cannot move when destination {0} is unneeded.".format(self.ressource_type))
+        if not chosen_node_to.__dict__[self.resource_type + "_required"]:
+            await msg.channel.send(msg.author.mention + " Cannot move when destination {0} is unneeded.".format(self.resource_type))
             return
 
         try:
-            await self.spritebot.checkMoveLock(full_idx_from, chosen_node_from, full_idx_to, chosen_node_to, self.ressource_type)
+            await self.spritebot.checkMoveLock(full_idx_from, chosen_node_from, full_idx_to, chosen_node_to, self.resource_type)
         except SpriteUtils.SpriteVerifyError as e:
             await msg.channel.send(msg.author.mention + " Cannot move out the locked Pokemon specified as source:\n{0}".format(e.message))
             return
 
         try:
-            await self.spritebot.checkMoveLock(full_idx_to, chosen_node_to, full_idx_from, chosen_node_from, self.ressource_type)
+            await self.spritebot.checkMoveLock(full_idx_to, chosen_node_to, full_idx_from, chosen_node_from, self.resource_type)
         except SpriteUtils.SpriteVerifyError as e:
             await msg.channel.send(msg.author.mention + " Cannot replace the locked Pokemon specified as destination:\n{0}".format(e.message))
             return
@@ -84,12 +84,13 @@ class ReplaceRessource(BaseCommand):
         TrackerUtils.clearCache(chosen_node_from, True)
         TrackerUtils.clearCache(chosen_node_to, True)
 
-        TrackerUtils.replaceFolderPaths(self.spritebot.config.path, self.spritebot.tracker, self.ressource_type, full_idx_from, full_idx_to)
+        TrackerUtils.replaceFolderPaths(self.spritebot.config.path, self.spritebot.tracker, self.resource_type, full_idx_from, full_idx_to)
 
         await msg.channel.send(msg.author.mention + " Replaced {0} with {1}.".format(" ".join(name_seq_to), " ".join(name_seq_from)))
         # if the source is empty in sprite and portrait, and its subunits are empty in sprite and portrait
         # remind to delete
-        await msg.channel.send(msg.author.mention + " {0} is now empty. Use `!delete` if it is no longer needed.".format(" ".join(name_seq_from)))
+        server_config = self.spritebot.config.servers[str(msg.guild.id)]
+        await msg.channel.send(msg.author.mention + " {0} is now empty. Use `{1}delete` if it is no longer needed.".format(" ".join(name_seq_from), server_config.prefix))
 
         self.spritebot.saveTracker()
         self.spritebot.changed = True
