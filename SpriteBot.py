@@ -98,7 +98,6 @@ class BotConfig:
         self.points = 0
         self.error_ch = 0
         self.points_ch = 0
-        self.points_user = 0
         self.update_ch = 0
         self.update_msg = 0
         self.use_bounties = False
@@ -1020,9 +1019,9 @@ class SpriteBot:
             if bounty_points > 0:
                 reward_changes.append(str(bounty_points))
 
-            if len(reward_changes) > 0 and orig_author.startswith("<@!") and self.config.points_ch != 0 and self.config.points_user != 0:
+            if len(reward_changes) > 0 and orig_author.startswith("<@!") and self.config.points_ch != 0 and self.config.points != 0:
                 orig_author_id = orig_author[3:-1]
-                await self.client.get_channel(self.config.points_ch).send("<@!{0}> !gr {1} {2} {3}".format(self.config.points_user, orig_author_id, "+".join(reward_changes), self.config.servers[str(msg.guild.id)].chat))
+                await self.client.get_channel(self.config.points_ch).send("<@!{0}> !gr {1} {2} {3}".format(self.config.points, orig_author_id, "+".join(reward_changes), self.config.servers[str(msg.guild.id)].chat))
 
 
             if not is_shiny:
@@ -1945,7 +1944,7 @@ class SpriteBot:
                 return
         else:
             channel = self.client.get_channel(self.config.points_ch)
-            resp = await channel.send("<@!{0}> !checkr {1}".format(self.config.points_user, msg.author.id))
+            resp = await channel.send("<@!{0}> !checkr {1}".format(self.config.points, msg.author.id))
 
             # check for enough points
             def check(m):
@@ -1963,7 +1962,7 @@ class SpriteBot:
             if cur_amt < amt:
                 await msg.channel.send(msg.author.mention + " Not enough guild points! You currently have **{0}GP**.".format(cur_amt))
                 return
-            resp = await channel.send("<@!{0}> !tr {0} {1} {2}".format(self.config.points_user, msg.author.id, amt, msg.channel.id))
+            resp = await channel.send("<@!{0}> !tr {0} {1} {2}".format(self.config.points, msg.author.id, amt, msg.channel.id))
 
             try:
                 wait_msg = await client.wait_for('message', check=check, timeout=10.0)
