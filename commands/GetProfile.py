@@ -1,5 +1,6 @@
 from abc import ABCMeta, abstractmethod
 from .BaseCommand import BaseCommand
+from Constants import PermissionLevel
 from typing import TYPE_CHECKING, List
 import discord
 
@@ -7,6 +8,9 @@ if TYPE_CHECKING:
     from SpriteBot import SpriteBot, BotServer
 
 class GetProfile(BaseCommand):
+    def getRequiredPermission(self) -> PermissionLevel:
+        return PermissionLevel.EVERYONE
+
     def getCommand(self) -> str:
         return "profile"
     
