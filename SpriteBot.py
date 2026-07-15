@@ -1021,7 +1021,7 @@ class SpriteBot:
 
             if len(reward_changes) > 0 and orig_author.startswith("<@!") and self.config.points_ch != 0 and self.config.points != 0:
                 orig_author_id = orig_author[3:-1]
-                await self.client.get_channel(self.config.points_ch).send("<@!{0}> !gr {1} {2} {3}".format(self.config.points, orig_author_id, "+".join(reward_changes), self.config.servers[str(msg.guild.id)].chat))
+                await self.client.get_channel(self.config.points_ch).send("<@{0}> !gr {1} {2} {3}".format(self.config.points, orig_author_id, "+".join(reward_changes), self.config.servers[str(msg.guild.id)].chat))
 
 
             if not is_shiny:
