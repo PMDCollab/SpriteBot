@@ -1944,7 +1944,7 @@ class SpriteBot:
                 return
         else:
             channel = self.client.get_channel(self.config.points_ch)
-            resp = await channel.send("<@!{0}> !checkr {1}".format(self.config.points, msg.author.id))
+            resp = await channel.send("<@{0}> !checkr {1}".format(self.config.points, msg.author.id))
 
             # check for enough points
             def check(m):
@@ -1962,7 +1962,7 @@ class SpriteBot:
             if cur_amt < amt:
                 await msg.channel.send(msg.author.mention + " Not enough guild points! You currently have **{0}GP**.".format(cur_amt))
                 return
-            resp = await channel.send("<@!{0}> !tr {0} {1} {2}".format(self.config.points, msg.author.id, amt, msg.channel.id))
+            resp = await channel.send("<@{0}> !tr {0} {1} {2}".format(self.config.points, msg.author.id, amt, msg.channel.id))
 
             try:
                 wait_msg = await client.wait_for('message', check=check, timeout=10.0)
