@@ -1,7 +1,7 @@
 from typing import TYPE_CHECKING, List, Tuple
 from .BaseCommand import BaseCommand
 import TrackerUtils
-from Constants import PermissionLevel, MESSAGE_BOUNTIES_DISABLED, PHASES
+from Constants import PermissionLevel, PHASES
 import discord
 
 if TYPE_CHECKING:
@@ -18,20 +18,17 @@ class ListBounties(BaseCommand):
         return "View top bounties"
     
     def getMultiLineHelp(self, server_config: "BotServer") -> str:
-        if self.spritebot.config.use_bounties:
-            return f"`{server_config.prefix}{self.getCommand()} [Type]`\n" \
-                    "View the top sprites/portraits that have bounties placed on them.  " \
-                    "You will claim a bounty when you successfully submit that sprite/portrait.\n" \
-                    "`Type` - [Optional] Can be `sprite` or `portrait`\n" \
-                    + self.generateMultiLineExample(
-                        server_config.prefix,
-                        [
-                            "",
-                            "sprite"
-                        ]
-                    )
-        else:
-            return MESSAGE_BOUNTIES_DISABLED
+        return f"`{server_config.prefix}{self.getCommand()} [Type]`\n" \
+                "View the top sprites/portraits that have bounties placed on them.  " \
+                "You will claim a bounty when you successfully submit that sprite/portrait.\n" \
+                "`Type` - [Optional] Can be `sprite` or `portrait`\n" \
+                + self.generateMultiLineExample(
+                    server_config.prefix,
+                    [
+                        "",
+                        "sprite"
+                    ]
+                )
     
     def shouldListInHelp(self) -> bool:
         return self.spritebot.config.use_bounties
