@@ -59,6 +59,8 @@ from Constants import PHASES, PermissionLevel
 from utils import unpack_optional
 import psutil
 
+from discord import app_commands
+
 # Housekeeping for login information
 TOKEN_FILE_PATH = 'discord_token.txt'
 NAME_FILE_PATH = 'credit_names.txt'
@@ -92,6 +94,7 @@ class MyClient(discord.Client):
 intent = discord.Intents.default()
 intent.message_content = True
 client = MyClient(intents=intent)
+cmd_tree = app_commands.CommandTree(client)
 
 class BotServer:
 
@@ -231,81 +234,90 @@ class SpriteBot:
         self.saveNames()
 
         # register commands
-        self.commands = [
-            # everyone
-            QueryResourceStatus(self, "portrait", False),
-            QueryResourceStatus(self, "portrait", True),
-            QueryResourceStatus(self, "sprite", False),
-            QueryResourceStatus(self, "sprite", True),
-            AutoRecolorResource(self, "portrait"),
-            AutoRecolorResource(self, "sprite"),
-            ListResource(self, "portrait"),
-            ListResource(self, "sprite"),
-            QueryResourceCredit(self, "portrait", False),
-            QueryResourceCredit(self, "sprite", False),
-            QueryResourceCredit(self, "portrait", True),
-            QueryResourceCredit(self, "sprite", True),
-            DeleteResourceCredit(self, "portrait"),
-            DeleteResourceCredit(self, "sprite"),
-            GetProfile(self),
-            SetProfile(self, False),
-            GetAbsenteeProfiles(self),
-            # DeleteProfile(self, False),
-            # DeleteProfile(self, True),
+        self.commands = []
 
-            # staff
-            AddNode(self),
-            AddGender(self),
-            DeleteGender(self),
-            DeleteNode(self),
-            ClearCache(self),
-            SetProfile(self, True),
-            TransferProfile(self),
-            RenameNode(self),
-            ReplaceResource(self, "portrait"),
-            ReplaceResource(self, "sprite"),
-            MoveNode(self),
-            MoveResource(self, "portrait"),
-            MoveResource(self, "sprite"),
-            CloneResource(self, "portrait"),
-            CloneResource(self, "sprite"),
-            SetResourceCredit(self, "portrait"),
-            SetResourceCredit(self, "sprite"),
-            AddResourceCredit(self, "portrait"),
-            AddResourceCredit(self, "sprite"),
-            SetNeedNode(self, True),
-            SetNeedNode(self, False),
-            ModRewardNode(self),
-            SetResourceCompletion(self, "portrait", TrackerUtils.PHASE_INCOMPLETE),
-            SetResourceCompletion(self, "portrait", TrackerUtils.PHASE_EXISTS),
-            SetResourceCompletion(self, "portrait", TrackerUtils.PHASE_FULL),
-            SetResourceCompletion(self, "sprite", TrackerUtils.PHASE_INCOMPLETE),
-            SetResourceCompletion(self, "sprite", TrackerUtils.PHASE_EXISTS),
-            SetResourceCompletion(self, "sprite", TrackerUtils.PHASE_FULL),
-            ShowcaseResource(self),
+        # everyone
+        self.addCommand(QueryResourceStatus(self, "portrait", False))
+        self.addCommand(QueryResourceStatus(self, "portrait", True))
+        self.addCommand(QueryResourceStatus(self, "sprite", False))
+        self.addCommand(QueryResourceStatus(self, "sprite", True))
+        self.addCommand(AutoRecolorResource(self, "portrait"))
+        self.addCommand(AutoRecolorResource(self, "sprite"))
+        self.addCommand(ListResource(self, "portrait"))
+        self.addCommand(ListResource(self, "sprite"))
+        self.addCommand(QueryResourceCredit(self, "portrait", False))
+        self.addCommand(QueryResourceCredit(self, "sprite", False))
+        self.addCommand(QueryResourceCredit(self, "portrait", True))
+        self.addCommand(QueryResourceCredit(self, "sprite", True))
+        self.addCommand(DeleteResourceCredit(self, "portrait"))
+        self.addCommand(DeleteResourceCredit(self, "sprite"))
+        self.addCommand(GetProfile(self))
+        self.addCommand(SetProfile(self, False))
+        self.addCommand(GetAbsenteeProfiles(self))
+        # self.addCommand(DeleteProfile(self, False))
+        # self.addCommand(DeleteProfile(self, True))
 
-            # admin
-            SetResourceLock(self, "portrait", True),
-            SetResourceLock(self, "portrait", False),
-            SetResourceLock(self, "sprite", True),
-            SetResourceLock(self, "sprite", False),
-            SetNodeCanon(self, True),
-            SetNodeCanon(self, False),
-            ForcePush(self),
-            Rescan(self),
-            Update(self),
-            Shutdown(self)
-        ]
+        # staff
+        self.addCommand(AddNode(self))
+        self.addCommand(AddGender(self))
+        self.addCommand(DeleteGender(self))
+        self.addCommand(DeleteNode(self))
+        self.addCommand(ClearCache(self))
+        self.addCommand(SetProfile(self, True))
+        self.addCommand(TransferProfile(self))
+        self.addCommand(RenameNode(self))
+        self.addCommand(ReplaceResource(self, "portrait"))
+        self.addCommand(ReplaceResource(self, "sprite"))
+        self.addCommand(MoveNode(self))
+        self.addCommand(MoveResource(self, "portrait"))
+        self.addCommand(MoveResource(self, "sprite"))
+        self.addCommand(CloneResource(self, "portrait"))
+        self.addCommand(CloneResource(self, "sprite"))
+        self.addCommand(SetResourceCredit(self, "portrait"))
+        self.addCommand(SetResourceCredit(self, "sprite"))
+        self.addCommand(AddResourceCredit(self, "portrait"))
+        self.addCommand(AddResourceCredit(self, "sprite"))
+        self.addCommand(SetNeedNode(self, True))
+        self.addCommand(SetNeedNode(self, False))
+        self.addCommand(ModRewardNode(self))
+        self.addCommand(SetResourceCompletion(self, "portrait", TrackerUtils.PHASE_INCOMPLETE))
+        self.addCommand(SetResourceCompletion(self, "portrait", TrackerUtils.PHASE_EXISTS))
+        self.addCommand(SetResourceCompletion(self, "portrait", TrackerUtils.PHASE_FULL))
+        self.addCommand(SetResourceCompletion(self, "sprite", TrackerUtils.PHASE_INCOMPLETE))
+        self.addCommand(SetResourceCompletion(self, "sprite", TrackerUtils.PHASE_EXISTS))
+        self.addCommand(SetResourceCompletion(self, "sprite", TrackerUtils.PHASE_FULL))
+        self.addCommand(ShowcaseResource(self))
+
+        # admin
+        self.addCommand(SetResourceLock(self, "portrait", True))
+        self.addCommand(SetResourceLock(self, "portrait", False))
+        self.addCommand(SetResourceLock(self, "sprite", True))
+        self.addCommand(SetResourceLock(self, "sprite", False))
+        self.addCommand(SetNodeCanon(self, True))
+        self.addCommand(SetNodeCanon(self, False))
+        self.addCommand(ForcePush(self))
+        self.addCommand(Rescan(self))
+        self.addCommand(Update(self))
+        self.addCommand(Shutdown(self))
+
 
         if self.config.use_bounties:
-            self.commands += [ListBounties(self),
-                              AddResourceBounty(self, "portrait"),
-                              AddResourceBounty(self, "sprite"),
-                              ]
+            self.addCommand(ListBounties(self))
+            self.addCommand(AddResourceBounty(self, "portrait"))
+            self.addCommand(AddResourceBounty(self, "sprite"))
 
 
         self.writeLog("Startup Memory: {0}".format(psutil.Process().memory_info().rss))
         print("Info Initiated")
+
+    def addCommand(self, cmd):
+        # command = app_commands.Command(
+        #     name=cmd.GetCommand(),
+        #     description=cmd.getMultiLineHelp(self.config),
+        #     callback=func,
+        # )
+        # cmd.add_command(command, guild=guild, guilds=guilds)
+        self.commands.append(cmd)
 
     def generateCreditCompilation(self):
 
@@ -1916,10 +1928,9 @@ class SpriteBot:
         self.saveConfig()
         await msg.channel.send(msg.author.mention + " Initialized bot to this server!")
 
-
-    async def help(self, msg, args, permission_level: PermissionLevel):
-        list_commands = len(args) == 0
-        server_config = self.config.servers[str(msg.guild.id)]
+    async def help(self, channel, author, base_arg, permission_level: PermissionLevel):
+        list_commands = base_arg is None
+        server_config = self.config.servers[str(channel.guild.id)]
         prefix = server_config.prefix
         if list_commands:
             return_msg = "**Commands**\n"
@@ -1929,7 +1940,6 @@ class SpriteBot:
 
             return_msg +=  f"Type `{prefix}help` with the name of a command to learn more about it."
         else:
-            base_arg = args[0]
             return_msg = None
             for command in self.commands:
                 if command.getCommand() == base_arg:
@@ -1939,7 +1949,7 @@ class SpriteBot:
                 pass
             else:
                 return_msg = "Unknown Command."
-        await msg.channel.send(msg.author.mention + " {0}".format(return_msg))
+        await channel.send(author.mention + " {0}".format(return_msg))
 
 
 @client.event
@@ -1947,10 +1957,22 @@ async def on_ready():
     print('Logged in as')
     print(client.user.name) # type: ignore
     print(client.user.id) # type: ignore
+    await cmd_tree.sync()
+    print('Command tree synced globally')
     global sprite_bot
     await sprite_bot.checkAllSubmissions()
     await sprite_bot.checkRestarted()
     print('------')
+
+@cmd_tree.command(name="help", description="Displays commands available to users, or details about a specific command.")
+@app_commands.describe(message="The command to get help on.")
+async def help(interaction: discord.Interaction, message: str | None):
+    await sprite_bot.help(interaction.channel, interaction.user, message, PermissionLevel.EVERYONE)
+
+@cmd_tree.command(name="staffhelp", description="Displays commands available to approvers, or details about a specific command.")
+@app_commands.describe(message="The command to get help on.")
+async def staffhelp(interaction: discord.Interaction, message: str | None):
+    await sprite_bot.help(interaction.channel, interaction.user, message, PermissionLevel.STAFF)
 
 
 @client.event
@@ -1996,7 +2018,6 @@ async def on_message(msg: discord.Message):
                 return
 
             base_arg = cmd_args[0].lower()
-
             user_permission = await sprite_bot.getUserPermission(msg.author, msg.guild)
 
             for command in sprite_bot.commands:
@@ -2009,9 +2030,15 @@ async def on_message(msg: discord.Message):
                     return
 
             if base_arg == "help":
-                await sprite_bot.help(msg, cmd_args[1:], PermissionLevel.EVERYONE)
+                base_cmd = None
+                if len(cmd_args) > 1:
+                    base_cmd = cmd_args[1]
+                await sprite_bot.help(msg.channel, msg.author, base_cmd, PermissionLevel.EVERYONE)
             elif base_arg == "staffhelp":
-                await sprite_bot.help(msg, cmd_args[1:], PermissionLevel.STAFF)
+                base_cmd = None
+                if len(cmd_args) > 1:
+                    base_cmd = cmd_args[1]
+                await sprite_bot.help(msg.channel, msg.author, base_cmd, PermissionLevel.STAFF)
             else:
                 await msg.channel.send(msg.author.mention + " Unknown Command. Run \"" + sprite_bot.client.user.mention + " help\" for commands.")
 
