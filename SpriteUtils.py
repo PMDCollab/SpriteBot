@@ -212,7 +212,7 @@ def animateFileZip(inFile, anim):
 
                 total_durations.append(durations[jj] * 20)
 
-                full_frame = Image.new('RGBA', final_size, (0, 128, 128, 0))
+                full_frame = Image.new('RGBA', final_size, (0, 128, 128, 255))
                 full_frame.paste(new_shadow_tex, (paste_loc[0], paste_loc[1]), new_shadow_tex)
                 full_frame.paste(new_tile_tex, (paste_loc[0], paste_loc[1]), new_tile_tex)
                 img_list.append(full_frame)
