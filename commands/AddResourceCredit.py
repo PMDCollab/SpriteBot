@@ -48,7 +48,7 @@ class AddResourceCredit(BaseCommand):
             return
 
         wanted_author = self.spritebot.getFormattedCredit(args[0])
-        name_seq = [TrackerUtils.sanitizeName(i) for i in args[1:]]
+        name_seq = [TrackerUtils.sanitizeName(i) for i in args[1:-1]]
         full_idx = TrackerUtils.findFullTrackerIdx(self.spritebot.tracker, name_seq, 0)
         if full_idx is None:
             await msg.channel.send(msg.author.mention + " No such Pokemon.")
