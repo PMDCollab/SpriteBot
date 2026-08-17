@@ -29,7 +29,6 @@ class SpriteVerifyError(Exception):
         self.preview_img = preview_img
         super().__init__(self.message)
 
-
 class AnimStat:
 
     def __init__(self, index, name, size, backref):
@@ -478,6 +477,7 @@ def compareSpriteRecolorDiff(orig_anim_img, shiny_anim_img, anim_name,
                 shiny_palette[shiny_color] += 1
 
 def verifySpriteRecolor(msg_args, precolor_zip, wan_zip, recolor, checkSilhouette):
+    warnings = []
     orig_palette = {} # type: ignore
     shiny_palette = {} # type: ignore
     trans_diff = {} # type: ignore
@@ -567,8 +567,8 @@ def verifySpriteRecolor(msg_args, precolor_zip, wan_zip, recolor, checkSilhouett
         palette_diff = len(shiny_palette) - len(orig_palette)
         if palette_diff != 0:
             if msg_args.colormod != palette_diff:
-                base_str = "Recolor has {0} colors compared to the original.\nIf this was intended, resubmit and specify `--colormod {0}` in the message."
-                raise SpriteVerifyError(base_str.format(palette_diff))
+                base_str = "WARNING: Recolor has {0} colors compared to the original."
+                warnings.append(base_str.format(palette_diff))
 
     # then, check the colors
     if len(shiny_palette) > 15:
@@ -583,8 +583,10 @@ def verifySpriteRecolor(msg_args, precolor_zip, wan_zip, recolor, checkSilhouett
             raise SpriteVerifyError("The sprite has {0} non-transparent colors with only 15 allowed.\n"
                                     "If this is acceptable, include `--colors {0}` in the message."
                                     "  Otherwise reduce colors for the sprite.".format(len(shiny_palette)), reduced_img)
+    return warnings
 
 def verifyPortraitRecolor(msg_args, orig_img, img, recolor):
+    warnings = []
     if orig_img.size != img.size:
         raise SpriteVerifyError("Recolor has dimensions {0} instead of {1}.".format(str(img.size), str(orig_img.size)))
 
@@ -629,8 +631,8 @@ def verifyPortraitRecolor(msg_args, orig_img, img, recolor):
     palette_diff = comparePalette(orig_img, img)
     if palette_diff != 0:
         if msg_args.colormod != palette_diff:
-            base_str = "Recolor has `{0}` colors compared to the original.\nIf this was intended, resubmit and specify `--colormod {0}` in the message."
-            raise SpriteVerifyError(base_str.format(palette_diff))
+            base_str = "WARNING: Recolor has `{0}` colors compared to the original."
+            warnings.append(base_str.format(palette_diff))
 
     overpalette = getPortraitOverpalette(img)
 
@@ -643,6 +645,8 @@ def verifyPortraitRecolor(msg_args, orig_img, img, recolor):
             raise SpriteVerifyError("Some emotions have over 15 colors.\n" \
                    "If this is acceptable, include `--overcolor` in the message.  Otherwise reduce colors for emotes:\n" \
                    "{0}".format(str(rogue_emotes)[:1900]), reduced_img)
+
+    return warnings
 
 def getPortraitOverpalette(img):
     palette_counts = {}

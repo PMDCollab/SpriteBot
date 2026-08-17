@@ -600,8 +600,6 @@ class SpriteBot:
                         orig_zip_group = SpriteUtils.getLinkZipGroup(orig_group_link)
                     else:
                         orig_zip = SpriteUtils.getLinkZipGroup(orig_link)
-                except SpriteUtils.SpriteVerifyError as e:
-                    await self.returnMsgFile(msg, None, msg.author.mention + " A problem occurred reading original sprite.", asset_type)
                 except Exception as e:
                     await self.returnMsgFile(msg, None, msg.author.mention + " A problem occurred reading original sprite.", asset_type)
                     raise e
@@ -612,7 +610,8 @@ class SpriteBot:
                 if TrackerUtils.isShinyIdx(full_idx):
                     SpriteUtils.verifySpriteRecolor(msg_args, orig_zip, wan_zip, recolor, True)
                 elif base_idx is not None:
-                    SpriteUtils.verifySpriteRecolor(msg_args, orig_zip, wan_zip, recolor, False)
+                    warnings = SpriteUtils.verifySpriteRecolor(msg_args, orig_zip, wan_zip, recolor, False)
+                    await self.warnSubmission(msg, warnings)
                 else:
                     SpriteUtils.verifySprite(msg_args, wan_zip)
             except SpriteUtils.SpriteVerifyError as e:
@@ -660,7 +659,8 @@ class SpriteBot:
             try:
                 diffs = SpriteUtils.verifyPortraitLock(chosen_node, chosen_path, img, recolor)
                 if TrackerUtils.isShinyIdx(full_idx):
-                    SpriteUtils.verifyPortraitRecolor(msg_args, orig_img, img, recolor)
+                    warnings = SpriteUtils.verifyPortraitRecolor(msg_args, orig_img, img, recolor)
+                    await self.warnSubmission(msg, warnings)
                 else:
                     SpriteUtils.verifyPortrait(msg_args, img)
             except SpriteUtils.SpriteVerifyError as e:
@@ -672,6 +672,10 @@ class SpriteBot:
             return False, None
 
         return True, diffs
+
+    async def warnSubmission(self, msg, warnings):
+        for warning in warnings:
+            await self.getChatChannel(msg.guild.id).send(msg.author.mention + " " + msg.attachments[0].filename + "\n" + warning)
 
     async def returnMsgFile(self, msg, thread, msg_body, asset_type, quant_img=None):
         try:
