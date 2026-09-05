@@ -95,7 +95,7 @@ class AddResourceBounty(BaseCommand):
             if cur_amt < amt:
                 await msg.channel.send(msg.author.mention + " Not enough guild points! You currently have **{0}GP**.".format(cur_amt))
                 return
-            resp = await channel.send("<@{0}> !tr {0} {1} {2}".format(self.spritebot.config.points, msg.author.id, amt, msg.channel.id))
+            resp = await channel.send("<@{0}> !tr {1} {2} {3}".format(self.spritebot.config.points, msg.author.id, amt, msg.channel.id))
 
             try:
                 wait_msg = await self.spritebot.client.wait_for('message', check=check, timeout=10.0)
