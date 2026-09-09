@@ -701,6 +701,19 @@ class SpriteBot:
         await msg.delete()
 
 
+    async def returnBadFile(self, msg, return_msg_body):
+        try:
+            return_file, return_name = SpriteUtils.getLinkData(msg.attachments[0].url)
+            await self.getChatChannel(msg.guild.id).send(return_msg_body, file=discord.File(return_file, return_name))
+
+        except SpriteUtils.SpriteVerifyError as e:
+            await self.getChatChannel(msg.guild.id).send(return_msg_body + "\n(An error occurred with the file)")
+        except Exception as e:
+            await self.getChatChannel(msg.guild.id).send(return_msg_body + "\n(An error occurred with the file)")
+            await self.sendError(traceback.format_exc())
+        await msg.delete()
+
+
     async def stageSubmission(self, msg, split_args, full_idx, chosen_node, asset_type, author, recolor, diffs, overcolor):
 
         try:
@@ -815,19 +828,23 @@ class SpriteBot:
         file_name = msg.attachments[0].filename
         file_valid, full_idx, asset_type, recolor = TrackerUtils.getStatsFromFilename(file_name)
         if not file_valid:
-            await self.getChatChannel(msg.guild.id).send(orig_sender + " " + "Removed unknown file: {0}".format(file_name))
-            await msg.delete()
+            await self.returnBadFile(msg, orig_sender + " " + "Removed unknown file: {0}".format(file_name))
             return
 
         assert full_idx is not None
         assert asset_type is not None
         assert recolor is not None
 
-        # TODO: refactor with above code
         chosen_node = TrackerUtils.getNodeFromIdx(self.tracker, full_idx, 0)
+        # TODO: refactor with above code
+        chosen_node = None
+        try:
+            chosen_node = unpack_optional(TrackerUtils.getNodeFromIdx(self.tracker, full_idx, 0))
+        except:
+            pass
+
         if not chosen_node:
-            await self.getChatChannel(msg.guild.id).send(orig_sender + " " + "Removed unknown file: {0}".format(file_name))
-            await msg.delete()
+            await self.returnBadFile(msg, orig_sender + " " + "Removed unknown file: {0}".format(file_name))
             return
 
         chosen_path = TrackerUtils.getDirFromIdx(self.config.path, asset_type, full_idx)
@@ -920,9 +937,7 @@ class SpriteBot:
                     try:
                         recolor_img = SpriteUtils.getLinkImg(msg.attachments[0].url)
                     except Exception as e:
-                        await self.getChatChannel(msg.guild.id).send(
-                            orig_sender + " " + "Removed unknown file: {0}".format(file_name))
-                        await msg.delete()
+                        await self.returnBadFile(msg, orig_sender + " " + "Removed unknown file: {0}".format(file_name))
                         raise e
                     SpriteUtils.placeSpriteRecolorToPath(orig_path, recolor_img, gen_path)
                 else:
@@ -932,8 +947,7 @@ class SpriteBot:
                 try:
                     portrait_img = SpriteUtils.getLinkImg(msg.attachments[0].url)
                 except Exception as e:
-                    await self.getChatChannel(msg.guild.id).send(orig_sender + " " + "Removed unknown file: {0}".format(file_name))
-                    await msg.delete()
+                    await self.returnBadFile(msg, orig_sender + " " + "Removed unknown file: {0}".format(file_name))
                     raise e
 
                 if recolor:
@@ -1204,8 +1218,7 @@ class SpriteBot:
         file_name = msg.attachments[0].filename
         file_valid, full_idx, asset_type, recolor = TrackerUtils.getStatsFromFilename(file_name)
         if not file_valid:
-            await self.getChatChannel(msg.guild.id).send(orig_sender + " " + "Removed unknown file: {0}".format(file_name))
-            await msg.delete()
+            await self.returnBadFile(msg, orig_sender + " " + "Removed unknown file: {0}".format(file_name))
             return
 
         assert full_idx is not None
@@ -1213,10 +1226,14 @@ class SpriteBot:
         assert recolor is not None
 
         # TODO: refactor with above code
-        chosen_node = unpack_optional(TrackerUtils.getNodeFromIdx(self.tracker, full_idx, 0))
+        chosen_node = None
+        try:
+            chosen_node = unpack_optional(TrackerUtils.getNodeFromIdx(self.tracker, full_idx, 0))
+        except:
+            pass
+
         if not chosen_node:
-            await self.getChatChannel(msg.guild.id).send(orig_sender + " " + "Removed unknown file: {0}".format(file_name))
-            await msg.delete()
+            await self.returnBadFile(msg, orig_sender + " " + "Removed unknown file: {0}".format(file_name))
             return
 
         review_thread = await self.retrieveDiscussion(full_idx, chosen_node, asset_type, msg.guild.id)
