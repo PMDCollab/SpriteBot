@@ -2032,7 +2032,7 @@ async def on_message(msg: discord.Message):
 
         if msg.channel.id == server.chat:
 
-            sprite_bot.updatePastWork()
+            sprite_bot.updatePastWork(msg)
 
             prefix = server.prefix
             if content.startswith('!'):
