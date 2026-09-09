@@ -52,6 +52,7 @@ from commands.SetNodeCanon import SetNodeCanon
 from commands.SetNeedNode import SetNeedNode
 from commands.ForcePush import ForcePush
 from commands.Rescan import Rescan
+from commands.PastWork import PastWork
 from commands.Update import Update
 from commands.Shutdown import Shutdown
 
@@ -124,6 +125,7 @@ class BotConfig:
         self.push = False
         self.bluesky = False
         self.mastodon = False
+        self.index_wip = True
         self.last_tl_mention = 0
         self.points = 0
         self.error_ch = 0
@@ -254,6 +256,7 @@ class SpriteBot:
         self.addCommand(GetProfile(self))
         self.addCommand(SetProfile(self, False))
         self.addCommand(GetAbsenteeProfiles(self))
+        self.addCommand(PastWork(self))
         # self.addCommand(DeleteProfile(self, False))
         # self.addCommand(DeleteProfile(self, True))
 
@@ -1258,6 +1261,21 @@ class SpriteBot:
             self.saveTracker()
             self.changed = True
 
+
+    async def updatePastWork(self, msg):
+        # updates the index
+        if self.config.index_wip and len(msg.attachments) > 0:
+            file_name = msg.attachments[0].filename
+            name_valid, full_idx, asset_type, recolor = TrackerUtils.getStatsFromFilename(file_name)
+
+            chosen_node = TrackerUtils.getNodeFromIdx(self.tracker, full_idx, 0)
+            if chosen_node:
+                msg_link = "https://discord.com/channels/{0}/{1}/{2}".format(msg.guild.id, msg.channel.id, msg.id)
+                chosen_node.past_work.append(msg_link)
+                if len(chosen_node.past_work) > 3:
+                    del chosen_node.past_work[0]
+
+
     """
     Returns true if anything changed that would require a tracker save
     """
@@ -2013,6 +2031,9 @@ async def on_message(msg: discord.Message):
         server = sprite_bot.config.servers[guild_id_str]
 
         if msg.channel.id == server.chat:
+
+            sprite_bot.updatePastWork()
+
             prefix = server.prefix
             if content.startswith('!'):
                 await msg.channel.send(msg.author.mention + " Bot commands no longer use the `!` prefix. Instead, mention me at the beginning of the message.")

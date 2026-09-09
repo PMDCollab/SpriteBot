@@ -182,6 +182,7 @@ class TrackerNode:
 
         self.sprite_credit = CreditNode(node_dict["sprite_credit"])
         self.portrait_credit = CreditNode(node_dict["portrait_credit"])
+        self.past_work = []
 
     def getDict(self):
         node_dict = { }
