@@ -133,6 +133,9 @@ class BotConfig:
         self.update_ch = 0
         self.update_msg = 0
         self.use_bounties = False
+        self.approval_count_needed_deletion = 3
+        self.approval_count_needed_submit_sprite = 3
+        self.approval_count_needed_submit_portrait = 2
         self.servers: Dict[str, BotServer] = {}
 
         if main_dict is None:
@@ -1410,13 +1413,13 @@ class SpriteBot:
                 return False
             elif not warn:
                 if deleting:
-                    if len(approve) >= 3 and consent:
+                    if len(approve) >= self.config.approval_count_needed_deletion and consent:
                         await self.submissionApproved(msg, orig_sender, orig_author, approve, silent)
                         return False
-                elif asset_type == "sprite" and len(approve) >= 3:
+                elif asset_type == "sprite" and len(approve) >= self.config.approval_count_needed_submit_sprite:
                     await self.submissionApproved(msg, orig_sender, orig_author, approve, silent)
                     return False
-                elif asset_type == "portrait" and len(approve) >= 2:
+                elif asset_type == "portrait" and len(approve) >= self.config.approval_count_needed_submit_portrait:
                     await self.submissionApproved(msg, orig_sender, orig_author, approve, silent)
                     return False
 
@@ -2049,7 +2052,7 @@ async def on_message(msg: discord.Message):
 
         if msg.channel.id == server.chat:
 
-            sprite_bot.updatePastWork(msg)
+            await sprite_bot.updatePastWork(msg)
 
             prefix = server.prefix
             if content.startswith('!'):
